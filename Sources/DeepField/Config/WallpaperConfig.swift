@@ -13,12 +13,12 @@ struct WallpaperConfig: Codable, Equatable {
     var palette = PaletteConfig.gargantua
 
     // Image, applied to the scene's light before tone mapping and dithering. The defaults are
-    // neutral: they leave the picture exactly as it was before these existed.
+    // neutral apart from a light bloom.
     var contrast = 1.0
     var blackPoint = 0.0
     var highlights = 0.0           // highlight rolloff: compresses the brightest light
     var vignette = 0.0
-    var bloom = 0.0                // glow amount; 0 skips the bloom passes entirely
+    var bloom = 0.3                // glow amount; 0 skips the bloom passes entirely
     var bloomRadius = 0.03         // fraction of the frame's shorter side
     var bloomThreshold = 0.5       // tone-mapped brightness where the glow starts
 
