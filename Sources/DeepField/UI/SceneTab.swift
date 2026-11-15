@@ -1,16 +1,26 @@
 import SwiftUI
 
+/// Everything about the selected scene: its parameters, framing, colors, events, planets and
+/// camera. The scene itself is picked in the stage's gallery.
 struct SceneTab: View {
     @ObservedObject var store: ConfigStore
+
+    // UI state only, stored beside (not inside) the saved config
+    @AppStorage("ui.collapsed.planets") private var planetsCollapsed = false
+    @AppStorage("ui.collapsed.camera") private var cameraCollapsed = false
+
+    private var scene: SceneKind { store.config.scene }
 
     var body: some View {
         Form {
             Section {
-                Picker("Scene", selection: $store.config.scene) {
-                    ForEach(SceneKind.listed) { Text($0.title).tag($0) }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(scene.title.uppercased()).font(Theme.title)
+                    Text(scene.blurb).font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Section(store.config.scene.title) {
+            Section {
                 switch store.config.scene {
                 case .blackHole:
                     SliderRow(title: "Disk size", value: $store.config.diskSize, range: 8...18) { String(format: "%.1f", $0) }
@@ -37,7 +47,6 @@ struct SceneTab: View {
                     SliderRow(title: "Stream brightness", value: $store.config.tdeStreamBrightness, range: 0...2)
                     SliderRow(title: "Disk speed", value: $store.config.diskSpeed, range: 0.1...3)
                     Toggle("Jets", isOn: $store.config.tdeJets)
-                    SliderRow(title: "Viewing angle", value: $store.config.tdeView, range: 4...35) { String(format: "%.0f°", $0) }
                     Text("A star strays too close and overflows toward the hole. Tides stretch it into an egg, and a stream of its gas peels off the tip, spirals in, and feeds the accretion disk. The star, stream and jets are all bent by the hole's gravity.")
                         .font(.callout).foregroundStyle(.secondary)
                 case .pulsar:
@@ -83,40 +92,10 @@ struct SceneTab: View {
                 case .comet:
                     SliderRow(title: "Tail length", value: $store.config.cometTailLength, range: 0.3...2)
                     SliderRow(title: "Activity", value: $store.config.cometActivity, range: 0.2...2.5)
-                    FrequencyRow(title: "Outbursts and tail breaks", value: $store.config.cometEvents)
-                    LabeledContent("Show me") {
-                        HStack {
-                            Button("Outburst") { store.demo(EventSchedule.cometOutburst) }
-                            Button("Tail disconnection") { store.demo(EventSchedule.tailDisconnect) }
-                        }
-                    }
                 case .stellarSurface:
                     StarPicker(title: "Star", star: $store.config.closeStar)
                     SliderRow(title: "Sunspots", value: $store.config.starSpots, range: 0...1.5)
                     SliderRow(title: "Rotation", value: $store.config.starRotation, range: 0...4)
-                    SliderRow(title: "Zoom", value: $store.config.starZoom, range: WallpaperConfig.starZoomRange)
-                    SliderRow(title: "Horizontal position", value: $store.config.starCenterX, range: -1...1)
-                    SliderRow(title: "Top of the star", value: $store.config.starLimbY, range: -0.9...1)
-                    LabeledContent("Framing") {
-                        HStack {
-                            Button("Whole star") { frameStar(zoom: 0.45, x: 0, top: 0.8) }
-                            Button("Limb") { frameStar(zoom: 1, x: -0.15, top: 0.12) }
-                            Button("Close-up") { frameStar(zoom: 3, x: -0.1, top: -0.2) }
-                        }
-                    }
-                    FrequencyRow(title: "Flares and eruptions", value: $store.config.starFlares)
-                    LabeledContent("Show me") {
-                        VStack(alignment: .trailing) {
-                            HStack {
-                                Button("Flare") { store.demo(EventSchedule.stellarFlare) }
-                                Button("Surge") { store.demo(EventSchedule.surge) }
-                            }
-                            HStack {
-                                Button("Prominence eruption") { store.demo(EventSchedule.prominenceEruption) }
-                                Button("Coronal mass ejection") { store.demo(EventSchedule.coronalEjection) }
-                            }
-                        }
-                    }
                 case .galaxy:
                     Picker("Type", selection: $store.config.galaxyType) {
                         ForEach(GalaxyType.allCases) { Text($0.title).tag($0) }
@@ -133,18 +112,101 @@ struct SceneTab: View {
                          : "Visible mass only: orbital speed falls off like v ∝ 1/√r, so the outer disk lags far behind. This is what we'd expect without dark matter, and it doesn't match observations.")
                         .font(.callout).foregroundStyle(.secondary)
                 }
-            }
-            Section("Camera") {
-                if store.config.scene == .galaxy {
-                    SliderRow(title: "Viewing angle", value: $store.config.galaxyView, range: 5...85) { String(format: "%.0f°", $0) }
-                } else if store.config.scene == .tidalDisruption {
-                    Text("Set above.").foregroundStyle(.secondary)
-                } else {
-                    SliderRow(title: "Tilt", value: $store.config.tilt, range: 1...25) { String(format: "%.0f°", $0) }
+            } header: {
+                GroupHeader(title: "Parameters")
+            } footer: {
+                if [.binary, .trinary, .stellarSurface].contains(scene) {
+                    GroupFooter("These stars are colored by their star type.")
                 }
+            }
+            if scene == .stellarSurface {
+                Section {
+                    SliderRow(title: "Zoom", value: $store.config.starZoom, range: WallpaperConfig.starZoomRange)
+                    SliderRow(title: "Horizontal position", value: $store.config.starCenterX, range: -1...1)
+                    SliderRow(title: "Top of the star", value: $store.config.starLimbY, range: -0.9...1)
+                    LabeledContent("Framing") {
+                        HStack {
+                            Button("Whole star") { frameStar(zoom: 0.45, x: 0, top: 0.8) }
+                            Button("Limb") { frameStar(zoom: 1, x: -0.15, top: 0.12) }
+                            Button("Close-up") { frameStar(zoom: 3, x: -0.1, top: -0.2) }
+                        }
+                    }
+                } header: {
+                    GroupHeader(title: "Framing")
+                }
+            }
+            if SceneColors.hasContent(store.config) {
+                Section {
+                    SceneColors(store: store)
+                } header: {
+                    GroupHeader(title: "Colors")
+                }
+            }
+            events
+            if scene.hasPlanets {
+                Section {
+                    if !planetsCollapsed { PlanetsGroup(store: store) }
+                } header: {
+                    CollapsibleHeader(title: "Planets", collapsed: $planetsCollapsed)
+                } footer: {
+                    if !planetsCollapsed { GroupFooter(PlanetsGroup.footer) }
+                }
+            }
+            Section {
+                if !cameraCollapsed { camera }
+            } header: {
+                CollapsibleHeader(title: "Camera", collapsed: $cameraCollapsed)
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+    }
+
+    @ViewBuilder private var camera: some View {
+        switch scene {
+        case .galaxy:
+            SliderRow(title: "Viewing angle", value: $store.config.galaxyView, range: 5...85) { String(format: "%.0f°", $0) }
+        case .tidalDisruption:
+            SliderRow(title: "Viewing angle", value: $store.config.tdeView, range: 4...35) { String(format: "%.0f°", $0) }
+        default:
+            SliderRow(title: "Tilt", value: $store.config.tilt, range: 1...25) { String(format: "%.0f°", $0) }
+        }
+    }
+
+    /// The scene's own occasional events, for the scenes that have them.
+    @ViewBuilder private var events: some View {
+        switch scene {
+        case .comet:
+            Section {
+                FrequencyRow(title: "Outbursts and tail breaks", value: $store.config.cometEvents)
+                DemoGrid(store: store, demos: [("Outburst", EventSchedule.cometOutburst),
+                                               ("Tail disconnection", EventSchedule.tailDisconnect)])
+            } header: {
+                GroupHeader(title: "Events")
+            }
+        case .stellarSurface:
+            Section {
+                FrequencyRow(title: "Flares and eruptions", value: $store.config.starFlares)
+                DemoGrid(store: store, demos: [("Flare", EventSchedule.stellarFlare),
+                                               ("Surge", EventSchedule.surge),
+                                               ("Prominence eruption", EventSchedule.prominenceEruption),
+                                               ("Coronal mass ejection", EventSchedule.coronalEjection)])
+            } header: {
+                GroupHeader(title: "Events")
+            }
+        case .wormhole:
+            Section {
+                FrequencyRow(title: "Wormhole events", value: $store.config.wormholeEvents)
+                DemoGrid(store: store, demos: [("Something falls in", EventSchedule.infall),
+                                               ("Something comes out", EventSchedule.emergence),
+                                               ("Rim flare", EventSchedule.throatFlare),
+                                               ("Far-side supernova", EventSchedule.farSupernova)])
+            } header: {
+                GroupHeader(title: "Events")
+            }
+        default:
+            EmptyView()
+        }
     }
 
     private func frameStar(zoom: Double, x: Double, top: Double) {

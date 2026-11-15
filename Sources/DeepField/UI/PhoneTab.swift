@@ -1,44 +1,49 @@
 import SwiftUI
 
-/// iPhone wallpaper export: a portrait recomposition of the current scene as a still or a
-/// Live Photo. Replaces the window's landscape preview with a phone-shaped one while selected.
-struct PhoneTab: View {
+/// The phone preview on the stage while the Phone section is selected, in place of the
+/// landscape one. It owns the exporter's preview lifecycle.
+struct PhoneStage: View {
     @ObservedObject var store: ConfigStore
     @ObservedObject private var phone = PhoneExporter.shared
-    @State private var showClock = true
+    let showClock: Bool
 
-    static let previewHeight: CGFloat = 660
+    private static let box = CGSize(width: 394, height: 676)
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            preview
-            Form {
-                deviceSection
-                lookSection
-                exportSection
+        let options = phone.options
+        let aspect = CGFloat(options.width) / CGFloat(max(options.height, 1))
+        let h = min(Self.box.height, Self.box.width / aspect), w = h * aspect
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack {
+                Color.black
+                if let image = phone.preview {
+                    Image(decorative: image, scale: 1).resizable().interpolation(.high)
+                } else {
+                    ProgressView()
+                }
+                if showClock { clockGuide(height: h) }
             }
-            .formStyle(.grouped)
+            .frame(width: w, height: h)
+            .clipShape(RoundedRectangle(cornerRadius: w * 0.12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: w * 0.12, style: .continuous).stroke(.secondary.opacity(0.5)))
+            Text(readout)
+                .font(Theme.readout)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(height: 30)
         }
         .onAppear { phone.appear() }
         .onDisappear { phone.disappear() }
     }
 
-    private var aspect: CGFloat { CGFloat(phone.options.width) / CGFloat(max(phone.options.height, 1)) }
-
-    private var preview: some View {
-        let h = Self.previewHeight, w = h * aspect
-        return ZStack {
-            Color.black
-            if let image = phone.preview {
-                Image(decorative: image, scale: 1).resizable().interpolation(.high)
-            } else {
-                ProgressView()
-            }
-            if showClock { clockGuide(height: h) }
+    private var readout: String {
+        let o = phone.options
+        var s = "PHONE \(o.width)×\(o.height)  ·  " + (o.smooth ? "SMOOTH" : "DITHERED")
+        if !o.smooth {
+            let n = o.pixelSize == 0 ? MobileOptions.autoPixelSize(desktop: store.config.pixelSize) : o.pixelSize
+            s += "  ·  \(n) PX"
         }
-        .frame(width: w, height: h)
-        .clipShape(RoundedRectangle(cornerRadius: w * 0.12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: w * 0.12, style: .continuous).stroke(.secondary.opacity(0.5)))
+        return s
     }
 
     /// Roughly where the Lock Screen puts the date and the time.
@@ -54,9 +59,27 @@ struct PhoneTab: View {
         .foregroundStyle(.white.opacity(0.85))
         .allowsHitTesting(false)
     }
+}
+
+/// iPhone wallpaper export: a portrait recomposition of the current scene as a still or a
+/// Live Photo. Its preview is `PhoneStage`, on the stage.
+struct PhoneTab: View {
+    @ObservedObject var store: ConfigStore
+    @ObservedObject private var phone = PhoneExporter.shared
+    @Binding var showClock: Bool
+
+    var body: some View {
+        Form {
+            deviceSection
+            lookSection
+            exportSection
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+    }
 
     private var deviceSection: some View {
-        Section("iPhone") {
+        Section {
             Picker("Model", selection: $phone.model) {
                 ForEach(PhoneModel.presets) { Text($0.name).tag($0.key) }
                 Divider()
@@ -74,6 +97,8 @@ struct PhoneTab: View {
             } else {
                 LabeledContent("Size in pixels", value: "\(phone.options.width) × \(phone.options.height)")
             }
+        } header: {
+            GroupHeader(title: "iPhone")
         }
     }
 
@@ -101,10 +126,9 @@ struct PhoneTab: View {
                     .disabled(phone.options.framing == PhoneFraming())
             }
         } header: {
-            Text("Look")
+            GroupHeader(title: "Look")
         } footer: {
-            Text("Uses this scene's settings from the other tabs. Events are left out.")
-                .font(.callout).foregroundStyle(.secondary)
+            GroupFooter("Uses this scene's settings from the other sections. Events are left out.")
         }
     }
 
@@ -141,10 +165,9 @@ struct PhoneTab: View {
                 }
             }
         } header: {
-            Text("Export")
+            GroupHeader(title: "Export")
         } footer: {
-            Text("The Live Photo is a 3-second loop with orbits held still, paired with the still; press and hold it in Photos to play it. iOS 17 and later can play Live Photo wallpapers on the Lock Screen when it wakes, but often shows \"Motion not available\" for ones not taken with the Camera, so expect a still wallpaper there. Add to Photos reaches your iPhone through iCloud Photos; or AirDrop both files together.")
-                .font(.callout).foregroundStyle(.secondary)
+            GroupFooter("The Live Photo is a 3-second loop with orbits held still, paired with the still; press and hold it in Photos to play it. iOS 17 and later can play Live Photo wallpapers on the Lock Screen when it wakes, but often shows \"Motion not available\" for ones not taken with the Camera, so expect a still wallpaper there. Add to Photos reaches your iPhone through iCloud Photos; or AirDrop both files together.")
         }
         .disabled(phone.busy)
     }

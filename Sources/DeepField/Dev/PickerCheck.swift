@@ -1,8 +1,9 @@
 import AppKit
 
-/// `--check-picker outdir -captureTab 1`: opens the Customize window on the Colors tab (without
-/// the wallpaper windows, and without saving anything), and for a few pickers does what
-/// NSColorPanel does when you pick a color: sets the color well's color and sends its action.
+/// `--check-picker outdir -captureTab 0`: opens the Customize window on the Scene section, whose
+/// Colors group holds the scene's pickers (without the wallpaper windows, and without saving
+/// anything), and for a few pickers does what NSColorPanel does when you pick a color: sets the
+/// color well's color and sends its action.
 /// Then it checks that the setting holds the pick, that the change notification went out, that
 /// the live preview's next frame drew with it, and that a frame rendered from it differs from
 /// the one before. Writes before/after snapshots to `outdir`. Exits 1 on any failure.
@@ -59,7 +60,7 @@ enum PickerCheck {
             }
             let t = cases[i]
             store.config.scene = t.scene
-            // let SwiftUI rebuild the tab for the scene and the preview bake
+            // let SwiftUI rebuild the section for the scene and the preview bake
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 print("\(t.name) (\(t.scene.rawValue))")
                 let before = store.config

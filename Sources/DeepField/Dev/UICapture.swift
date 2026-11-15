@@ -2,7 +2,8 @@ import AppKit
 
 extension CustomizeWindowController {
     /// Dev aid: `--capture-ui out.png` opens the window, saves an image of it, and quits.
-    /// `-captureTab N` picks the tab and `-captureScene name` the scene (not saved).
+    /// `-captureTab N` picks the section (0 Scene, 1 Sky, 2 Image, 3 System, 4 Phone) and
+    /// `-captureScene name` the scene (not saved).
     func captureForDebug(to path: String) {
         if let name = UserDefaults.standard.string(forKey: "captureScene"), let scene = SceneKind(rawValue: name) {
             ConfigStore.shared.persists = false

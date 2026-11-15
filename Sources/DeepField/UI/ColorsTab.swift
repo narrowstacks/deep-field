@@ -1,23 +1,33 @@
 import SwiftUI
 
-/// Only the colors the selected scene actually draws with, plus the background sky every scene
-/// shares.
-struct ColorsTab: View {
+/// One color per row: the inspector is too narrow for pickers side by side.
+struct ColorRow: View {
+    let title: String
+    let selection: Binding<Color>
+
+    init(_ title: String, _ selection: Binding<Color>) {
+        self.title = title
+        self.selection = selection
+    }
+
+    var body: some View {
+        ColorPicker(title, selection: selection, supportsOpacity: false)
+    }
+}
+
+extension ConfigStore {
+    /// A color picker binding for a palette color.
+    func color(palette kp: WritableKeyPath<PaletteConfig, RGB>) -> Binding<Color> {
+        color((\WallpaperConfig.palette).appending(path: kp))
+    }
+}
+
+/// Only the colors the selected scene actually draws with. Each color is what that part shows
+/// where it's typically lit.
+struct SceneColors: View {
     @ObservedObject var store: ConfigStore
 
     private var scene: SceneKind { store.config.scene }
-
-    private func color(_ kp: WritableKeyPath<PaletteConfig, RGB>) -> Binding<Color> {
-        store.color((\WallpaperConfig.palette).appending(path: kp))
-    }
-
-    private func picker(_ title: String, _ kp: WritableKeyPath<WallpaperConfig, RGB>) -> some View {
-        ColorPicker(title, selection: store.color(kp), supportsOpacity: false)
-    }
-
-    private func picker(_ title: String, palette kp: WritableKeyPath<PaletteConfig, RGB>) -> some View {
-        ColorPicker(title, selection: color(kp), supportsOpacity: false)
-    }
 
     /// Scenes whose look comes from the shared palette, so its presets mean something there.
     private var usesPalette: Bool {
@@ -28,158 +38,117 @@ struct ColorsTab: View {
         }
     }
 
+    /// False when the scene has no colors of its own to show, so the group can be left out.
+    static func hasContent(_ c: WallpaperConfig) -> Bool {
+        switch c.scene {
+        case .binary, .trinary, .stellarSurface: false
+        case .pulsar: c.pulsarBeams != .none || c.pulsarFieldLines || c.pulsarRing || c.pulsarNebula
+        default: true
+        }
+    }
+
     var body: some View {
-        Form {
-            Section {
-                if usesPalette {
-                    LabeledContent("Preset") {
-                        HStack {
-                            ForEach(PaletteConfig.presets, id: \.0) { name, palette in
-                                Button(name) { store.config.palette = palette }
-                            }
-                        }
-                    }
-                }
-            } footer: {
-                Text("Showing the colors for \(scene.title). Switch scenes on the Scene tab to edit others. Each color is what that part shows where it's typically lit.")
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-            ImageSection(store: store)
-            sceneSections
-            Section("Background sky") {
-                HStack {
-                    picker("Nebula", palette: \.nebulaA)
-                    picker("Nebula wisps", palette: \.nebulaB)
-                    picker("Galaxies", palette: \.galaxy)
-                }
-                HStack {
-                    picker("Warm stars", palette: \.starWarm)
-                    picker("Cool stars", palette: \.starCool)
-                }
-            }
-        }
-        .formStyle(.grouped)
+        if usesPalette { PalettePresets(store: store) }
+        sceneRows
     }
 
-    @ViewBuilder private var diskPickers: some View {
-        HStack {
-            picker("Receding side", palette: \.receding)
-            picker("Approaching side", palette: \.approaching)
-            picker("Hot core", palette: \.core)
-        }
+    @ViewBuilder private var diskRows: some View {
+        ColorRow("Receding side", store.color(palette: \.receding))
+        ColorRow("Approaching side", store.color(palette: \.approaching))
+        ColorRow("Hot core", store.color(palette: \.core))
     }
 
-    @ViewBuilder private var sceneSections: some View {
+    @ViewBuilder private var sceneRows: some View {
         switch scene {
         case .blackHole:
-            Section("Accretion disk") {
-                diskPickers
-                picker("Photon ring", palette: \.ring)
-            }
+            diskRows
+            ColorRow("Photon ring", store.color(palette: \.ring))
         case .tidalDisruption:
-            Section("Accretion disk") {
-                Picker("Disk colors", selection: $store.config.tdeDiskColors) {
-                    ForEach(TDEDiskColors.allCases) { Text($0.title).tag($0) }
-                }
-                if store.config.tdeDiskColors == .palette { diskPickers }
-                picker("Photon ring", palette: \.ring)
+            Picker("Disk colors", selection: $store.config.tdeDiskColors) {
+                ForEach(TDEDiskColors.allCases) { Text($0.title).tag($0) }
             }
-            if store.config.tdeJets {
-                Section("Jets") { picker("Jet color", \.tdeJetColor) }
-            }
+            if store.config.tdeDiskColors == .palette { diskRows }
+            ColorRow("Photon ring", store.color(palette: \.ring))
+            if store.config.tdeJets { ColorRow("Jet color", store.color(\.tdeJetColor)) }
         case .wormhole:
-            Section("Wormhole") {
-                picker("Rim", palette: \.ring)
-                HStack {
-                    picker("Other universe glow", palette: \.farA)
-                    picker("Other universe wisps", palette: \.farB)
-                }
-            }
+            ColorRow("Rim", store.color(palette: \.ring))
+            ColorRow("Other universe glow", store.color(palette: \.farA))
+            ColorRow("Other universe wisps", store.color(palette: \.farB))
         case .galaxy:
-            Section("Galaxy") {
-                HStack {
-                    picker("Old stars", palette: \.galaxyCore)
-                    picker("Young stars", palette: \.galaxyArms)
-                }
-                HStack {
-                    picker("Star-forming nebulae", palette: \.galaxyNebula)
-                    picker("Dust", palette: \.galaxyDust)
-                }
-            }
+            ColorRow("Old stars", store.color(palette: \.galaxyCore))
+            ColorRow("Young stars", store.color(palette: \.galaxyArms))
+            ColorRow("Star-forming nebulae", store.color(palette: \.galaxyNebula))
+            ColorRow("Dust", store.color(palette: \.galaxyDust))
         case .pulsar:
             let c = store.config
-            if c.pulsarBeams != .none || c.pulsarFieldLines || c.pulsarRing || c.pulsarNebula {
-                Section("Pulsar") {
-                    if c.pulsarBeams != .none { picker("Beams", \.pulsarBeamColor) }
-                    if c.pulsarFieldLines { picker("Magnetic field", \.pulsarFieldColor) }
-                    if c.pulsarRing { picker("Dust ring", \.pulsarRingColor) }
-                    if c.pulsarNebula { picker("Wind nebula", \.pulsarNebulaColor) }
-                }
-            }
+            if c.pulsarBeams != .none { ColorRow("Beams", store.color(\.pulsarBeamColor)) }
+            if c.pulsarFieldLines { ColorRow("Magnetic field", store.color(\.pulsarFieldColor)) }
+            if c.pulsarRing { ColorRow("Dust ring", store.color(\.pulsarRingColor)) }
+            if c.pulsarNebula { ColorRow("Wind nebula", store.color(\.pulsarNebulaColor)) }
         case .comet:
-            Section("Comet") {
-                HStack {
-                    picker("Ion tail", \.cometIonColor)
-                    picker("Dust tail", \.cometDustColor)
-                }
-            }
+            ColorRow("Ion tail", store.color(\.cometIonColor))
+            ColorRow("Dust tail", store.color(\.cometDustColor))
         case .nebula:
-            Section("Nebula") {
+            ColorRow("Hydrogen (Hα)", store.color(\.nebulaHa))
+            ColorRow("Oxygen (OIII)", store.color(\.nebulaOIII))
+            ColorRow("Sulfur (SII)", store.color(\.nebulaSII))
+            LabeledContent("Color mapping") {
                 HStack {
-                    picker("Hydrogen (Hα)", \.nebulaHa)
-                    picker("Oxygen (OIII)", \.nebulaOIII)
-                    picker("Sulfur (SII)", \.nebulaSII)
-                }
-                LabeledContent("Color mapping") {
-                    HStack {
-                        Button("Natural") {
-                            store.config.nebulaHa = RGB(1.0, 0.22, 0.35); store.config.nebulaOIII = RGB(0.15, 0.85, 0.9); store.config.nebulaSII = RGB(1.0, 0.65, 0.2)
-                        }
-                        Button("Hubble palette") {
-                            store.config.nebulaSII = RGB(1.0, 0.35, 0.12); store.config.nebulaHa = RGB(0.35, 1.0, 0.4); store.config.nebulaOIII = RGB(0.2, 0.45, 1.0)
-                        }
+                    Button("Natural") {
+                        store.config.nebulaHa = RGB(1.0, 0.22, 0.35); store.config.nebulaOIII = RGB(0.15, 0.85, 0.9); store.config.nebulaSII = RGB(1.0, 0.65, 0.2)
+                    }
+                    Button("Hubble palette") {
+                        store.config.nebulaSII = RGB(1.0, 0.35, 0.12); store.config.nebulaHa = RGB(0.35, 1.0, 0.4); store.config.nebulaOIII = RGB(0.2, 0.45, 1.0)
                     }
                 }
             }
         case .binary, .trinary, .stellarSurface:
-            Section {
-                Text("This scene's stars are colored by their star type, set on the Scene tab.")
-                    .foregroundStyle(.secondary)
+            EmptyView()
+        }
+    }
+}
+
+/// The palette presets as swatch buttons, three to a row.
+struct PalettePresets: View {
+    @ObservedObject var store: ConfigStore
+
+    var body: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
+            ForEach(PaletteConfig.presets, id: \.0) { name, palette in
+                let selected = store.config.palette == palette
+                Button { store.config.palette = palette } label: {
+                    HStack(spacing: 6) {
+                        HStack(spacing: 0) {
+                            let swatches = [palette.receding, palette.core, palette.approaching, palette.nebulaA]
+                            ForEach(swatches.indices, id: \.self) { i in
+                                Rectangle().fill(Color(nsColor: swatches[i].nsColor)).frame(width: 10, height: 10)
+                            }
+                        }
+                        Text(name).font(Theme.thumbnail).lineLimit(1).minimumScaleFactor(0.8)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(6)
+                    .background(Color.white.opacity(0.06))
+                    .overlay(Rectangle().stroke(selected ? Theme.accent : Theme.hairline, lineWidth: selected ? 2 : 1))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(name) palette")
+                .accessibilityAddTraits(selected ? [.isSelected] : [])
             }
         }
     }
 }
 
-/// Exposure, contrast, glow and the rest, applied to the scene's light before it's tone mapped
-/// and dithered, for every scene.
-struct ImageSection: View {
+/// The background sky every scene shares.
+struct SkyColors: View {
     @ObservedObject var store: ConfigStore
 
     var body: some View {
-        let c = $store.config
-        Section {
-            SliderRow(title: "Exposure", value: c.brightness, range: WallpaperConfig.exposureRange)
-            SliderRow(title: "Contrast", value: c.contrast, range: WallpaperConfig.contrastRange)
-            SliderRow(title: "Saturation", value: c.saturation, range: 0...2.5)
-            SliderRow(title: "Highlight rolloff", value: c.highlights, range: 0...1)
-            SliderRow(title: "Black point", value: c.blackPoint, range: WallpaperConfig.blackPointRange)
-            SliderRow(title: "Vignette", value: c.vignette, range: 0...1)
-            SliderRow(title: "Bloom", value: c.bloom, range: WallpaperConfig.bloomRange,
-                      format: { $0 == 0 ? "Off" : String(format: "%.2f", $0) })
-            if store.config.bloom > 0 {
-                SliderRow(title: "Bloom radius", value: c.bloomRadius, range: WallpaperConfig.bloomRadiusRange,
-                          format: { String(format: "%.1f%%", $0 * 100) })
-                SliderRow(title: "Bloom threshold", value: c.bloomThreshold, range: 0...1)
-            }
-        } header: {
-            HStack {
-                Text("Image")
-                Spacer()
-                Button("Reset") { store.config.resetImage() }.controlSize(.small)
-            }
-        } footer: {
-            Text("For every scene, applied before the dither, so the result stays pixel-dithered. Bloom adds a glow around bright light; off, it costs nothing.")
-                .font(.callout).foregroundStyle(.secondary)
-        }
+        ColorRow("Nebula", store.color(palette: \.nebulaA))
+        ColorRow("Nebula wisps", store.color(palette: \.nebulaB))
+        ColorRow("Galaxies", store.color(palette: \.galaxy))
+        ColorRow("Warm stars", store.color(palette: \.starWarm))
+        ColorRow("Cool stars", store.color(palette: \.starCool))
     }
 }
