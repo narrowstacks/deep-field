@@ -22,13 +22,17 @@ struct FrameParams {
     var camPos: SIMD4<Float>
     var camRight: SIMD4<Float>   // w = drawable width
     var camUp: SIMD4<Float>      // w = drawable height
+    var image: SIMD4<Float>      // contrast, black point, highlight rolloff, vignette
+    var bloom: SIMD4<Float>      // amount, threshold, linear output (1 = scene pass for bloom), radius
 }
 
 struct PaletteGPU {
     var receding, approaching, core, ring, nebulaA, nebulaB, farA, farB, starWarm, starCool, galaxy: SIMD4<Float>
 
     init(_ p: PaletteConfig) {
-        receding = p.receding.simd; approaching = p.approaching.simd; core = p.core.simd; ring = p.ring.simd
+        typealias L = PickedColor.Level
+        receding = p.receding.light(L.diskReceding); approaching = p.approaching.light(L.diskApproaching)
+        core = p.core.light(L.diskCore); ring = p.ring.light(L.ring)
         nebulaA = p.nebulaA.simd; nebulaB = p.nebulaB.simd; farA = p.farA.simd; farB = p.farB.simd
         starWarm = p.starWarm.simd; starCool = p.starCool.simd; galaxy = p.galaxy.simd
     }

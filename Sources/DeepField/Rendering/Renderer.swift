@@ -23,6 +23,27 @@ final class Renderer {
     private let bakePipelines: [SceneKind: MTLComputePipelineState]
     private let skyPipeline: MTLComputePipelineState
     private let framePipelines: [SceneKind: MTLRenderPipelineState]
+    private let library: MTLLibrary
+    /// Each scene's fragment function, by scene.
+    private static let fragmentNames: [SceneKind: String] = [
+        .blackHole: "lensedFragment", .wormhole: "lensedFragment", .tidalDisruption: "tdeFragment",
+        .binary: "systemFragment", .trinary: "systemFragment", .galaxy: "galaxyFragment",
+        .pulsar: "pulsarFragment", .nebula: "nebulaFragment", .comet: "cometFragment",
+        .stellarSurface: "stellarFragment",
+    ]
+    /// Bloom: the scene passes writing linear light to a float target (built on first use), the
+    /// bright pass, the blur, the composite, and the intermediate textures per target size.
+    private var linearPipelines: [String: MTLRenderPipelineState] = [:]
+    private let bloomBright: MTLComputePipelineState
+    private let bloomBlur: MTLComputePipelineState
+    private let imagePipeline: MTLRenderPipelineState
+    private var bloomTargets: [SIMD2<Int>: BloomTargets] = [:]
+    private let bloomLock = NSLock()
+
+    private struct BloomTargets {
+        let hdr: MTLTexture       // the scene's linear light, full size
+        let a: MTLTexture, b: MTLTexture    // quarter size, ping-pong for the blur
+    }
     let start = CACurrentMediaTime()
     /// Bound in place of the textures a scene doesn't use.
     private let placeholder: MTLTexture
@@ -44,12 +65,9 @@ final class Renderer {
                 try device.makeComputePipelineState(function: lib.makeFunction(name: name)!)
             }
             func render(_ fragment: String) throws -> MTLRenderPipelineState {
-                let desc = MTLRenderPipelineDescriptor()
-                desc.vertexFunction = lib.makeFunction(name: "fullscreenVertex")
-                desc.fragmentFunction = lib.makeFunction(name: fragment)
-                desc.colorAttachments[0].pixelFormat = .bgra8Unorm
-                return try device.makeRenderPipelineState(descriptor: desc)
+                try Self.renderPipeline(device, lib, fragment, format: .bgra8Unorm)
             }
+            library = lib
             let flat = try compute("bakeFlat"), blackHole = try compute("bakeBlackHole")
             bakePipelines = [.blackHole: blackHole, .tidalDisruption: blackHole, .wormhole: try compute("bakeWormhole"),
                              .binary: flat, .trinary: flat, .galaxy: flat, .pulsar: flat, .comet: flat,
@@ -59,17 +77,27 @@ final class Renderer {
             d.usage = [.shaderRead, .shaderWrite]
             d.storageMode = .private
             placeholder = device.makeTexture(descriptor: d)!
-            let lensed = try render("lensedFragment"), system = try render("systemFragment")
-            framePipelines = [.blackHole: lensed, .tidalDisruption: try render("tdeFragment"), .wormhole: lensed,
-                              .binary: system, .trinary: system, .galaxy: try render("galaxyFragment"),
-                              .pulsar: try render("pulsarFragment"), .nebula: try render("nebulaFragment"),
-                              .comet: try render("cometFragment"), .stellarSurface: try render("stellarFragment")]
+            var byName: [String: MTLRenderPipelineState] = [:]
+            for name in Set(Self.fragmentNames.values) { byName[name] = try render(name) }
+            framePipelines = Self.fragmentNames.mapValues { byName[$0]! }
+            bloomBright = try compute("bloomBright")
+            bloomBlur = try compute("bloomBlur")
+            imagePipeline = try render("imageFragment")
         } catch {
             fatalError("Shader compile failed: \(error)")
         }
     }
 
     var elapsed: Double { CACurrentMediaTime() - start }
+
+    private static func renderPipeline(_ device: MTLDevice, _ lib: MTLLibrary, _ fragment: String,
+                                       format: MTLPixelFormat) throws -> MTLRenderPipelineState {
+        let desc = MTLRenderPipelineDescriptor()
+        desc.vertexFunction = lib.makeFunction(name: "fullscreenVertex")
+        desc.fragmentFunction = lib.makeFunction(name: fragment)
+        desc.colorAttachments[0].pixelFormat = format
+        return try device.makeRenderPipelineState(descriptor: desc)
+    }
 
     func makeTexture(_ fmt: MTLPixelFormat, _ w: Int, _ h: Int, usage: MTLTextureUsage = [.shaderRead, .shaderWrite]) -> MTLTexture? {
         let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: fmt, width: w, height: h, mipmapped: false)
@@ -177,10 +205,14 @@ final class Renderer {
 
     /// `elapsed` is seconds since launch (Double, so long orbital periods stay precise).
     /// `orbitTime`, if given, holds planets and star orbits at that time instead (phone loops).
+    /// With bloom on, the scene renders its linear light to a float texture, and the bloom passes
+    /// and the final tone map and dither (`imageFragment`) follow; with it off (the default) the
+    /// scene pass finishes the image itself and nothing else runs.
     func encodeFrame(_ cb: MTLCommandBuffer, target: MTLTexture, baked: Baked, elapsed: Double,
                      config c: WallpaperConfig, events: EventSchedule, orbitTime: Double? = nil) {
+        let bloom = c.bloom > 0 ? bloomResources(for: c.scene, width: target.width, height: target.height) : nil
         let rp = MTLRenderPassDescriptor()
-        rp.colorAttachments[0].texture = target
+        rp.colorAttachments[0].texture = bloom?.targets.hdr ?? target
         rp.colorAttachments[0].loadAction = .dontCare
         rp.colorAttachments[0].storeAction = .store
         guard let enc = cb.makeRenderCommandEncoder(descriptor: rp) else { return }
@@ -212,14 +244,16 @@ final class Renderer {
                             screenScale: Float(cam.screenScale),
                             camPos: SIMD4(cam.pos),
                             camRight: SIMD4(Float(cam.right.x), Float(cam.right.y), Float(cam.right.z), Float(target.width)),
-                            camUp: SIMD4(Float(cam.up.x), Float(cam.up.y), Float(cam.up.z), Float(target.height)))
+                            camUp: SIMD4(Float(cam.up.x), Float(cam.up.y), Float(cam.up.z), Float(target.height)),
+                            image: SIMD4(Float(c.contrast), Float(c.blackPoint), Float(c.highlights), Float(c.vignette)),
+                            bloom: SIMD4(Float(c.bloom), Float(c.bloomThreshold), bloom == nil ? 0 : 1, Float(c.bloomRadius)))
         var palette = PaletteGPU(c.palette)
         var ev = events.gpu(at: elapsed, config: c, camera: cam, heightPixels: target.height)
 
         var galaxy = c.scene == .galaxy ? GalaxyModel.gpu(c, elapsed: elapsed) : .empty
         var sceneParams = SceneParams.build(c, elapsed: elapsed, camera: cam, width: target.width,
                                             height: target.height, events: events)
-        enc.setRenderPipelineState(framePipelines[c.scene]!)
+        enc.setRenderPipelineState(bloom?.scene ?? framePipelines[c.scene]!)
         enc.setFragmentTextures(baked.textures, range: 0..<baked.textures.count)
         enc.setFragmentBytes(&f, length: MemoryLayout<FrameParams>.stride, index: 0)
         enc.setFragmentBytes(&planets, length: MemoryLayout<PlanetGPU>.stride * planets.count, index: 1)
@@ -231,5 +265,66 @@ final class Renderer {
         enc.setFragmentBytes(&sceneParams, length: MemoryLayout<SceneParamsGPU>.stride, index: 7)
         enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         enc.endEncoding()
+        if let bloom { encodeBloom(cb, bloom.targets, target: target, frame: &f) }
+    }
+
+    /// The scene's linear-light pipeline and the intermediate textures for a target size.
+    private func bloomResources(for scene: SceneKind, width w: Int, height h: Int)
+        -> (scene: MTLRenderPipelineState, targets: BloomTargets)? {
+        bloomLock.lock()
+        defer { bloomLock.unlock() }
+        let name = Self.fragmentNames[scene]!
+        if linearPipelines[name] == nil {
+            linearPipelines[name] = try? Self.renderPipeline(device, library, name, format: .rgba16Float)
+        }
+        let size = SIMD2(w, h)
+        if bloomTargets[size] == nil {
+            let qw = max(1, (w + 3) / 4), qh = max(1, (h + 3) / 4)
+            guard let hdr = makeTexture(.rgba16Float, w, h, usage: [.renderTarget, .shaderRead]),
+                  let a = makeTexture(.rgba16Float, qw, qh), let b = makeTexture(.rgba16Float, qw, qh) else { return nil }
+            if bloomTargets.count >= 6 { bloomTargets.removeAll() }   // sizes come and go (previews, exports)
+            bloomTargets[size] = BloomTargets(hdr: hdr, a: a, b: b)
+        }
+        guard let pipeline = linearPipelines[name], let targets = bloomTargets[size] else { return nil }
+        return (pipeline, targets)
+    }
+
+    /// Bright pass into a quarter-size texture, a horizontal and a vertical blur, then the
+    /// composite that adds the glow and tone maps, quantizes and dithers into `target`.
+    private func encodeBloom(_ cb: MTLCommandBuffer, _ t: BloomTargets, target: MTLTexture, frame f: inout FrameParams) {
+        guard let enc = cb.makeComputeCommandEncoder() else { return }
+        func dispatch(_ out: MTLTexture) {
+            enc.dispatchThreads(MTLSize(width: out.width, height: out.height, depth: 1),
+                                threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        }
+        enc.setComputePipelineState(bloomBright)
+        enc.setTexture(t.hdr, index: 0)
+        enc.setTexture(t.a, index: 1)
+        enc.setBytes(&f, length: MemoryLayout<FrameParams>.stride, index: 0)
+        dispatch(t.a)
+        // the radius is a fraction of the frame's shorter side, so the glow looks the same at any size
+        let sigma = f.bloom.w * Float(min(t.a.width, t.a.height))
+        enc.setComputePipelineState(bloomBlur)
+        for (src, dst, dir) in [(t.a, t.b, SIMD2<Float>(1, 0)), (t.b, t.a, SIMD2<Float>(0, 1))] {
+            var params = SIMD4<Float>(dir.x, dir.y, sigma, 0)
+            enc.setTexture(src, index: 0)
+            enc.setTexture(dst, index: 1)
+            enc.setBytes(&params, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
+            dispatch(dst)
+        }
+        enc.endEncoding()
+
+        let rp = MTLRenderPassDescriptor()
+        rp.colorAttachments[0].texture = target
+        rp.colorAttachments[0].loadAction = .dontCare
+        rp.colorAttachments[0].storeAction = .store
+        guard let pass = cb.makeRenderCommandEncoder(descriptor: rp) else { return }
+        f.bloom.z = 0
+        pass.setRenderPipelineState(imagePipeline)
+        pass.setFragmentTexture(t.hdr, index: 0)
+        pass.setFragmentTexture(t.a, index: 1)
+        pass.setFragmentBytes(&f, length: MemoryLayout<FrameParams>.stride, index: 0)
+        pass.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        pass.endEncoding()
     }
 }

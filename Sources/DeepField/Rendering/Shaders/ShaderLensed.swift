@@ -9,6 +9,12 @@ static float diskNoise(float r, float ang, float seed) {
     return n * 0.75 + noise3(q) * 0.25;
 }
 
+// A darker, deeper shade of c: its channels weighted by how much of the strongest one they hold,
+// so it stays the same hue at any brightness (c * c only does that when the strongest is 1).
+static float3 deepen(float3 c) {
+    return c * c / max(max(c.r, max(c.g, c.b)), 1e-4);
+}
+
 // Accretion disk at a crossing h = (radius, angle, redshift g, event). rec / app / core: the
 // receding, approaching and hottest colors; rin / rout: inner edge and outer radius.
 static float4 shadeDisk(float4 h, constant FrameParams& F, float3 rec, float3 app, float3 core, float rin, float rout) {
@@ -29,9 +35,10 @@ static float4 shadeDisk(float4 h, constant FrameParams& F, float3 rec, float3 ap
     float dens = smoothstep(0.28, 0.80, n);
 
     float heat = 1.0 - saturate(x);
-    float3 warm = mix(rec * rec * 0.5, rec, smoothstep(0.0, 0.6, heat));
+    float3 warm = mix(deepen(rec) * 0.5, rec, smoothstep(0.0, 0.6, heat));
     warm = mix(warm, core, smoothstep(0.7, 1.0, heat) * 0.6);
-    float3 cool = mix(app * app * 0.85, mix(app, float3(1.0), 0.35), smoothstep(0.2, 1.0, heat));
+    float appMax = max(app.r, max(app.g, app.b));
+    float3 cool = mix(deepen(app) * 0.85, mix(app, float3(appMax), 0.35), smoothstep(0.2, 1.0, heat));
     float shift = smoothstep(0.95, 1.30, g);
     float3 col = mix(warm, cool, shift);
 
@@ -82,7 +89,7 @@ static float3 tdeStreamColor(float s, float u, constant FrameParams& F, constant
     float3 star = S.a.rgb;
     float3 warm = mix(S.d.rgb, S.f.rgb, 0.25);
     float3 col = mix(star, warm * 0.8, smoothstep(0.03, 0.32, s));
-    col = mix(col, warm * warm * 0.7, smoothstep(0.1, 0.6, s) * smoothstep(0.9, -0.2, fil));  // dimmer gaps cool and redden
+    col = mix(col, deepen(warm) * 0.7, smoothstep(0.1, 0.6, s) * smoothstep(0.9, -0.2, fil));  // dimmer gaps cool and redden
     float shock = exp(-pow((s - 1.0) / 0.14, 2.0));
     col = mix(col, mix(S.f.rgb, float3(1.0), 0.4) * 1.4, shock * 0.7);
     float bright = (1.1 - 0.65 * smoothstep(0.0, 0.5, s)) * (1.0 - 0.5 * smoothstep(1.1, 1.8, s));

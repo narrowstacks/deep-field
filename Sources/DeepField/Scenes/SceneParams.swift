@@ -46,16 +46,17 @@ enum SceneParams {
         let facing = toward >= 0 ? 1 : 2           // which beam points our way
         let ang = acos(min(abs(toward), 1))
         let flash = beams & facing != 0 ? exp(-pow(ang / (width * 2), 2)) : 0
-        func scaled(_ col: RGB, _ k: Double, _ on: Bool = true) -> SIMD3<Float> {
-            on ? SIMD3(col.r, col.g, col.b) * Float(max(k, 0)) : .zero
+        typealias L = PickedColor.Level
+        func scaled(_ col: RGB, _ level: Float, _ k: Double, _ on: Bool = true) -> SIMD3<Float> {
+            on ? col.light3(level) * Float(max(k, 0)) : .zero
         }
         p.a = SIMD4(SIMD3<Float>(m), Float(width))
         p.b = SIMD4(SIMD3<Float>(spin), Float(flash))
-        p.c = SIMD4(scaled(c.pulsarBeamColor, c.pulsarBeamIntensity), Float(beams))
-        p.d = SIMD4(scaled(c.pulsarNebulaColor, c.pulsarNebulaIntensity, c.pulsarNebula),
+        p.c = SIMD4(scaled(c.pulsarBeamColor, L.pulsarBeam, c.pulsarBeamIntensity), Float(beams))
+        p.d = SIMD4(scaled(c.pulsarNebulaColor, L.pulsarNebula, c.pulsarNebulaIntensity, c.pulsarNebula),
                     !c.pulsarFieldLines ? 0 : c.pulsarFieldStyle == .lines ? 1 : 2)
-        p.e = SIMD4(scaled(c.pulsarFieldColor, c.pulsarFieldIntensity), Float(trail))
-        p.f = SIMD4(scaled(c.pulsarRingColor, c.pulsarRingIntensity, c.pulsarRing), 0)
+        p.e = SIMD4(scaled(c.pulsarFieldColor, L.pulsarField, c.pulsarFieldIntensity), Float(trail))
+        p.f = SIMD4(scaled(c.pulsarRingColor, L.pulsarRing, c.pulsarRingIntensity, c.pulsarRing), 0)
         return p
     }
 
@@ -97,8 +98,8 @@ enum SceneParams {
         let ion = simd_normalize(cam.portrait ? SIMD2(-0.4, 0.92) : SIMD2(-0.94, 0.36))
         p.a = SIMD4(Float(head.x), Float(head.y), Float(c.cometActivity), Float(c.cometTailLength))
         p.b = SIMD4(Float(ion.x), Float(ion.y), 0.35, Float(outburst))
-        p.c = SIMD4(c.cometIonColor.r, c.cometIonColor.g, c.cometIonColor.b, Float(disconnectPos))
-        p.d = SIMD4(c.cometDustColor.r, c.cometDustColor.g, c.cometDustColor.b, Float(disconnectStrength))
+        p.c = SIMD4(c.cometIonColor.light3(PickedColor.Level.cometIon), Float(disconnectPos))
+        p.d = SIMD4(c.cometDustColor.light3(PickedColor.Level.cometDust), Float(disconnectStrength))
         p.e = SIMD4(Float(shellRadius), Float((t * 0.25).truncatingRemainder(dividingBy: 2 * .pi)), Float(shellBright), 0)
         return p
     }

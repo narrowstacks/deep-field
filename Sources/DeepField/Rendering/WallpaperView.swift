@@ -24,6 +24,9 @@ final class WallpaperView: NSView {
 
     var externallyPaused = false { didSet { updateRunning() } }
 
+    /// Dev only (`--check-picker`): called with the config each preview frame was drawn with.
+    static var debugRenderHook: ((WallpaperConfig) -> Void)?
+
     private var config: WallpaperConfig { ConfigStore.shared.config }
 
     init(frame: NSRect, previewOf: CGSize? = nil) {
@@ -178,6 +181,7 @@ final class WallpaperView: NSView {
         r.encodeFrame(cb, target: drawable.texture, baked: baked, elapsed: r.elapsed, config: config, events: events)
         cb.present(drawable)
         cb.commit()
+        if previewOf != nil { Self.debugRenderHook?(config) }
 
         if Settings.debug && previewOf == nil {
             framesSinceLog += 1

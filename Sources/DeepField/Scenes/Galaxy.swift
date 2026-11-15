@@ -42,7 +42,8 @@ enum GalaxyModel {
             shape: SIMD4(c.galaxyType.shaderIndex, Float(c.galaxyArms), Float(tan(c.galaxyPitch / 180 * .pi)), Float(barLength)),
             motion: SIMD4(Float((patternSpeed * t).truncatingRemainder(dividingBy: 2 * .pi)), Float(scale),
                           c.darkMatter ? 1 : 0, Float(flowPeriod)),
-            core: p.galaxyCore.simd, arms: p.galaxyArms.simd, nebula: p.galaxyNebula.simd, dust: p.galaxyDust.simd,
+            core: p.galaxyCore.light(PickedColor.Level.galaxyCore), arms: p.galaxyArms.light(PickedColor.Level.galaxyArms),
+            nebula: p.galaxyNebula.light(PickedColor.Level.galaxyNebula), dust: p.galaxyDust.simd,
             misc: SIMD4(Float(8.5 * c.galaxySize), Float((solidBody * t).truncatingRemainder(dividingBy: 2 * .pi)),
                         satelliteAngle(1.15, 2.2), satelliteAngle(1.6, 4.0)))
     }

@@ -40,12 +40,11 @@ struct ColorsTab: View {
                         }
                     }
                 }
-                SliderRow(title: "Saturation", value: $store.config.saturation, range: 0...2.5)
-                SliderRow(title: "Brightness", value: $store.config.brightness, range: 0.3...3)
             } footer: {
-                Text("Showing the colors for \(scene.title). Switch scenes on the Scene tab to edit others.")
+                Text("Showing the colors for \(scene.title). Switch scenes on the Scene tab to edit others. Each color is what that part shows where it's typically lit.")
                     .font(.callout).foregroundStyle(.secondary)
             }
+            ImageSection(store: store)
             sceneSections
             Section("Background sky") {
                 HStack {
@@ -147,6 +146,40 @@ struct ColorsTab: View {
                 Text("This scene's stars are colored by their star type, set on the Scene tab.")
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+}
+
+/// Exposure, contrast, glow and the rest, applied to the scene's light before it's tone mapped
+/// and dithered, for every scene.
+struct ImageSection: View {
+    @ObservedObject var store: ConfigStore
+
+    var body: some View {
+        let c = $store.config
+        Section {
+            SliderRow(title: "Exposure", value: c.brightness, range: WallpaperConfig.exposureRange)
+            SliderRow(title: "Contrast", value: c.contrast, range: WallpaperConfig.contrastRange)
+            SliderRow(title: "Saturation", value: c.saturation, range: 0...2.5)
+            SliderRow(title: "Highlight rolloff", value: c.highlights, range: 0...1)
+            SliderRow(title: "Black point", value: c.blackPoint, range: WallpaperConfig.blackPointRange)
+            SliderRow(title: "Vignette", value: c.vignette, range: 0...1)
+            SliderRow(title: "Bloom", value: c.bloom, range: WallpaperConfig.bloomRange,
+                      format: { $0 == 0 ? "Off" : String(format: "%.2f", $0) })
+            if store.config.bloom > 0 {
+                SliderRow(title: "Bloom radius", value: c.bloomRadius, range: WallpaperConfig.bloomRadiusRange,
+                          format: { String(format: "%.1f%%", $0 * 100) })
+                SliderRow(title: "Bloom threshold", value: c.bloomThreshold, range: 0...1)
+            }
+        } header: {
+            HStack {
+                Text("Image")
+                Spacer()
+                Button("Reset") { store.config.resetImage() }.controlSize(.small)
+            }
+        } footer: {
+            Text("For every scene, applied before the dither, so the result stays pixel-dithered. Bloom adds a glow around bright light; off, it costs nothing.")
+                .font(.callout).foregroundStyle(.secondary)
         }
     }
 }
