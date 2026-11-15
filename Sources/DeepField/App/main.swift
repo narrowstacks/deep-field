@@ -1,5 +1,6 @@
 import AppKit
 
+LockScreenStillTest.runIfRequested()   // dev: --lockscreen-still-test
 DevCommands.runIfRequested()   // dev CLI (--snapshot, --benchmark, ...) exits before the app starts
 
 let app = NSApplication.shared

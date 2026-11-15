@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DisplayTab: View {
     @ObservedObject var store: ConfigStore
+    @ObservedObject private var lockScreen = LockScreenStill.shared
 
     var body: some View {
         Form {
@@ -27,6 +28,23 @@ struct DisplayTab: View {
                 Text("Performance")
             } footer: {
                 Text("Rendering stops whenever the desktop is fully covered or the display sleeps. Low Power Mode caps it at 12 fps. Larger pixels and lower frame rates use less power.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Section {
+                Toggle("Use a still of this scene for the lock screen", isOn: $store.config.lockScreenStill)
+                if store.config.lockScreenStill {
+                    LabeledContent {
+                        Button("Set now") { lockScreen.setNow() }.disabled(lockScreen.busy)
+                    } label: {
+                        Text(lockScreen.busy ? "Rendering…" : lockScreen.status).foregroundStyle(.secondary)
+                    }
+                } else if !lockScreen.status.isEmpty {
+                    Text(lockScreen.status).foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Lock Screen")
+            } footer: {
+                Text("The lock and login screens show the desktop picture, not the animation. Turning this off puts your own picture back.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             Section {
