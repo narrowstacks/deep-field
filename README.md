@@ -39,7 +39,7 @@ Requires macOS 14 or later.
   <tr>
     <td><img src="docs/media/gallery/planetaryNebula.png" alt="Planetary Nebula"><br><b>Planetary Nebula</b></td>
     <td><img src="docs/media/gallery/ringedPlanet.png" alt="Ringed Planet"><br><b>Ringed Planet</b></td>
-    <td></td>
+    <td><img src="docs/media/gallery/auroraOrbit.png" alt="Aurora from Orbit"><br><b>Aurora from Orbit</b></td>
   </tr>
 </table>
 
@@ -72,6 +72,11 @@ Requires macOS 14 or later.
   across the globe. Moons cross the disk and slip into the planet's shadow, and now and then a
   great white storm breaks out and wraps around a band. Ring style, bands, wind, moons and color
   presets are all adjustable.
+- **Aurora from Orbit**: Earth's night side from a few hundred kilometres up, with a thin line of
+  airglow on the limb, city lights and clouds drifting by below, and lightning in the storms.
+  Aurora curtains rise along the auroral oval: a pink lower edge, rayed green walls, and red tops
+  that dissolve into space, with folds and waves of brightness running along them. Now and then a
+  substorm makes them surge and spread toward you.
 
 ## In motion
 

@@ -16,6 +16,7 @@ enum SceneParams {
         case .nebula: return nebula(c)
         case .planetaryNebula: return planetaryNebula(c, t, cam, events, demo)
         case .ringedPlanet: return ringedPlanet(c, t, cam, events, demo)
+        case .auroraOrbit: return auroraOrbit(c, t, cam, events, demo)
         case .comet: return comet(c, t, cam, events, demo)
         case .stellarSurface: return stellarSurface(c, t, cam, events, demo)
         default: return SceneParamsGPU()
@@ -161,6 +162,34 @@ enum SceneParams {
             p.c.w = Float(lonView + drift + rng.range(-0.5, 0.3))
             p.d.w = Float(max(age / EventSchedule.whiteStorm.duration, 0.001))
         }
+        return p
+    }
+
+    // MARK: Aurora from orbit
+
+    private static func auroraOrbit(_ c: WallpaperConfig, _ t: Double, _ cam: Camera,
+                                    _ events: EventSchedule, _ demo: [UInt64: Double]) -> SceneParamsGPU {
+        var p = SceneParamsGPU()
+        let h = c.auroraAltitude / 6371
+        // pitch down so the limb's top sits at `auroraHorizon` on screen: it lies `dip` below
+        // the horizontal, and the screen height v is atan(v * tanHalf) from the view's center
+        let dip = acos(1 / (1 + h))
+        let pitch = -dip - atan(c.auroraHorizon * cam.tanHalf)
+        let deg = Double.pi / 180
+        var sub = 0.0
+        if case (let age, _)? = events.active(EventSchedule.substorm, rate: c.auroraEvents.rate, at: t, demo: demo) {
+            let f = age / EventSchedule.substorm.duration
+            sub = smoothstep(0, 0.08, f) * (1 - smoothstep(0.45, 1, f))
+        }
+        typealias L = PickedColor.Level
+        p.a = SIMD4(Float(pitch), Float(h), Float(c.auroraDistance * deg), Float(c.auroraOvalSize * deg))
+        p.b = SIMD4(c.auroraGreen.light3(L.aurora), Float(c.auroraBrightness))
+        p.c = SIMD4(c.auroraRed.light3(L.aurora), Float(c.auroraActivity))
+        p.d = SIMD4(c.auroraFringe.light3(L.aurora), Float(sub))
+        p.e = SIMD4(c.auroraCityColor.light3(L.auroraCity), Float(c.auroraCityLights))
+        // the ground drifts at a quarter of a real low orbit's pace by default
+        p.f = SIMD4(Float(c.auroraClouds), Float(c.auroraMoonlight), Float(0.0012 * 0.25 * c.auroraDrift), Float(c.auroraLightning.rate))
+        p.g = SIMD4(Float(c.auroraSunrise), 5.3, 0, 0)
         return p
     }
 

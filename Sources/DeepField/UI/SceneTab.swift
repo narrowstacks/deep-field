@@ -111,6 +111,13 @@ struct SceneTab: View {
                         .help("How much the bands swirl and streak where they meet")
                     SliderRow(title: "Wind", value: $store.config.ringedWind, range: 0...3)
                         .help("How fast the bands drift and shear past each other")
+                case .auroraOrbit:
+                    SliderRow(title: "Brightness", value: $store.config.auroraBrightness, range: 0...2.5)
+                    SliderRow(title: "Activity", value: $store.config.auroraActivity, range: 0.1...4)
+                        .help("How fast the curtains ripple, fold and drift")
+                    SliderRow(title: "Distance", value: $store.config.auroraDistance, range: 22...60) { String(format: "%.0f°", $0) }
+                        .help("How far ahead the magnetic pole lies. Nearer brings the curtains in below you; farther puts them along the horizon")
+                    SliderRow(title: "Oval size", value: $store.config.auroraOvalSize, range: 10...30) { String(format: "%.0f°", $0) }
                 case .comet:
                     SliderRow(title: "Tail length", value: $store.config.cometTailLength, range: 0.3...2)
                     SliderRow(title: "Activity", value: $store.config.cometActivity, range: 0.2...2.5)
@@ -147,6 +154,7 @@ struct SceneTab: View {
                 if let note { GroupFooter(note) }
             }
             if scene == .ringedPlanet { ringedSections }
+            if scene == .auroraOrbit { auroraSections }
             if scene == .stellarSurface {
                 Section {
                     SliderRow(title: "Zoom", value: $store.config.starZoom, range: WallpaperConfig.starZoomRange)
@@ -222,6 +230,13 @@ struct SceneTab: View {
             } header: {
                 GroupHeader(title: "Events")
             }
+        case .auroraOrbit:
+            Section {
+                FrequencyRow(title: "Substorms", value: $store.config.auroraEvents)
+                DemoGrid(store: store, demos: [("Substorm", EventSchedule.substorm)])
+            } header: {
+                GroupHeader(title: "Events")
+            }
         case .ringedPlanet:
             Section {
                 FrequencyRow(title: "Great white storms", value: $store.config.ringedEvents)
@@ -248,6 +263,30 @@ struct SceneTab: View {
             }
         default:
             EmptyView()
+        }
+    }
+
+    /// The aurora scene's Earth and view groups.
+    @ViewBuilder private var auroraSections: some View {
+        Section {
+            SliderRow(title: "City lights", value: $store.config.auroraCityLights, range: 0...2.5)
+            SliderRow(title: "Clouds", value: $store.config.auroraClouds, range: 0...1.5)
+            SliderRow(title: "Moonlight", value: $store.config.auroraMoonlight, range: 0...1.5)
+                .help("Faint light on the clouds and seas")
+            FrequencyRow(title: "Lightning", value: $store.config.auroraLightning)
+        } header: {
+            GroupHeader(title: "Earth")
+        }
+        Section {
+            SliderRow(title: "Altitude", value: $store.config.auroraAltitude, range: 250...1500) { String(format: "%.0f km", $0) }
+            SliderRow(title: "Horizon", value: $store.config.auroraHorizon, range: -0.6...0.8)
+                .help("Where the edge of Earth sits on screen")
+            SliderRow(title: "Ground drift", value: $store.config.auroraDrift, range: 0...4)
+                .help("The ground sliding by below as you orbit")
+            SliderRow(title: "Sunrise", value: $store.config.auroraSunrise, range: 0...1.5)
+                .help("Dawn glow along one end of the horizon")
+        } header: {
+            GroupHeader(title: "View")
         }
     }
 

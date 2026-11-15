@@ -29,7 +29,7 @@ final class Renderer {
         .blackHole: "lensedFragment", .wormhole: "lensedFragment", .tidalDisruption: "tdeFragment",
         .binary: "systemFragment", .trinary: "systemFragment", .galaxy: "galaxyFragment",
         .pulsar: "pulsarFragment", .nebula: "nebulaFragment", .comet: "cometFragment",
-        .stellarSurface: "stellarFragment", .planetaryNebula: "planetaryFragment", .ringedPlanet: "ringedFragment",
+        .stellarSurface: "stellarFragment", .planetaryNebula: "planetaryFragment", .ringedPlanet: "ringedFragment", .auroraOrbit: "auroraFragment",
     ]
     /// Bloom: the scene passes writing linear light to a float target (built on first use), the
     /// bright pass, the blur, the composite, and the intermediate textures per target size.
@@ -71,7 +71,7 @@ final class Renderer {
             let flat = try compute("bakeFlat"), blackHole = try compute("bakeBlackHole")
             bakePipelines = [.blackHole: blackHole, .tidalDisruption: blackHole, .wormhole: try compute("bakeWormhole"),
                              .binary: flat, .trinary: flat, .galaxy: flat, .pulsar: flat, .comet: flat,
-                             .stellarSurface: flat, .planetaryNebula: flat, .ringedPlanet: flat, .nebula: try compute("bakeNebula")]
+                             .stellarSurface: flat, .planetaryNebula: flat, .ringedPlanet: flat, .auroraOrbit: flat, .nebula: try compute("bakeNebula")]
             skyPipeline = try compute("skyPass")
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: 1, height: 1, mipmapped: false)
             d.usage = [.shaderRead, .shaderWrite]
@@ -210,7 +210,8 @@ final class Renderer {
     /// scene pass finishes the image itself and nothing else runs.
     func encodeFrame(_ cb: MTLCommandBuffer, target: MTLTexture, baked: Baked, elapsed: Double,
                      config c: WallpaperConfig, events: EventSchedule, orbitTime: Double? = nil) {
-        let bloom = c.bloom > 0 ? bloomResources(for: c.scene, width: target.width, height: target.height) : nil
+        let bloomAmount = c.bloom + c.scene.extraBloom
+        let bloom = bloomAmount > 0 ? bloomResources(for: c.scene, width: target.width, height: target.height) : nil
         let rp = MTLRenderPassDescriptor()
         rp.colorAttachments[0].texture = bloom?.targets.hdr ?? target
         rp.colorAttachments[0].loadAction = .dontCare
@@ -246,7 +247,7 @@ final class Renderer {
                             camRight: SIMD4(Float(cam.right.x), Float(cam.right.y), Float(cam.right.z), Float(target.width)),
                             camUp: SIMD4(Float(cam.up.x), Float(cam.up.y), Float(cam.up.z), Float(target.height)),
                             image: SIMD4(Float(c.contrast), Float(c.blackPoint), Float(c.highlights), Float(c.vignette)),
-                            bloom: SIMD4(Float(c.bloom), Float(c.bloomThreshold), bloom == nil ? 0 : 1, Float(c.bloomRadius)))
+                            bloom: SIMD4(Float(bloomAmount), Float(c.bloomThreshold), bloom == nil ? 0 : 1, Float(c.bloomRadius)))
         var palette = PaletteGPU(c.palette)
         var ev = events.gpu(at: elapsed, config: c, camera: cam, heightPixels: target.height)
 

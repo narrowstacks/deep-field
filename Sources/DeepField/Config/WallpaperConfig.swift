@@ -128,6 +128,25 @@ struct WallpaperConfig: Codable, Equatable {
     var ringedRingColor = Tuned.ringedRing.color
     var ringedEvents: Frequency = .normal
 
+    // Aurora from orbit
+    var auroraBrightness = 1.0
+    var auroraActivity = 1.0           // how fast the curtains ripple and drift
+    var auroraDistance = 33.0          // the magnetic pole, degrees of arc ahead of the point below us
+    var auroraOvalSize = 20.0          // the auroral oval's radius, degrees of arc
+    var auroraGreen = Tuned.auroraGreen.color
+    var auroraRed = Tuned.auroraRed.color
+    var auroraFringe = Tuned.auroraFringe.color
+    var auroraCityLights = 1.0
+    var auroraCityColor = Tuned.auroraCity.color
+    var auroraClouds = 1.0
+    var auroraMoonlight = 0.35
+    var auroraLightning: Frequency = .normal
+    var auroraAltitude = 640.0         // km
+    var auroraHorizon = 0.25           // where the top of the limb sits on screen, -1 bottom to 1 top
+    var auroraDrift = 1.0              // the ground sliding by below, relative to a calm default
+    var auroraSunrise = 0.5
+    var auroraEvents: Frequency = .normal
+
     // Comet
     var cometTailLength = 1.0
     var cometActivity = 1.0
