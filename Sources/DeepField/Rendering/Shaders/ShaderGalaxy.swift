@@ -74,7 +74,8 @@ fragment float4 galaxyFragment(FRAME_INPUTS)
         // light and dust pile up along longer paths through a tilted disk
         float path = clamp(0.3 / abs(rd.y), 1.0, 4.0);
         float fp = F.pixelAngle * t / (R * max(abs(rd.y), 0.08));
-        if (r < 1.4) {
+        // every disk term is exactly zero beyond r = 1.2 (1.3 for the irregular's envelope)
+        if (r < (type == 3 ? 1.3 : 1.2)) {
             float omega = G.motion.y * galaxyVelocity(r, dm) / max(r, 0.01);
             float a = phi - G.motion.x;                 // angle in the pattern's rotating frame
             float tanp = G.shape.z, m = G.shape.y;
