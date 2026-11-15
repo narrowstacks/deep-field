@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildWindows()
         buildStatusItem()
+        LockScreenStill.shared.start()
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--capture-ui"), i + 1 < args.count {
             CustomizeWindowController.shared.captureForDebug(to: args[i + 1])
@@ -88,6 +89,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         customize.target = self
         menu.addItem(customize)
         menu.addItem(.separator())
+        lockScreenItem.target = self
+        menu.addItem(lockScreenItem)
         loginItem.target = self
         menu.addItem(loginItem)
         menu.addItem(.separator())
@@ -96,11 +99,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private let pauseItem = NSMenuItem(title: "Pause Animation", action: #selector(togglePause), keyEquivalent: "")
+    private let lockScreenItem = NSMenuItem(title: "Use Scene on Lock Screen", action: #selector(toggleLockScreen), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLogin), keyEquivalent: "")
 
     /// Refreshed on every open, since the login item can also be changed in System Settings.
     func menuNeedsUpdate(_ menu: NSMenu) {
         pauseItem.title = userPaused ? "Resume Animation" : "Pause Animation"
+        lockScreenItem.state = ConfigStore.shared.config.lockScreenStill ? .on : .off
         switch SMAppService.mainApp.status {
         case .enabled: loginItem.state = .on
         case .requiresApproval: loginItem.state = .mixed   // registered, waiting for approval in System Settings
@@ -110,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func togglePause() { userPaused.toggle(); applyPause() }
     @objc private func showCustomize() { CustomizeWindowController.shared.show() }
+    @objc private func toggleLockScreen() { ConfigStore.shared.config.lockScreenStill.toggle() }
 
     @objc private func toggleLogin() {
         let service = SMAppService.mainApp

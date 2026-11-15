@@ -12,6 +12,9 @@ struct WallpaperConfig: Codable, Equatable {
     var brightness = 1.15
     var palette = PaletteConfig.gargantua
 
+    /// Set a still of the scene as the desktop picture, so the lock and login screens match.
+    var lockScreenStill = false
+
     // Camera
     var tilt = 6.3                 // degrees above the disk / orbital plane
 
