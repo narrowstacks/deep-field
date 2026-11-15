@@ -20,14 +20,19 @@ struct Camera {
     let pos: SIMD3<Double>, fwd: SIMD3<Double>, right: SIMD3<Double>, up: SIMD3<Double>
     let aspect: Double, tanHalf: Double, roll: Double
 
-    /// Where the camera aims, relative to the scene's center. The wormhole is framed off-center.
+    /// Where the camera aims, relative to the scene's center. The wormhole is framed off-center;
+    /// the tidal disruption aims between the hole and its star.
     static func look(for scene: SceneKind) -> SIMD2<Double> {
-        scene == .wormhole ? SIMD2(-6.5, 1.2) : .zero
+        switch scene {
+        case .wormhole: SIMD2(-6.5, 1.2)
+        case .tidalDisruption: SIMD2(-3.5, 0)
+        default: .zero
+        }
     }
 
-    /// The tidal disruption pulls back so the whole orbit fits.
+    /// The tidal disruption pulls back so the star beside the hole fits.
     static func distance(for scene: SceneKind) -> Double {
-        scene == .tidalDisruption ? 42 : SceneGeometry.camDist
+        scene == .tidalDisruption ? 40 : SceneGeometry.camDist
     }
 
     init(_ c: WallpaperConfig, aspect: Double) {

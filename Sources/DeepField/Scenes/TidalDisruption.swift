@@ -1,99 +1,95 @@
 import Foundation
 import simd
 
-// Star meets black hole (tidal disruption): the star's orbit, where it shows up on screen after
-// lensing, and the stream and disk state the lensed fragment shader draws.
+// Star meets black hole: a star parked beside the hole, overflowing toward it. A stream of gas
+// peels off its tidally stretched tip, spirals in along the disk plane and feeds an accretion
+// disk that is already there, with optional jets along the spin axis. Everything is traced in
+// the black-hole bake (see bakeBlackHole's tidal disruption part), so the star, the stream and
+// the jets are lensed like the disk; the frame shader only animates and colors them.
+
+/// Disk colors for the tidal disruption scene.
+enum TDEDiskColors: String, Codable, CaseIterable, Identifiable {
+    case palette, fiery, blueWhite
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .palette: "Palette"
+        case .fiery: "Fiery"
+        case .blueWhite: "Blue-white"
+        }
+    }
+}
+
+/// The star and stream geometry, fixed for a given config (it feeds the bake).
+struct TDEGeometry {
+    /// Star center (in the disk plane) and its radius across the stretch.
+    let center: SIMD3<Double>, radius: Double
+    /// Semi-axes along the line to the hole: the stretched near half, the far half.
+    let nearAxis: Double, farAxis: Double
+    /// Stream: angle where it leaves the star, start and merge radii, how far round it winds
+    /// (radians) by the merge, and where it ends past the merge (in units of that winding).
+    let startAngle: Double, startRadius: Double, mergeRadius: Double, winding: Double, end: Double
+    /// Stream half-width at the star and at the merge.
+    let width0: Double, width1: Double
+    static let diskOuter = 13.0
+
+    init(_ c: WallpaperConfig) {
+        let distance = min(max(c.tdeStarDistance, 15), 35)
+        let r = 1.9 * c.tdeStar.radius.squareRoot() * min(max(c.tdeStarSize, 0.3), 2.5)
+        // left of the hole and toward the camera, swung further round when far out so the star
+        // stays in frame: x / (camera distance - z) is held at about the same value
+        let camDist = Camera.distance(for: .tidalDisruption)
+        var lo = Double.pi + 0.6, hi = 1.5 * Double.pi
+        for _ in 0..<30 {
+            let mid = (lo + hi) / 2
+            if distance * cos(mid) / (camDist + distance * sin(mid)) < -0.55 { lo = mid } else { hi = mid }
+        }
+        let angle = (lo + hi) / 2
+        center = SIMD3(cos(angle), 0, sin(angle)) * distance
+        radius = r
+        // the more the star fills its Roche lobe, the longer its tip
+        nearAxis = r * 1.45
+        farAxis = r * 1.06
+        startAngle = angle
+        startRadius = distance - nearAxis * 0.85
+        mergeRadius = Self.diskOuter * 0.86
+        winding = 2.5
+        end = 1.85
+        width0 = r * 0.5
+        width1 = 0.45
+    }
+
+    /// Bake parameters: a = (center, radius), b = (near axis, far axis, start angle, end),
+    /// c = (start radius, merge radius, winding, 0), d = (width at star, width at merge, 0, 0).
+    var bake: SceneParamsGPU {
+        var p = SceneParamsGPU()
+        p.a = SIMD4(Float(center.x), Float(center.y), Float(center.z), Float(radius))
+        p.b = SIMD4(Float(nearAxis), Float(farAxis), Float(startAngle), Float(end))
+        p.c = SIMD4(Float(startRadius), Float(mergeRadius), Float(winding), 0)
+        p.d = SIMD4(Float(width0), Float(width1), 0, 0)
+        return p
+    }
+}
 
 extension SceneParams {
-    /// Orbit of the doomed star in the disk plane (y = 0): r(nu) = rp (1 + e) / (1 + e cos nu).
-    /// The star comes in from the far left, passes in front of the hole, and swings round behind it.
-    static let tdePericenter = 4.0, tdeEccentricity = 0.97, tdeOrbitAngle = -1.18
+    static func tidalDisruptionBake(_ c: WallpaperConfig) -> SceneParamsGPU { TDEGeometry(c).bake }
 
-    static func tdeOrbit(_ nu: Double) -> SIMD3<Double> {
-        let r = tdePericenter * (1 + tdeEccentricity) / (1 + tdeEccentricity * cos(nu))
-        let phi = nu + tdeOrbitAngle
-        return SIMD3(r * cos(phi), 0, r * sin(phi))
-    }
-
-    /// Where on screen a point in the disk plane appears after lensing: Newton's method on the
-    /// screen position, tracing each guess to its first crossing of the plane.
-    static func lensedScreenPosition(of target: SIMD3<Double>, camera cam: Camera) -> SIMD2<Double>? {
-        func planeHit(_ uv: SIMD2<Double>) -> SIMD2<Double>? {
-            var pos = cam.pos, vel = cam.ray(uv.x, uv.y)
-            let h2 = simd_length_squared(simd_cross(pos, vel))
-            for _ in 0..<2000 {
-                let r = simd_length(pos)
-                if r < 1 { return nil }
-                if r > simd_length(cam.pos) * 2.5 { return nil }
-                let dt = min(max(0.03 * r, 0.004), 1.0)
-                let r2 = r * r
-                let a0 = -1.5 * h2 * pos / (r2 * r2 * r)
-                let np = pos + vel * dt + 0.5 * a0 * dt * dt
-                let nr = simd_length(np)
-                let a1 = -1.5 * h2 * np / (nr * nr * nr * nr * nr)
-                if pos.y * np.y < 0 {
-                    let f = pos.y / (pos.y - np.y)
-                    let hit = pos + (np - pos) * f
-                    return SIMD2(hit.x, hit.z)
-                }
-                vel += 0.5 * (a0 + a1) * dt
-                pos = np
-            }
-            return nil
-        }
-        guard var uv = cam.project(simd_normalize(target - cam.pos)) else { return nil }
-        let goal = SIMD2(target.x, target.z)
-        for _ in 0..<8 {
-            guard let h = planeHit(uv) else { return nil }
-            let err = goal - h
-            if simd_length(err) < 0.01 { break }
-            let du = 0.002
-            guard let hx = planeHit(uv + SIMD2(du, 0)), let hy = planeHit(uv + SIMD2(0, du)) else { return nil }
-            let j = simd_double2x2(columns: ((hx - h) / du, (hy - h) / du))
-            guard abs(j.determinant) > 1e-9 else { return nil }
-            var step = j.inverse * err
-            if simd_length(step) > 0.2 { step = simd_normalize(step) * 0.2 }
-            uv += step
-        }
-        return uv
-    }
-
-    static func tidalDisruption(_ c: WallpaperConfig, _ t: Double, _ cam: Camera, _ W: Int, _ H: Int) -> SceneParamsGPU {
+    /// a = (star color, spot activity), b = (stream brightness, jets, star seed, 0),
+    /// c = (jet color, disk outer radius), d/e/f = disk receding / approaching / core colors.
+    static func tidalDisruption(_ c: WallpaperConfig) -> SceneParamsGPU {
         var p = SceneParamsGPU()
-        let cycle = c.tdeCycleMinutes * 60
-        let s = t.truncatingRemainder(dividingBy: cycle) / cycle
-        let approachEnd = 0.3, streamEnd = 0.9
-        let tau = min(max((s - approachEnd) / (streamEnd - approachEnd), 0), 1)
-        let fade = 1 - smoothstep(streamEnd, 1.0, s)
-        // the stream brightens, then the newly formed disk flares and decays (roughly t^-5/3)
-        let flare = s < approachEnd ? 0 : 0.4 + 2.2 * smoothstep(0.15, 0.35, tau) * pow(max(1 - (tau - 0.35) / 0.65, 0.05), 1.67)
-        p.a = SIMD4(Float(tdeOrbitAngle), Float(tdePericenter), Float(tdeEccentricity), Float(tau))
-        p.b = SIMD4(Float(s < approachEnd ? 0 : fade), Float(smoothstep(0.25, 0.75, tau) * fade),
-                    Float(8 - 5 * smoothstep(0.3, 1, tau)), Float(flare * fade))
-        let col = c.tdeStar.color
-        p.e = SIMD4(col.r, col.g, col.b, 0)
-
-        // the star itself, while it's still a star
-        if s < approachEnd + 0.02 {
-            let f = min(s / approachEnd, 1)
-            let nu = -2.5 + 2.15 * pow(f, 1.6)
-            let pos = tdeOrbit(nu)
-            if let uv = lensedScreenPosition(of: pos, camera: cam) {
-                let px = SIMD2((uv.x + 1) / 2 * Double(W), (1 - uv.y) / 2 * Double(H))
-                let dist = simd_length(pos - cam.pos)
-                let radius = max(2.0, 0.8 / dist / cam.tanHalf * Double(H) / 2)
-                // tidal stretching along the orbit just before it comes apart
-                let stretch = 1 + 2.5 * smoothstep(0.7, 1.0, f)
-                var dir = SIMD2<Double>(1, 0)
-                if let uv2 = lensedScreenPosition(of: tdeOrbit(nu + 0.05), camera: cam) {
-                    let d = SIMD2((uv2.x - uv.x) * Double(W), -(uv2.y - uv.y) * Double(H))
-                    if simd_length(d) > 1e-6 { dir = simd_normalize(d) }
-                }
-                let bright = smoothstep(0, 0.08, f) * (1 - smoothstep(0.95, 1.07, f)) * (1 + 0.6 * smoothstep(0.75, 1, f))
-                p.c = SIMD4(Float(px.x), Float(px.y), Float(radius), Float(bright))
-                p.d = SIMD4(Float(dir.x), Float(dir.y), Float(stretch), 0)
-            }
+        let star = c.tdeStar.color
+        p.a = SIMD4(star.r, star.g, star.b, Float(c.tdeStar.activity))
+        p.b = SIMD4(Float(c.tdeStreamBrightness), c.tdeJets ? 1 : 0, 0, 0)
+        p.c = SIMD4(c.tdeJetColor.r, c.tdeJetColor.g, c.tdeJetColor.b, Float(TDEGeometry.diskOuter))
+        let (rec, app, core): (RGB, RGB, RGB) = switch c.tdeDiskColors {
+        case .palette: (c.palette.receding, c.palette.approaching, c.palette.core)
+        case .fiery: (RGB(1.0, 0.22, 0.03), RGB(1.0, 0.55, 0.12), RGB(1.0, 0.85, 0.5))
+        case .blueWhite: (RGB(0.35, 0.5, 1.0), RGB(0.7, 0.85, 1.0), RGB(0.95, 0.97, 1.0))
         }
+        p.d = rec.simd
+        p.e = app.simd
+        p.f = core.simd
         return p
     }
 }

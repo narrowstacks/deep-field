@@ -24,9 +24,10 @@
 //   2 sky           star brightness, star tint (>1 = distant galaxy), nebula A, nebula B; half
 //   3,4 / 5,6       planet shell 0 / 1 crossings (position, direction), lensed scenes with
 //                   planets only; unorm16 / snorm16 (see recordShell)
+//                   tidal disruption (no planets): 3 = stream, 5 = star, half (see bakeBlackHole)
 //   7 dir           octahedral sky direction (the camera ray in flat scenes), snorm16
 //   8 info          lensed scenes: closest approach (black hole) or side and impact parameter
-//                   (wormhole), see the bake kernels; float32
+//                   (wormhole), see the bake kernels; float32 (rgba for the tidal disruption's jets)
 //   9 starId        star id for twinkles and pulsars, 1..4095 (0 = none), uint16
 
 enum ShaderSource {

@@ -60,7 +60,7 @@ final class Renderer {
             d.storageMode = .private
             placeholder = device.makeTexture(descriptor: d)!
             let lensed = try render("lensedFragment"), system = try render("systemFragment")
-            framePipelines = [.blackHole: lensed, .tidalDisruption: lensed, .wormhole: lensed,
+            framePipelines = [.blackHole: lensed, .tidalDisruption: try render("tdeFragment"), .wormhole: lensed,
                               .binary: system, .trinary: system, .galaxy: try render("galaxyFragment"),
                               .pulsar: try render("pulsarFragment"), .nebula: try render("nebulaFragment"),
                               .comet: try render("cometFragment"), .stellarSurface: try render("stellarFragment")]
@@ -98,14 +98,15 @@ final class Renderer {
     static func formats(for c: WallpaperConfig) -> [MTLPixelFormat?] {
         let lens = lensing(c.scene)
         let shells = needsShells(c)
+        let tde = c.scene == .tidalDisruption   // no planets; its stream and star use the shell slots
         return Slot.allCases.map { slot -> MTLPixelFormat? in
             switch slot {
             case .hitA, .hitB: lens == 1 ? .rgba32Float : (c.scene == .nebula ? .rgba16Float : nil)
             case .sky: .rgba16Float
-            case .shell0P, .shell1P: shells ? .rgba16Unorm : nil
+            case .shell0P, .shell1P: shells ? .rgba16Unorm : (tde ? .rgba16Float : nil)
             case .shell0D, .shell1D: shells ? .rgba16Snorm : nil
             case .dir: .rg16Snorm
-            case .info: lens > 0 ? .r32Float : nil
+            case .info: lens > 0 ? (tde ? .rgba32Float : .r32Float) : nil
             case .starId: .r16Uint
             }
         }
@@ -144,7 +145,7 @@ final class Renderer {
         var p = BakeParams(width: Float(w), height: Float(h),
                            camDist: Float(Camera.distance(for: c.scene)), camElev: Float(c.cameraTilt / 180 * .pi),
                            tanHalfFov: Float(cam.tanHalf), diskIn: SceneGeometry.diskIn,
-                           diskOut: Float(c.scene == .tidalDisruption ? 40 : c.diskSize),
+                           diskOut: Float(c.scene == .tidalDisruption ? TDEGeometry.diskOuter * 1.2 : c.diskSize),
                            roll: Float(SceneGeometry.roll),
                            shellR0: SceneGeometry.shellRadii[0], shellR1: SceneGeometry.shellRadii[1],
                            throat: Float(c.throat), starDensity: Float(c.starDensity),
@@ -155,6 +156,8 @@ final class Renderer {
         enc.setComputePipelineState(pipeline)
         enc.setTextures(textures, range: 0..<textures.count)
         enc.setBytes(&p, length: MemoryLayout<BakeParams>.stride, index: 0)
+        var tde = c.scene == .tidalDisruption ? SceneParams.tidalDisruptionBake(c) : SceneParamsGPU()
+        enc.setBytes(&tde, length: MemoryLayout<SceneParamsGPU>.stride, index: 1)
         let grid = MTLSize(width: w, height: h, depth: 1), group = MTLSize(width: 8, height: 8, depth: 1)
         enc.dispatchThreads(grid, threadsPerThreadgroup: group)
         enc.endEncoding()

@@ -39,9 +39,15 @@ struct WallpaperConfig: Codable, Equatable {
     var galaxySize = 1.0
 
     // Star meets black hole (tidal disruption)
-    var tdeCycleMinutes = 4.0
-    var tdeStar: StarType = .yellow
+    var tdeCycleMinutes = 4.0          // unused since the scene became a steady stream; kept so the key stays stable
+    var tdeStar: StarType = .blueGiant
     var tdeView = 14.0
+    var tdeStarSize = 1.0
+    var tdeStarDistance = 20.0         // from the hole, Schwarzschild radii
+    var tdeStreamBrightness = 1.0
+    var tdeDiskColors: TDEDiskColors = .palette
+    var tdeJets = true
+    var tdeJetColor = RGB(0.6, 0.5, 1.0)
 
     // Pulsar
     var pulsarPeriod = 3.0             // seconds per rotation
@@ -110,6 +116,7 @@ struct WallpaperConfig: Codable, Equatable {
         var scene: SceneKind, tilt: Double, diskSize: Double, throat: Double
         var starDensity: Double, galaxies: Bool, milkyWay: Bool, pixelSize: Int
         var nebulaType: NebulaType, nebulaSeed: Int
+        var tdeStar: SIMD2<Double>          // star radius and distance (tidal disruption only)
     }
 
     var bakeKey: BakeKey {
@@ -117,7 +124,8 @@ struct WallpaperConfig: Codable, Equatable {
                 diskSize: scene == .blackHole ? diskSize : 0,     // the tidal disruption bakes a fixed disk
                 throat: scene == .wormhole ? throat : 0,
                 starDensity: starDensity, galaxies: galaxies, milkyWay: milkyWay, pixelSize: pixelSize,
-                nebulaType: scene == .nebula ? nebulaType : .pillars, nebulaSeed: scene == .nebula ? nebulaSeed : 0)
+                nebulaType: scene == .nebula ? nebulaType : .pillars, nebulaSeed: scene == .nebula ? nebulaSeed : 0,
+                tdeStar: scene == .tidalDisruption ? SIMD2(tdeStar.radius * tdeStarSize, tdeStarDistance) : .zero)
     }
 
     /// Decodes leniently: keys missing from older saved configs fall back to defaults, and so
