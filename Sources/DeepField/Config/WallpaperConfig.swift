@@ -45,13 +45,23 @@ struct WallpaperConfig: Codable, Equatable {
 
     // Pulsar
     var pulsarPeriod = 3.0             // seconds per rotation
-    var pulsarInclination = 40.0       // magnetic axis vs spin axis, degrees
+    var pulsarInclination = 52.0       // magnetic axis vs spin axis, degrees
     var pulsarAxisTilt = 25.0          // spin axis leaning toward you, degrees
     var pulsarBeamWidth = 7.0          // degrees
     var pulsarBeamColor = RGB(0.55, 0.75, 1.0)
     var pulsarNebulaColor = RGB(0.7, 0.4, 1.0)
     var pulsarNebula = true
-    var pulsarFieldLines = true
+    var pulsarFieldLines = true            // the magnetic field on/off, drawn in pulsarFieldStyle
+    var pulsarBeams: PulsarBeams = .both
+    var pulsarFieldStyle: PulsarFieldStyle = .lines
+    var pulsarRing = false                 // dust ring in the spin plane
+    var pulsarFieldColor = RGB(0.45, 0.68, 1.0)
+    var pulsarRingColor = RGB(1.0, 0.6, 0.36)
+    var pulsarBeamIntensity = 1.0
+    var pulsarFieldIntensity = 1.0
+    var pulsarRingIntensity = 1.0
+    var pulsarNebulaIntensity = 1.0
+    var pulsarBeamTrail = 1.0              // how far the beams wind back behind the rotation
 
     // Nebula
     var nebulaType: NebulaType = .pillars

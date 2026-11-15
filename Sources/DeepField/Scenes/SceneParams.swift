@@ -32,17 +32,30 @@ enum SceneParams {
         let phase = (t / max(c.pulsarPeriod, 0.2)).truncatingRemainder(dividingBy: 1) * 2 * .pi
         let alpha = c.pulsarInclination / 180 * .pi
         let m = cos(alpha) * spin + sin(alpha) * (cos(phase) * e1 + sin(phase) * e2)
-        let b1 = simd_normalize(simd_cross(spin, m) + SIMD3(1e-6, 0, 0))
         let width = c.pulsarBeamWidth / 180 * .pi
-        // lighthouse flash when either beam sweeps across the camera
+        // The beams wind back behind the rotation (radians per unit of length), more so the
+        // faster it spins, like water from a turning hose.
+        let trail = min(0.08 / max(c.pulsarPeriod, 0.2), 0.12) * c.pulsarBeamTrail
+        // lighthouse flash when a beam sweeps across the camera; the part of the beam that
+        // reaches us left the star a while ago, so use its wound-back direction
         let toCam = simd_normalize(cam.pos)
-        let ang = acos(min(abs(simd_dot(m, toCam)), 1))
-        let flash = exp(-pow(ang / (width * 1.3), 2))
+        let lag = -trail * simd_length(cam.pos)
+        let mc = cos(lag) * m + sin(lag) * simd_cross(spin, m) + (1 - cos(lag)) * simd_dot(spin, m) * spin
+        let beams = c.pulsarBeams.mask
+        let toward = simd_dot(mc, toCam)
+        let facing = toward >= 0 ? 1 : 2           // which beam points our way
+        let ang = acos(min(abs(toward), 1))
+        let flash = beams & facing != 0 ? exp(-pow(ang / (width * 2), 2)) : 0
+        func scaled(_ col: RGB, _ k: Double, _ on: Bool = true) -> SIMD3<Float> {
+            on ? SIMD3(col.r, col.g, col.b) * Float(max(k, 0)) : .zero
+        }
         p.a = SIMD4(SIMD3<Float>(m), Float(width))
         p.b = SIMD4(SIMD3<Float>(spin), Float(flash))
-        p.c = SIMD4(c.pulsarBeamColor.r, c.pulsarBeamColor.g, c.pulsarBeamColor.b, c.pulsarNebula ? 1 : 0)
-        p.d = SIMD4(c.pulsarNebulaColor.r, c.pulsarNebulaColor.g, c.pulsarNebulaColor.b, c.pulsarFieldLines ? 1 : 0)
-        p.e = SIMD4(SIMD3<Float>(b1), 0)
+        p.c = SIMD4(scaled(c.pulsarBeamColor, c.pulsarBeamIntensity), Float(beams))
+        p.d = SIMD4(scaled(c.pulsarNebulaColor, c.pulsarNebulaIntensity, c.pulsarNebula),
+                    !c.pulsarFieldLines ? 0 : c.pulsarFieldStyle == .lines ? 1 : 2)
+        p.e = SIMD4(scaled(c.pulsarFieldColor, c.pulsarFieldIntensity), Float(trail))
+        p.f = SIMD4(scaled(c.pulsarRingColor, c.pulsarRingIntensity, c.pulsarRing), 0)
         return p
     }
 
