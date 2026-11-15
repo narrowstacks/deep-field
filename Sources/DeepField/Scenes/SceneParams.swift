@@ -16,6 +16,7 @@ enum SceneParams {
         case .nebula: return nebula(c)
         case .comet: return comet(c, t, cam, events, demo)
         case .stellarSurface: return stellarSurface(c, t, cam, events, demo)
+        case .quasar: return quasar(c, t, cam, events, demo)
         default: return SceneParamsGPU()
         }
     }
@@ -163,6 +164,71 @@ enum SceneParams {
             let ang = roomyAngle(&rng)
             p.e = SIMD4(Float(ang), Float(f), Float(smoothstep(0, 0.06, f) * (1 - smoothstep(0.85, 1, f))), Float(rng.range(0, 50)))
         }
+        return p
+    }
+
+    // MARK: Quasar
+
+    /// Optical depth of the quasar's dusty torus along the line from the nucleus at angle `i`
+    /// from the jet axis; mirrors the smooth part of qsrTorus (the clumps average to about 1).
+    static func quasarTorusDepth(_ i: Double) -> Double {
+        let R = 0.55, a = 0.22, k = 5.0, n = 96, ds = 1.0 / Double(n)
+        return (0..<n).reduce(0.0) { sum, step in
+            let s = (Double(step) + 0.5) * ds * 1.5
+            let rho = s * sin(i), h = s * cos(i)
+            return sum + k * exp(-((rho - R) * (rho - R) + h * h) / (a * a)) * ds * 1.5
+        }
+    }
+
+    private static func quasar(_ c: WallpaperConfig, _ t: Double, _ cam: Camera,
+                               _ events: EventSchedule, _ demo: [UInt64: Double]) -> SceneParamsGPU {
+        var p = SceneParamsGPU()
+        // the jet axis, from its angle to our line of sight and its direction on screen;
+        // in portrait the jets run up the tall frame instead
+        let i = c.quasarView / 180 * .pi
+        let pa = (cam.portrait ? 90 - c.quasarJetAngle : c.quasarJetAngle) / 180 * .pi
+        let axis = simd_normalize(sin(i) * (cos(pa) * cam.right + sin(pa) * cam.up) - cos(i) * cam.fwd)
+        let e1 = simd_normalize(simd_cross(axis, cam.fwd))
+        let L = 11.5 * c.quasarJetLength
+
+        // Relativistic beaming: plasma at Lorentz factor 3 seen at angle i. The approaching jet's
+        // light is Doppler boosted by delta^(2 + alpha), the receding one's dimmed. Knots also
+        // appear to move faster on the approaching side (superluminal at moderate angles).
+        let gamma = 3.0, beta = (1 - 1 / (gamma * gamma)).squareRoot()
+        let mu = cos(i)
+        let dA = 1 / (gamma * (1 - beta * mu)), dR = 1 / (gamma * (1 + beta * mu))
+        let beamR = max(pow(dR / dA, 2.6), 0.02)
+        let beamA = min(pow(dA / 0.55, 0.5), 2.0)       // held near 1 so a near-on view doesn't blow out
+        let base = 0.075 * c.quasarKnotSpeed            // jet lengths per second along the axis
+        let period = 1.4 * 4096
+        let travelA = (t * base / (1 - beta * mu)).truncatingRemainder(dividingBy: period)
+        let travelR = (t * base / (1 + beta * mu)).truncatingRemainder(dividingBy: period)
+
+        // the flare: the core brightens sharply and launches a new knot up both jets
+        var boost = 0.0, zfA = -1.0, zfR = -1.0, flareKnot = 0.0, hotBoost = 0.0
+        if let (age, _) = events.active(EventSchedule.quasarFlare, rate: c.quasarEvents.rate, at: t, demo: demo) {
+            let d = EventSchedule.quasarFlare.duration
+            boost = 7 * smoothstep(0, 1.2, age) * exp(-age / 10) + 0.6 * exp(-age / 45)
+            let f = max(age - 2, 0) / (d * 0.78)
+            zfA = L * min(f, 1.05)
+            zfR = zfA * (1 - beta * mu) / (1 + beta * mu)
+            flareKnot = smoothstep(1, 5, age) * (1 - 0.45 * min(f, 1)) * (1 - smoothstep(0.92, 1.04, f))
+            hotBoost = 2.5 * smoothstep(0.85, 1.0, f) * (1 - smoothstep(0, d * 0.2, age - d * 0.8))
+        }
+
+        typealias L_ = PickedColor.Level
+        p.a = SIMD4(SIMD3<Float>(axis), Float(L))
+        p.b = SIMD4(SIMD3<Float>(e1), Float(travelA))
+        p.c = SIMD4(c.quasarJetColor.light3(L_.quasarJet), Float(travelR))
+        p.d = SIMD4(c.quasarLobeColor.light3(L_.quasarLobe), Float(c.quasarJetBrightness))
+        let spiral = 2 * Double.pi / (8 * 60) * 0.55     // arm pattern speed, corotating at mid-disk
+        p.e = SIMD4(Float(beamA), Float(beamR), Float(c.quasarGalaxy), Float((t * spiral).truncatingRemainder(dividingBy: 2 * .pi)))
+        p.f = SIMD4(Float(boost), Float(zfA), Float(flareKnot), Float(zfR))
+        // the helix pattern drifts outward; the torus hides the core more as we see it edge-on
+        let toUs = simd_normalize(cam.pos)
+        let viewAngle = acos(min(max(simd_dot(toUs, axis), -1), 1))
+        p.g = SIMD4(Float((t * 0.09).truncatingRemainder(dividingBy: 2 * .pi)), Float((t * 0.004).truncatingRemainder(dividingBy: 500)),
+                    Float(hotBoost), Float(exp(-quasarTorusDepth(viewAngle))))
         return p
     }
 

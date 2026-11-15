@@ -102,9 +102,26 @@ struct SceneColors: View {
                     }
                 }
             }
+        case .quasar:
+            ColorRow("Jets", store.color(\.quasarJetColor))
+            ColorRow("Radio lobes", store.color(\.quasarLobeColor))
+            LabeledContent("Presets") {
+                HStack {
+                    Button("Radio") { setQuasar(jet: WallpaperConfig.Tuned.quasarJet.color, lobe: WallpaperConfig.Tuned.quasarLobe.color) }
+                    Button("X-ray") { setQuasar(jet: RGB(0.62, 0.88, 1.0), lobe: RGB(0.3, 0.45, 1.0)) }
+                    Button("Optical") { setQuasar(jet: RGB(1.0, 0.85, 0.6), lobe: RGB(1.0, 0.42, 0.25)) }
+                }
+            }
         case .binary, .trinary, .stellarSurface:
             EmptyView()
         }
+    }
+}
+
+extension SceneColors {
+    fileprivate func setQuasar(jet: RGB, lobe: RGB) {
+        store.config.quasarJetColor = jet
+        store.config.quasarLobeColor = lobe
     }
 }
 

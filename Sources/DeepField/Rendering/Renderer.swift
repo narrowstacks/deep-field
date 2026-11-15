@@ -29,7 +29,7 @@ final class Renderer {
         .blackHole: "lensedFragment", .wormhole: "lensedFragment", .tidalDisruption: "tdeFragment",
         .binary: "systemFragment", .trinary: "systemFragment", .galaxy: "galaxyFragment",
         .pulsar: "pulsarFragment", .nebula: "nebulaFragment", .comet: "cometFragment",
-        .stellarSurface: "stellarFragment",
+        .stellarSurface: "stellarFragment", .quasar: "quasarFragment",
     ]
     /// Bloom: the scene passes writing linear light to a float target (built on first use), the
     /// bright pass, the blur, the composite, and the intermediate textures per target size.
@@ -71,7 +71,7 @@ final class Renderer {
             let flat = try compute("bakeFlat"), blackHole = try compute("bakeBlackHole")
             bakePipelines = [.blackHole: blackHole, .tidalDisruption: blackHole, .wormhole: try compute("bakeWormhole"),
                              .binary: flat, .trinary: flat, .galaxy: flat, .pulsar: flat, .comet: flat,
-                             .stellarSurface: flat, .nebula: try compute("bakeNebula")]
+                             .stellarSurface: flat, .quasar: flat, .nebula: try compute("bakeNebula")]
             skyPipeline = try compute("skyPass")
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: 1, height: 1, mipmapped: false)
             d.usage = [.shaderRead, .shaderWrite]

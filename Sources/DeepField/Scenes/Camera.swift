@@ -36,6 +36,7 @@ struct PhoneFraming: Codable, Equatable {
         case .nebula: (0.5, -0.1, 0)
         case .comet: (0.8, -0.45, 0)
         case .stellarSurface: (1.3, -0.5, 0)
+        case .quasar: (0.34, -0.05, 0)
         }
     }
 }

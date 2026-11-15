@@ -57,6 +57,8 @@ enum PickedColor {
         static let cometIon: Float = 0.36
         static let cometDust: Float = 0.29
         static let tdeJet: Float = 0.45
+        static let quasarJet: Float = 0.6
+        static let quasarLobe: Float = 0.5
     }
 }
 
@@ -74,6 +76,7 @@ extension WallpaperConfig {
         case tdeJet = "tdeJetColor", pulsarBeam = "pulsarBeamColor", pulsarNebula = "pulsarNebulaColor"
         case pulsarField = "pulsarFieldColor", pulsarRing = "pulsarRingColor"
         case cometIon = "cometIonColor", cometDust = "cometDustColor"
+        case quasarJet = "quasarJetColor", quasarLobe = "quasarLobeColor"
 
         var light: RGB {
             switch self {
@@ -84,6 +87,8 @@ extension WallpaperConfig {
             case .pulsarRing: RGB(1.0, 0.6, 0.36)
             case .cometIon: RGB(0.3, 0.6, 1.0)
             case .cometDust: RGB(1.0, 0.85, 0.6)
+            case .quasarJet: RGB(0.45, 0.7, 1.0)
+            case .quasarLobe: RGB(1.0, 0.22, 0.8)
             }
         }
 
@@ -97,6 +102,8 @@ extension WallpaperConfig {
             case .pulsarRing: L.pulsarRing
             case .cometIon: L.cometIon
             case .cometDust: L.cometDust
+            case .quasarJet: L.quasarJet
+            case .quasarLobe: L.quasarLobe
             }
         }
 
