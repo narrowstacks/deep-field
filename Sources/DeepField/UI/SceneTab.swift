@@ -19,8 +19,6 @@ struct SceneTab: View {
                 case .wormhole:
                     SliderRow(title: "Throat size", value: $store.config.throat, range: 1.5...5.5) { String(format: "%.1f", $0) }
                     SliderRow(title: "Rim glow", value: $store.config.photonRing, range: 0...2)
-                    Text("The far side's colors are under Colors → Other universe.")
-                        .font(.callout).foregroundStyle(.secondary)
                 case .binary:
                     StarPicker(title: "Star A", star: $store.config.binaryStars[0])
                     StarPicker(title: "Star B", star: $store.config.binaryStars[1])
@@ -37,14 +35,8 @@ struct SceneTab: View {
                     SliderRow(title: "Star size", value: $store.config.tdeStarSize, range: 0.5...1.6)
                     SliderRow(title: "Star distance", value: $store.config.tdeStarDistance, range: 16...28) { String(format: "%.0f", $0) }
                     SliderRow(title: "Stream brightness", value: $store.config.tdeStreamBrightness, range: 0...2)
-                    Picker("Disk colors", selection: $store.config.tdeDiskColors) {
-                        ForEach(TDEDiskColors.allCases) { Text($0.title).tag($0) }
-                    }
                     SliderRow(title: "Disk speed", value: $store.config.diskSpeed, range: 0.1...3)
                     Toggle("Jets", isOn: $store.config.tdeJets)
-                    if store.config.tdeJets {
-                        ColorPicker("Jet color", selection: store.color(\.tdeJetColor), supportsOpacity: false)
-                    }
                     SliderRow(title: "Viewing angle", value: $store.config.tdeView, range: 4...35) { String(format: "%.0f°", $0) }
                     Text("A star strays too close and overflows toward the hole. Tides stretch it into an egg, and a stream of its gas peels off the tip, spirals in, and feeds the accretion disk. The star, stream and jets are all bent by the hole's gravity.")
                         .font(.callout).foregroundStyle(.secondary)
@@ -53,10 +45,6 @@ struct SceneTab: View {
                     SliderRow(title: "Magnetic angle", value: $store.config.pulsarInclination, range: 0...90) { String(format: "%.0f°", $0) }
                     SliderRow(title: "Spin axis tilt", value: $store.config.pulsarAxisTilt, range: -60...60) { String(format: "%.0f°", $0) }
                     SliderRow(title: "Beam width", value: $store.config.pulsarBeamWidth, range: 2...20) { String(format: "%.0f°", $0) }
-                    HStack {
-                        ColorPicker("Beams", selection: store.color(\.pulsarBeamColor), supportsOpacity: false)
-                        ColorPicker("Nebula", selection: store.color(\.pulsarNebulaColor), supportsOpacity: false)
-                    }
                     Toggle("Magnetic field lines", isOn: $store.config.pulsarFieldLines)
                     Toggle("Wind nebula (torus and jets)", isOn: $store.config.pulsarNebula)
                     Text("Real pulsars spin up to hundreds of times a second; this one is slowed way down so the beams don't strobe.")
@@ -72,28 +60,9 @@ struct SceneTab: View {
                         }
                     }
                     SliderRow(title: "Flow speed", value: $store.config.nebulaFlow, range: 0.1...4)
-                    HStack {
-                        ColorPicker("Hydrogen (Hα)", selection: store.color(\.nebulaHa), supportsOpacity: false)
-                        ColorPicker("Oxygen (OIII)", selection: store.color(\.nebulaOIII), supportsOpacity: false)
-                        ColorPicker("Sulfur (SII)", selection: store.color(\.nebulaSII), supportsOpacity: false)
-                    }
-                    LabeledContent("Color mapping") {
-                        HStack {
-                            Button("Natural") {
-                                store.config.nebulaHa = RGB(1.0, 0.22, 0.35); store.config.nebulaOIII = RGB(0.15, 0.85, 0.9); store.config.nebulaSII = RGB(1.0, 0.65, 0.2)
-                            }
-                            Button("Hubble palette") {
-                                store.config.nebulaSII = RGB(1.0, 0.35, 0.12); store.config.nebulaHa = RGB(0.35, 1.0, 0.4); store.config.nebulaOIII = RGB(0.2, 0.45, 1.0)
-                            }
-                        }
-                    }
                 case .comet:
                     SliderRow(title: "Tail length", value: $store.config.cometTailLength, range: 0.3...2)
                     SliderRow(title: "Activity", value: $store.config.cometActivity, range: 0.2...2.5)
-                    HStack {
-                        ColorPicker("Ion tail", selection: store.color(\.cometIonColor), supportsOpacity: false)
-                        ColorPicker("Dust tail", selection: store.color(\.cometDustColor), supportsOpacity: false)
-                    }
                     FrequencyRow(title: "Outbursts and tail breaks", value: $store.config.cometEvents)
                     LabeledContent("Show me") {
                         HStack {

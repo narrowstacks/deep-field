@@ -4,6 +4,8 @@ import Foundation
 enum Settings {
     private static let d = UserDefaults.standard
     static var debug: Bool { d.bool(forKey: "debug") }
+    /// Dev only: the Customize tab `--capture-ui` opens on (pass `-captureTab N`).
+    static var captureTab: Int { d.integer(forKey: "captureTab") }
     /// Testing only: keep rendering even when the desktop is covered.
     static var ignoreOcclusion: Bool { d.bool(forKey: "ignoreOcclusion") }
 

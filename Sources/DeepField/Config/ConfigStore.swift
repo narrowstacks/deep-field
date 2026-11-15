@@ -54,8 +54,12 @@ final class ConfigStore: ObservableObject {
         save()
     }
 
+    /// Off for dev captures, so they can switch scenes without touching the saved settings.
+    var persists = true
+
     private func save() {
         saveWork = nil
+        guard persists else { return }
         guard let data = try? JSONEncoder().encode(config) else { return }
         UserDefaults.standard.set(data, forKey: key)
     }

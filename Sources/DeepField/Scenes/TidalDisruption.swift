@@ -13,7 +13,7 @@ enum TDEDiskColors: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .palette: "Palette"
+        case .palette: "Custom"
         case .fiery: "Fiery"
         case .blueWhite: "Blue-white"
         }

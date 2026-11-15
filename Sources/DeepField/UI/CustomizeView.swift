@@ -16,18 +16,21 @@ struct CustomizeView: View {
         return CGSize(width: s.frame.width * s.backingScaleFactor, height: s.frame.height * s.backingScaleFactor)
     }
 
+    /// Normally the Scene tab; `-captureTab N` picks another for `--capture-ui`.
+    @State private var tab = Settings.captureTab
+
     var body: some View {
         VStack(spacing: 0) {
             LivePreview(reference: reference)
                 .aspectRatio(reference.width / reference.height, contentMode: .fit)
                 .frame(maxWidth: .infinity)
                 .background(Color.black)
-            TabView {
-                SceneTab(store: store).tabItem { Text("Scene") }
-                ColorsTab(store: store).tabItem { Text("Colors") }
-                SkyTab(store: store).tabItem { Text("Sky & Events") }
-                PlanetsTab(store: store).tabItem { Text("Planets") }
-                DisplayTab(store: store).tabItem { Text("Display") }
+            TabView(selection: $tab) {
+                SceneTab(store: store).tabItem { Text("Scene") }.tag(0)
+                ColorsTab(store: store).tabItem { Text("Colors") }.tag(1)
+                SkyTab(store: store).tabItem { Text("Sky & Events") }.tag(2)
+                PlanetsTab(store: store).tabItem { Text("Planets") }.tag(3)
+                DisplayTab(store: store).tabItem { Text("Display") }.tag(4)
             }
             .padding(12)
         }
