@@ -238,25 +238,37 @@ static float4 finalize(float3 col, uint2 p, constant FrameParams& F) {
 // ---------- bloom: bright pass at quarter size, separable blur, composite ----------
 
 // Linear light above the threshold (on the tone-mapped luminance), soft-kneed, in exposed units.
+// Each pixel's light is capped first: a star (and more so a twinkling one) is a pixel or two far
+// brighter than anything around it, and uncapped it would spread into a wide square halo.
 static float3 brightPart(float3 col, constant FrameParams& F) {
-    float3 x = min(max(col, 0.0) * F.exposure, 16.0);
-    float lum = 1.0 - exp(-dot(x, float3(0.2126, 0.7152, 0.0722)));
+    float3 x = max(col, 0.0) * F.exposure;
+    float l = dot(x, float3(0.2126, 0.7152, 0.0722));
+    if (l > 2.5) x *= 2.5 / l;
+    float lum = 1.0 - exp(-min(l, 2.5));
     return x * smoothstep(F.bloom.y, F.bloom.y + 0.3, lum);
 }
 
-// Each output texel covers 4x4 scene pixels: four bilinear taps, each the mean of a 2x2 block.
+// Each output texel covers 4x4 scene pixels. They're averaged with weights that fall with
+// brightness (a Karis average): an even bright region keeps its plain mean, while a lone hot
+// pixel among dark ones counts for much less, so it can't light up a halo on its own.
 kernel void bloomBright(texture2d<float> hdr [[texture(0)]],
                         texture2d<float, access::write> dst [[texture(1)]],
                         constant FrameParams& F [[buffer(0)]],
                         uint2 gid [[thread_position_in_grid]]) {
     if (gid.x >= dst.get_width() || gid.y >= dst.get_height()) return;
-    constexpr sampler s(filter::linear, address::clamp_to_edge, coord::pixel);
-    float2 c = float2(gid) * 4.0;
-    float3 sum = brightPart(hdr.sample(s, c + float2(1.0, 1.0)).rgb, F)
-               + brightPart(hdr.sample(s, c + float2(3.0, 1.0)).rgb, F)
-               + brightPart(hdr.sample(s, c + float2(1.0, 3.0)).rgb, F)
-               + brightPart(hdr.sample(s, c + float2(3.0, 3.0)).rgb, F);
-    dst.write(float4(sum * 0.25, 1.0), gid);
+    uint2 size = uint2(hdr.get_width(), hdr.get_height());
+    float3 sum = float3(0.0);
+    float wsum = 0.0;
+    for (uint y = 0; y < 4; y++) {
+        for (uint x = 0; x < 4; x++) {
+            uint2 q = min(gid * 4u + uint2(x, y), size - 1u);
+            float3 b = brightPart(hdr.read(q).rgb, F);
+            float w = 1.0 / (1.0 + dot(b, float3(0.2126, 0.7152, 0.0722)));
+            sum += b * w;
+            wsum += w;
+        }
+    }
+    dst.write(float4(sum / wsum, 1.0), gid);
 }
 
 // A 17-tap Gaussian along `dir`, sigma in texels; taps spread to cover about 2.7 sigma.
