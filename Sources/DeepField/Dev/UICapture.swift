@@ -3,8 +3,13 @@ import AppKit
 extension CustomizeWindowController {
     /// Dev aid: `--capture-ui out.png` opens the window, saves an image of it, and quits.
     /// `-captureTab N` picks the section (0 Scene, 1 Sky, 2 Image, 3 System, 4 Phone) and
-    /// `-captureScene name` the scene (not saved).
+    /// `-captureScene name` the scene (not saved). `--defaults` shows the default settings
+    /// instead of the saved ones (also not saved).
     func captureForDebug(to path: String) {
+        if CommandLine.arguments.contains("--defaults") {
+            ConfigStore.shared.persists = false
+            ConfigStore.shared.config = WallpaperConfig()
+        }
         if let name = UserDefaults.standard.string(forKey: "captureScene"), let scene = SceneKind(rawValue: name) {
             ConfigStore.shared.persists = false
             ConfigStore.shared.config.scene = scene

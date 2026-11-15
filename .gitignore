@@ -6,3 +6,6 @@ screenshots/
 .swiftpm/
 Design/Icons/output/
 .claude/
+Design/Brand/output/
+__pycache__/
+!docs/site-assets/loops/*.mp4
