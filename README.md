@@ -36,6 +36,11 @@ Requires macOS 14 or later.
     <td><img src="docs/media/gallery/comet.png" alt="Comet"><br><b>Comet</b></td>
     <td><img src="docs/media/gallery/stellarSurface.png" alt="Star Close-up"><br><b>Star Close-up</b></td>
   </tr>
+  <tr>
+    <td><img src="docs/media/gallery/planetaryNebula.png" alt="Planetary Nebula"><br><b>Planetary Nebula</b></td>
+    <td></td>
+    <td></td>
+  </tr>
 </table>
 
 - **Black Hole**: a lensed accretion disk, redshifted orange on one side and blueshifted on the
@@ -57,6 +62,10 @@ Requires macOS 14 or later.
   tail. Now and then it has an outburst, or a chunk of ion tail breaks off and drifts away.
 - **Star Close-up**: the limb of a star with granulation, sunspots, a chromosphere with
   spicules, coronal loops and prominences, plus occasional flares and coronal mass ejections.
+- **Planetary Nebula**: the shell a dying star blew off, lit by the white dwarf left behind. A
+  barrel of glowing gas shows as a ring: deep blue near the star, teal oxygen inside, a gold to
+  crimson hydrogen rim with soft dense knots, and a faint halo of older shells drifting outward.
+  Now and then the star flares and throws off a new shell.
 
 ## In motion
 

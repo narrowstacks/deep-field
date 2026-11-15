@@ -85,6 +85,10 @@ struct SceneColors: View {
             if c.pulsarFieldLines { ColorRow("Magnetic field", store.color(\.pulsarFieldColor)) }
             if c.pulsarRing { ColorRow("Dust ring", store.color(\.pulsarRingColor)) }
             if c.pulsarNebula { ColorRow("Wind nebula", store.color(\.pulsarNebulaColor)) }
+        case .planetaryNebula:
+            ColorRow("Inner glow (oxygen)", store.color(\.planetaryInnerColor))
+            ColorRow("Rim (hydrogen)", store.color(\.planetaryRimColor))
+            if store.config.planetaryHalo { ColorRow("Halo", store.color(\.planetaryHaloColor)) }
         case .comet:
             ColorRow("Ion tail", store.color(\.cometIonColor))
             ColorRow("Dust tail", store.color(\.cometDustColor))

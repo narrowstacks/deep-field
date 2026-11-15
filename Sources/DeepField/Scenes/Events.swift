@@ -39,6 +39,8 @@ struct EventSchedule {
     static let coronalEjection = Kind(id: 10, slot: 420, chance: 0.6, duration: 120)
     static let prominenceEruption = Kind(id: 11, slot: 600, chance: 0.6, duration: 150)
     static let surge           = Kind(id: 12, slot: 240, chance: 0.7, duration: 36)
+    // planetary nebula scene
+    static let shellEjection   = Kind(id: 13, slot: 480, chance: 0.65, duration: 150)
 
     /// If an event of this kind is running at time t: its age in seconds and a generator for its parameters.
     func active(_ k: Kind, rate: Double, at t: Double, demo: [UInt64: Double] = [:]) -> (age: Double, rng: Rng)? {
@@ -62,7 +64,7 @@ struct EventSchedule {
     static func skyDirection(_ u: Double, _ v: Double, camera cam: Camera, config c: WallpaperConfig) -> SIMD3<Double>? {
         let d = cam.ray(u, v)
         switch c.scene {
-        case .binary, .trinary, .galaxy, .pulsar, .nebula, .comet, .stellarSurface:
+        case .binary, .trinary, .galaxy, .pulsar, .nebula, .planetaryNebula, .comet, .stellarSurface:
             return d
         case .wormhole:
             // lensing is mild away from the throat; just keep events clear of it

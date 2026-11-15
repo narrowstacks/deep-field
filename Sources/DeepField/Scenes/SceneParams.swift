@@ -14,6 +14,7 @@ enum SceneParams {
         case .tidalDisruption: return tidalDisruption(c)
         case .pulsar: return pulsar(c, t, cam)
         case .nebula: return nebula(c)
+        case .planetaryNebula: return planetaryNebula(c, t, cam, events, demo)
         case .comet: return comet(c, t, cam, events, demo)
         case .stellarSurface: return stellarSurface(c, t, cam, events, demo)
         default: return SceneParamsGPU()
@@ -68,6 +69,34 @@ enum SceneParams {
         p.b = c.nebulaHa.v4
         p.c = c.nebulaOIII.v4
         p.d = c.nebulaSII.v4
+        return p
+    }
+
+    // MARK: Planetary nebula
+
+    private static func planetaryNebula(_ c: WallpaperConfig, _ t: Double, _ cam: Camera,
+                                        _ events: EventSchedule, _ demo: [UInt64: Double]) -> SceneParamsGPU {
+        var p = SceneParamsGPU()
+        // the barrel's axis: tipped away from our line of sight toward the upper right
+        let view = cam.center
+        let lean = c.planetaryView / 180 * .pi, turn = 0.6
+        let side = cos(turn) * cam.right + sin(turn) * cam.up
+        let axis = simd_normalize(cos(lean) * view + sin(lean) * side)
+        typealias L = PickedColor.Level
+        p.a = SIMD4(SIMD3<Float>(axis), Float(3.5 * c.planetarySize))
+        p.b = SIMD4(c.planetaryInnerColor.light3(L.planetaryInner), Float(c.planetaryElongation))
+        p.c = SIMD4(c.planetaryRimColor.light3(L.planetaryRim), Float(c.planetaryKnots))
+        p.d = SIMD4(c.planetaryHaloColor.light3(L.planetaryHalo), c.planetaryHalo ? 1 : 0)
+        p.e.y = 3.7
+        var star = 1.0
+        if case (let age, _)? = events.active(EventSchedule.shellEjection, rate: c.planetaryEvents.rate, at: t, demo: demo) {
+            let f = age / EventSchedule.shellEjection.duration
+            // the star flares as it lets go, then the shell coasts outward, slowing and thinning
+            star += 2.5 * smoothstep(0, 0.02, f) * exp(-f / 0.06)
+            p.e.z = Float(0.06 + 0.9 * (1 - exp(-f * 2.2)))
+            p.e.w = Float(smoothstep(0, 0.04, f) * (1 - smoothstep(0.55, 1, f)) * (1.4 - 0.8 * f))
+        }
+        p.f = SIMD4(0.75, 0.88, 1.0, Float(star))
         return p
     }
 

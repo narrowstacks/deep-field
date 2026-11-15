@@ -95,6 +95,17 @@ struct WallpaperConfig: Codable, Equatable {
     var nebulaOIII = RGB(0.15, 0.85, 0.9)   // doubly ionized oxygen
     var nebulaSII = RGB(1.0, 0.65, 0.2)     // ionized sulfur
 
+    // Planetary nebula
+    var planetarySize = 1.0
+    var planetaryElongation = 1.4      // the barrel's length over its width
+    var planetaryView = 28.0           // angle between its axis and our line of sight, degrees
+    var planetaryKnots = 1.0
+    var planetaryHalo = true
+    var planetaryInnerColor = Tuned.planetaryInner.color
+    var planetaryRimColor = Tuned.planetaryRim.color
+    var planetaryHaloColor = Tuned.planetaryHalo.color
+    var planetaryEvents: Frequency = .normal
+
     // Comet
     var cometTailLength = 1.0
     var cometActivity = 1.0

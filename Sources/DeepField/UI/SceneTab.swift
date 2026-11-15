@@ -93,6 +93,16 @@ struct SceneTab: View {
                         }
                     }
                     SliderRow(title: "Flow speed", value: $store.config.nebulaFlow, range: 0.1...4)
+                case .planetaryNebula:
+                    SliderRow(title: "Size", value: $store.config.planetarySize, range: 0.6...1.5)
+                    SliderRow(title: "Elongation", value: $store.config.planetaryElongation, range: 1...2.2) { String(format: "%.1f", $0) }
+                        .help("How much longer the barrel of gas is than it is wide")
+                    SliderRow(title: "Viewing angle", value: $store.config.planetaryView, range: 0...85) { String(format: "%.0f°", $0) }
+                        .help("0° looks straight down the barrel and shows a round ring")
+                    SliderRow(title: "Knots", value: $store.config.planetaryKnots, range: 0...1.5)
+                        .help("Dense droplets of gas around the inner rim, lit on the side facing the star")
+                    Toggle("Halo", isOn: $store.config.planetaryHalo)
+                        .help("Faint older shells from earlier puffs, drifting outward")
                 case .comet:
                     SliderRow(title: "Tail length", value: $store.config.cometTailLength, range: 0.3...2)
                     SliderRow(title: "Activity", value: $store.config.cometActivity, range: 0.2...2.5)
@@ -200,6 +210,13 @@ struct SceneTab: View {
                                                ("Surge", EventSchedule.surge),
                                                ("Prominence Eruption", EventSchedule.prominenceEruption),
                                                ("Coronal Mass Ejection", EventSchedule.coronalEjection)])
+            } header: {
+                GroupHeader(title: "Events")
+            }
+        case .planetaryNebula:
+            Section {
+                FrequencyRow(title: "Shell ejections", value: $store.config.planetaryEvents)
+                DemoGrid(store: store, demos: [("Shell Ejection", EventSchedule.shellEjection)])
             } header: {
                 GroupHeader(title: "Events")
             }
