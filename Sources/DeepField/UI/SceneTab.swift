@@ -94,6 +94,16 @@ struct SceneTab: View {
                     StarPicker(title: "Star", star: $store.config.closeStar)
                     SliderRow(title: "Sunspots", value: $store.config.starSpots, range: 0...1.5)
                     SliderRow(title: "Rotation", value: $store.config.starRotation, range: 0...4)
+                    SliderRow(title: "Zoom", value: $store.config.starZoom, range: WallpaperConfig.starZoomRange)
+                    SliderRow(title: "Horizontal position", value: $store.config.starCenterX, range: -1...1)
+                    SliderRow(title: "Top of the star", value: $store.config.starLimbY, range: -0.9...1)
+                    LabeledContent("Framing") {
+                        HStack {
+                            Button("Whole star") { frameStar(zoom: 0.45, x: 0, top: 0.8) }
+                            Button("Limb") { frameStar(zoom: 1, x: -0.15, top: 0.12) }
+                            Button("Close-up") { frameStar(zoom: 3, x: -0.1, top: -0.2) }
+                        }
+                    }
                     FrequencyRow(title: "Flares and eruptions", value: $store.config.starFlares)
                     LabeledContent("Show me") {
                         VStack(alignment: .trailing) {
@@ -135,5 +145,11 @@ struct SceneTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func frameStar(zoom: Double, x: Double, top: Double) {
+        store.config.starZoom = zoom
+        store.config.starCenterX = x
+        store.config.starLimbY = top
     }
 }
