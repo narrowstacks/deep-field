@@ -1,0 +1,85 @@
+import AppKit
+import Metal
+
+/// Offscreen rendering of a single frame into a CGImage: bakes the scene at the given shaded
+/// size, draws one frame, and reads it back. Used by `--snapshot` and the lock screen still.
+enum FrameCapture {
+    /// Encodes and commits the bake, the frame and the readback. Call `image()` once `cb` has
+    /// completed.
+    private struct Pending {
+        let cb: MTLCommandBuffer
+        let buffer: MTLBuffer
+        let width: Int, height: Int
+
+        func image() -> CGImage? {
+            let rowBytes = width * 4
+            let data = Data(bytes: buffer.contents(), count: rowBytes * height)
+            let info = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+            guard let provider = CGDataProvider(data: data as CFData) else { return nil }
+            return CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: rowBytes,
+                           space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: info, provider: provider,
+                           decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        }
+    }
+
+    private static func encode(config: WallpaperConfig, width w: Int, height h: Int, time: Double,
+                               eventsEnabled: Bool) -> Pending? {
+        let r = Renderer.shared
+        guard let cb = r.queue.makeCommandBuffer(),
+              let target = r.makeTexture(.bgra8Unorm, w, h, usage: [.renderTarget, .shaderRead]),
+              let buffer = r.device.makeBuffer(length: w * 4 * h, options: .storageModeShared) else { return nil }
+        // the bake textures are only referenced by the command buffer, so they're freed with it
+        guard let baked = r.encodeBake(cb, width: w, height: h, config: config) else { return nil }
+        let events = EventSchedule(seed: 1, enabled: eventsEnabled)
+        r.encodeFrame(cb, target: target, baked: baked, elapsed: time, config: config, events: events)
+        guard let blit = cb.makeBlitCommandEncoder() else { return nil }
+        blit.copy(from: target, sourceSlice: 0, sourceLevel: 0, sourceOrigin: MTLOrigin(),
+                  sourceSize: MTLSize(width: w, height: h, depth: 1),
+                  to: buffer, destinationOffset: 0, destinationBytesPerRow: w * 4, destinationBytesPerImage: w * 4 * h)
+        blit.endEncoding()
+        return Pending(cb: cb, buffer: buffer, width: w, height: h)
+    }
+
+    /// Renders one frame of `w` x `h` shaded pixels and waits for it.
+    static func render(config: WallpaperConfig, width w: Int, height h: Int, time: Double,
+                       eventsEnabled: Bool) -> CGImage? {
+        guard let p = encode(config: config, width: w, height: h, time: time, eventsEnabled: eventsEnabled) else { return nil }
+        p.cb.commit()
+        p.cb.waitUntilCompleted()
+        return p.cb.status == .completed ? p.image() : nil
+    }
+
+    /// Encodes on the calling thread (call it on the main thread, like the live views do) and
+    /// calls `completion` on a Metal completion thread once the GPU is done.
+    static func render(config: WallpaperConfig, width w: Int, height h: Int, time: Double,
+                       eventsEnabled: Bool, completion: @escaping (CGImage?) -> Void) {
+        guard let p = encode(config: config, width: w, height: h, time: time, eventsEnabled: eventsEnabled) else {
+            completion(nil)
+            return
+        }
+        p.cb.addCompletedHandler { cb in completion(cb.status == .completed ? p.image() : nil) }
+        p.cb.commit()
+    }
+
+    /// Scales `image` up by a whole `factor` and crops it to `width` x `height` from the top
+    /// left (the shaded size is rounded up, so the last cells overhang). Nearest-neighbor keeps
+    /// the dither cells crisp; otherwise it's smoothed with high-quality interpolation.
+    static func upscaled(_ image: CGImage, factor: Int, width: Int, height: Int, nearest: Bool) -> CGImage? {
+        if factor == 1 && image.width == width && image.height == height { return image }
+        let info = CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: info) else { return nil }
+        ctx.interpolationQuality = nearest ? .none : .high
+        let sw = image.width * factor, sh = image.height * factor
+        ctx.draw(image, in: CGRect(x: 0, y: height - sh, width: sw, height: sh))
+        return ctx.makeImage()
+    }
+
+    static func writePNG(_ image: CGImage, to url: URL) throws {
+        let rep = NSBitmapImageRep(cgImage: image)
+        guard let data = rep.representation(using: .png, properties: [:]) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        try data.write(to: url, options: .atomic)
+    }
+}
