@@ -85,6 +85,7 @@ struct WallpaperConfig: Codable, Equatable {
     var planetSize = 1.0
     var planetOrbitMinutes = 40.0
     var planetSeed = 1
+    var planetRings = true             // some giants get rings (around the black hole and wormhole)
 
     // Events
     var twinkles: Frequency = .normal
