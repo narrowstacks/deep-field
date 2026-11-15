@@ -91,7 +91,10 @@ struct EventSchedule {
                 }
                 pos = np
             }
-            return simd_normalize(vel)
+            // A source almost straight behind the hole gets lensed into a full bright ring
+            // around it: correct, but far from subtle, so events stay out of that cone.
+            let out = simd_normalize(vel)
+            return simd_dot(out, -simd_normalize(cam.pos)) > cos(0.3) ? nil : out
         }
     }
 
