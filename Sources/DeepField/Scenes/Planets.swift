@@ -43,7 +43,26 @@ enum PlanetFactory {
         Style(a: [0.75, 0.55, 1.00], b: [0.20, 0.10, 0.40], bands: 9, atmosphere: 0.6),    // violet
     ]
 
+    /// The settings a layout depends on.
+    private struct Key: Equatable {
+        var scene: SceneKind, seed: Int, count: Int, size: Double, orbitMinutes: Double
+        init(_ c: WallpaperConfig) {
+            scene = c.scene; seed = c.planetSeed; count = c.planetCount
+            size = c.planetSize; orbitMinutes = c.planetOrbitMinutes
+        }
+    }
+    // The renderer asks every frame; the layout only changes with the settings. Main thread only.
+    private static var cache: (key: Key, specs: [PlanetSpec])?
+
     static func make(_ c: WallpaperConfig) -> [PlanetSpec] {
+        let key = Key(c)
+        if let cache, cache.key == key { return cache.specs }
+        let specs = layout(c)
+        cache = (key, specs)
+        return specs
+    }
+
+    private static func layout(_ c: WallpaperConfig) -> [PlanetSpec] {
         if !c.scene.hasPlanets { return [] }
         var rng = Rng(UInt64(truncatingIfNeeded: c.planetSeed) &* 0x5851_F42D_4C95_7F2D &+ 7)
         var order = Array(styles.indices)

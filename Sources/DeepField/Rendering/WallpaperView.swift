@@ -90,7 +90,8 @@ final class WallpaperView: NSView {
 
     private func configChanged() {
         updateRunning()
-        if let baked, baked.key != config.bakeKey {
+        // a new scene can't draw from the old scene's bake, so that one re-bakes right away
+        if let baked, baked.key != config.bakeKey, baked.key.scene == config.scene {
             // debounce, so dragging a slider doesn't re-trace every intermediate value
             rebakeWork?.cancel()
             let work = DispatchWorkItem { [weak self] in
@@ -100,6 +101,7 @@ final class WallpaperView: NSView {
             rebakeWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
         } else {
+            rebakeWork?.cancel()
             layoutDrawable()
         }
     }

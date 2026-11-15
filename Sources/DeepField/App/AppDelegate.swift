@@ -2,12 +2,16 @@ import AppKit
 import ServiceManagement
 
 /// Menu bar item, one wallpaper window per screen, and pausing when nobody can see them.
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var windows: [WallpaperWindow] = []
     private var statusItem: NSStatusItem!
     private var userPaused = false
     private var screensAsleep = false
     private var sessionInactive = false
+
+    func applicationWillTerminate(_ notification: Notification) {
+        ConfigStore.shared.flush()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildWindows()
@@ -47,13 +51,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// One window per screen. Windows of screens that are still attached are kept (and moved if
+    /// the arrangement changed), so a screen change doesn't re-bake every display; only windows
+    /// of screens that went away are torn down.
     private func buildWindows() {
-        windows.forEach { $0.orderOut(nil) }
+        var old = windows
         windows = NSScreen.screens.map { screen in
+            if let id = WallpaperWindow.displayID(of: screen), let i = old.firstIndex(where: { $0.displayID == id }) {
+                let w = old.remove(at: i)
+                w.place(on: screen)
+                return w
+            }
             let w = WallpaperWindow(screen: screen)
             w.orderFrontRegardless()   // the desktop window level keeps it beneath everything
             return w
         }
+        old.forEach { $0.tearDown() }
         applyPause()
     }
 
@@ -67,41 +80,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "circle.circle", accessibilityDescription: "Deep Field")
-        rebuildMenu()
-    }
-
-    private func rebuildMenu() {
         let menu = NSMenu()
-        let pause = NSMenuItem(title: userPaused ? "Resume Animation" : "Pause Animation",
-                               action: #selector(togglePause), keyEquivalent: "")
-        pause.target = self
-        menu.addItem(pause)
+        menu.delegate = self
+        pauseItem.target = self
+        menu.addItem(pauseItem)
         let customize = NSMenuItem(title: "Customize…", action: #selector(showCustomize), keyEquivalent: ",")
         customize.target = self
         menu.addItem(customize)
         menu.addItem(.separator())
-        let login = NSMenuItem(title: "Launch at Login", action: #selector(toggleLogin), keyEquivalent: "")
-        login.target = self
-        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        menu.addItem(login)
+        loginItem.target = self
+        menu.addItem(loginItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Deep Field", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
     }
 
-    @objc private func togglePause() { userPaused.toggle(); applyPause(); rebuildMenu() }
+    private let pauseItem = NSMenuItem(title: "Pause Animation", action: #selector(togglePause), keyEquivalent: "")
+    private let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLogin), keyEquivalent: "")
+
+    /// Refreshed on every open, since the login item can also be changed in System Settings.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        pauseItem.title = userPaused ? "Resume Animation" : "Pause Animation"
+        switch SMAppService.mainApp.status {
+        case .enabled: loginItem.state = .on
+        case .requiresApproval: loginItem.state = .mixed   // registered, waiting for approval in System Settings
+        default: loginItem.state = .off
+        }
+    }
+
+    @objc private func togglePause() { userPaused.toggle(); applyPause() }
     @objc private func showCustomize() { CustomizeWindowController.shared.show() }
 
     @objc private func toggleLogin() {
+        let service = SMAppService.mainApp
         do {
-            if SMAppService.mainApp.status == .enabled {
-                try SMAppService.mainApp.unregister()
-            } else {
-                try SMAppService.mainApp.register()
+            switch service.status {
+            case .enabled: try service.unregister()
+            case .requiresApproval: SMAppService.openSystemSettingsLoginItems()
+            default:
+                try service.register()
+                if service.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
             }
         } catch {
             NSLog("DeepField: login item change failed: \(error)")
         }
-        rebuildMenu()
     }
 }

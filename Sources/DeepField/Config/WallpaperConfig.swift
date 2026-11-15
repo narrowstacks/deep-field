@@ -103,6 +103,9 @@ struct WallpaperConfig: Codable, Equatable {
     }
 
     /// Anything that changes the precomputed ray lookups; other changes apply on the next frame.
+    /// Settings only one scene's bake reads are left at a fixed value for the other scenes, so
+    /// changing them doesn't re-trace a scene that ignores them. The sky pass runs for every
+    /// scene, and the pixel size sets the bake's resolution.
     struct BakeKey: Equatable {
         var scene: SceneKind, tilt: Double, diskSize: Double, throat: Double
         var starDensity: Double, galaxies: Bool, milkyWay: Bool, pixelSize: Int
@@ -110,26 +113,65 @@ struct WallpaperConfig: Codable, Equatable {
     }
 
     var bakeKey: BakeKey {
-        BakeKey(scene: scene, tilt: cameraTilt, diskSize: diskSize, throat: throat,
+        BakeKey(scene: scene, tilt: cameraTilt,
+                diskSize: scene == .blackHole ? diskSize : 0,     // the tidal disruption bakes a fixed disk
+                throat: scene == .wormhole ? throat : 0,
                 starDensity: starDensity, galaxies: galaxies, milkyWay: milkyWay, pixelSize: pixelSize,
-                nebulaType: nebulaType, nebulaSeed: nebulaSeed)
+                nebulaType: scene == .nebula ? nebulaType : .pillars, nebulaSeed: scene == .nebula ? nebulaSeed : 0)
     }
 
-    /// Decodes leniently: keys missing from older saved configs fall back to defaults.
+    /// Decodes leniently: keys missing from older saved configs fall back to defaults, and so
+    /// does any single key that no longer decodes (say, an enum case this build doesn't know),
+    /// instead of the whole config resetting.
     static func decode(_ data: Data) -> WallpaperConfig? {
         guard let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let defaultsData = try? JSONEncoder().encode(WallpaperConfig()),
-              var merged = try? JSONSerialization.jsonObject(with: defaultsData) as? [String: Any] else { return nil }
+              let defaults = try? JSONSerialization.jsonObject(with: defaultsData) as? [String: Any] else { return nil }
         // merge one level deep too, so palettes saved before new colors were added still load
-        for (key, value) in saved {
-            if let nested = value as? [String: Any], var base = merged[key] as? [String: Any] {
+        func merging(_ key: String, _ value: Any, into dict: inout [String: Any]) {
+            if let nested = value as? [String: Any], var base = dict[key] as? [String: Any] {
                 base.merge(nested) { _, new in new }
-                merged[key] = base
+                dict[key] = base
             } else {
-                merged[key] = value
+                dict[key] = value
             }
         }
-        guard let mergedData = try? JSONSerialization.data(withJSONObject: merged) else { return nil }
-        return try? JSONDecoder().decode(WallpaperConfig.self, from: mergedData)
+        func decoded(_ dict: [String: Any]) -> WallpaperConfig? {
+            guard let d = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
+            return try? JSONDecoder().decode(WallpaperConfig.self, from: d)
+        }
+        var merged = defaults
+        for (key, value) in saved { merging(key, value, into: &merged) }
+        if let c = decoded(merged) { return c.sanitized() }
+        // something in there is bad: keep each key only if the config still decodes with it
+        merged = defaults
+        for key in saved.keys.sorted() {
+            var trial = merged
+            merging(key, saved[key]!, into: &trial)
+            if decoded(trial) != nil { merged = trial }
+        }
+        return decoded(merged)?.sanitized()
+    }
+
+    /// Clamps values the renderer would choke on (zero periods, missing stars, a zero pixel
+    /// size). The Customize window can't produce these; a hand-edited or damaged save can.
+    func sanitized() -> WallpaperConfig {
+        let d = WallpaperConfig()
+        var c = self
+        func positive(_ kp: WritableKeyPath<WallpaperConfig, Double>, min lo: Double) {
+            if !(c[keyPath: kp] >= lo) { c[keyPath: kp] = c[keyPath: kp].isNaN ? d[keyPath: kp] : lo }
+        }
+        c.pixelSize = min(max(c.pixelSize, 1), 16)
+        c.levels = min(max(c.levels, 2), 256)
+        c.fps = min(max(c.fps, 1), 120)
+        c.planetCount = min(max(c.planetCount, 0), 6)
+        for kp in [\WallpaperConfig.starOrbitMinutes, \.planetOrbitMinutes, \.galaxyRotationMinutes,
+                   \.tdeCycleMinutes, \.pulsarPeriod, \.nebulaFlow, \.planetSize, \.galaxySize] {
+            positive(kp, min: 0.05)
+        }
+        if c.binaryStars.count < 2 { c.binaryStars += d.binaryStars.dropFirst(c.binaryStars.count) }
+        if c.trinaryStars.count < 3 { c.trinaryStars += d.trinaryStars.dropFirst(c.trinaryStars.count) }
+        if c.galaxyArms < 1 { c.galaxyArms = 1 }
+        return c
     }
 }

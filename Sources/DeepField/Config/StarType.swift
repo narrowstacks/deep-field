@@ -72,7 +72,12 @@ enum StarType: String, Codable, CaseIterable, Identifiable {
     }
 
     /// Approximate blackbody color (Tanner Helland's fit), nudged toward saturation for the art style.
-    var color: RGB {
+    /// Worked out once per type, since the scenes ask for it every frame.
+    var color: RGB { Self.colors[self]! }
+
+    private static let colors = Dictionary(uniqueKeysWithValues: allCases.map { ($0, $0.blackbody) })
+
+    private var blackbody: RGB {
         let t = temperature / 100
         var r, g, b: Double
         if t <= 66 {

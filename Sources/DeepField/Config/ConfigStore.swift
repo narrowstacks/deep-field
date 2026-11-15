@@ -35,18 +35,29 @@ final class ConfigStore: ObservableObject {
             if d.integer(forKey: "fps") > 0 { c.fps = d.integer(forKey: "fps") }
             if d.integer(forKey: "pixelSize") > 0 { c.pixelSize = d.integer(forKey: "pixelSize") }
             if d.integer(forKey: "levels") > 0 { c.levels = d.integer(forKey: "levels") }
-            config = c
+            config = c.sanitized()
         }
     }
 
+    /// Saves are debounced, so dragging a slider writes once when it settles.
     private func scheduleSave() {
         saveWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            guard let self, let data = try? JSONEncoder().encode(self.config) else { return }
-            UserDefaults.standard.set(data, forKey: self.key)
-        }
+        let work = DispatchWorkItem { [weak self] in self?.save() }
         saveWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
+
+    /// Writes a pending save now (at quit, so the last change isn't lost).
+    func flush() {
+        guard let work = saveWork, !work.isCancelled else { return }
+        work.cancel()
+        save()
+    }
+
+    private func save() {
+        saveWork = nil
+        guard let data = try? JSONEncoder().encode(config) else { return }
+        UserDefaults.standard.set(data, forKey: key)
     }
 
     func demo(_ kind: EventSchedule.Kind) {

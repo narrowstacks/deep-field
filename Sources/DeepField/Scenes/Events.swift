@@ -6,7 +6,15 @@ import simd
 /// where. No state, so any moment can be evaluated directly (handy for snapshots).
 struct EventSchedule {
     var seed: UInt64
-    var enabled = true
+    var enabled: Bool
+    /// Where the current sky events appear. Finding a spot can take a dozen geodesic traces
+    /// around a black hole, but it's fixed for an event's lifetime, so it's worked out once.
+    private let placements = SkyPlacements()
+
+    init(seed: UInt64, enabled: Bool = true) {
+        self.seed = seed
+        self.enabled = enabled
+    }
 
     struct Kind {
         let id: UInt64
@@ -88,6 +96,23 @@ struct EventSchedule {
         return camera.ray(0.8, 0.6)
     }
 
+    /// `count` random sky directions for the event whose generator is `rng`, advancing `rng`
+    /// past them exactly as `randomSky` would. Cached per event instance and view.
+    private func placed(_ k: Kind, count: Int, _ rng: inout Rng, camera: Camera, config: WallpaperConfig,
+                        uRange: Double, vRange: Double) -> [SIMD3<Double>] {
+        let key = SkyPlacements.Key(rng: rng.state, scene: config.scene, tilt: config.cameraTilt,
+                                    throat: config.throat, aspect: camera.aspect)
+        if let hit = placements.entries[k.id], hit.key == key {
+            rng = hit.after
+            return hit.dirs
+        }
+        let dirs = (0..<count).map { _ in
+            Self.randomSky(&rng, camera: camera, config: config, uRange: uRange, vRange: vRange)
+        }
+        placements.entries[k.id] = (key, dirs, rng)
+        return dirs
+    }
+
     func gpu(at t: Double, config c: WallpaperConfig, camera cam: Camera, heightPixels: Int,
              demo: [UInt64: Double] = ConfigStore.shared.demoEvents) -> EventsGPU {
         var e = EventsGPU()
@@ -95,7 +120,7 @@ struct EventSchedule {
         let pa = 2 * cam.tanHalf / Double(heightPixels)   // radians per pixel
 
         if case (let age, var rng)? = active(Self.supernova, rate: c.supernovae.rate, at: t, demo: demo) {
-            let d = Self.randomSky(&rng, camera: cam, config: c, uRange: 0.85, vRange: 0.8)
+            let d = placed(Self.supernova, count: 1, &rng, camera: cam, config: c, uRange: 0.85, vRange: 0.8)[0]
             let fadeOut = 1 - smoothstep(Self.supernova.duration - 30, Self.supernova.duration, age)
             let rise = smoothstep(0, 2.5, age)
             let core = 5.0 * rise * (0.15 + 0.85 * exp(-age / 18)) * fadeOut
@@ -107,8 +132,8 @@ struct EventSchedule {
         }
 
         if case (let age, var rng)? = active(Self.comet, rate: c.comets.rate, at: t, demo: demo) {
-            let a = Self.randomSky(&rng, camera: cam, config: c, uRange: 0.95, vRange: 0.7)
-            let b = Self.randomSky(&rng, camera: cam, config: c, uRange: 0.95, vRange: 0.7)
+            let ends = placed(Self.comet, count: 2, &rng, camera: cam, config: c, uRange: 0.95, vRange: 0.7)
+            let a = ends[0], b = ends[1]
             let f = age / Self.comet.duration
             let head = simd_normalize(simd_mix(a, b, SIMD3(repeating: f)))
             // tail points away from the center of the scene (which sits along the view axis)
@@ -182,4 +207,13 @@ struct EventSchedule {
             place(dist, ang, vel, smoothstep(0, 0.12, f) * (1 - smoothstep(0.8, 1, f)))
         }
     }
+}
+
+/// Per-view cache behind `EventSchedule.placed`: one entry per event kind, keyed by the event's
+/// generator state (which identifies the instance) and everything the placement depends on.
+private final class SkyPlacements {
+    struct Key: Equatable {
+        var rng: UInt64, scene: SceneKind, tilt: Double, throat: Double, aspect: Double
+    }
+    var entries: [UInt64: (key: Key, dirs: [SIMD3<Double>], after: Rng)] = [:]
 }
