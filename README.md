@@ -108,3 +108,9 @@ Everything is in `Sources/DeepField`:
   `ShaderSource.full` and compiled at runtime, so the build needs no Metal toolchain.
 - `UI/`: the SwiftUI Customize window, one file per tab.
 - `Dev/`: the command line above (snapshot, benchmark, event list, UI capture).
+
+
+## App icon
+
+The icon lives in `Design/Icons/AppIcon.png` and `build.sh` turns it into `AppIcon.icns`. The
+scripts that generated it and the other candidate icons are in `Design/Icons/` (see its README).
