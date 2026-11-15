@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildWindows()
         buildStatusItem()
-        LockScreenStill.shared.start()
+        if !Settings.capturingUI { LockScreenStill.shared.start() }   // a capture never touches desktop pictures
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--capture-ui"), i + 1 < args.count {
             CustomizeWindowController.shared.captureForDebug(to: args[i + 1])
