@@ -18,18 +18,19 @@ static float3 cameraRay(constant BakeParams& P, uint2 gid, thread float3& camPos
 }
 
 struct ShellRec {
-    float4 pos = float4(-1.0);
+    float4 pos = float4(0.0);
     float4 dir = float4(0.0);
     int n = 0;
 };
 
 // Up to two crossings of a sphere of radius R: where (theta, phi) and which way the ray was
-// heading. Theta is offset by 4*eventIndex so the frame shader knows what is in front of what.
+// heading. Stored as unorm16 (see decodeShell): theta offset by 4 * eventIndex (so the frame
+// shader knows what is in front of what) and mapped to (0, 1], with 0 = no crossing; phi to [0, 1].
 static void recordShell(thread ShellRec& s, float3 hp, float3 hv, float R, int ev) {
     if (s.n >= 2) return;
     float3 nrm = hp / R;
-    float theta = acos(clamp(nrm.y, -1.0, 1.0)) + 4.0 * float(ev);
-    float phi = atan2(nrm.z, nrm.x);
+    float theta = (acos(clamp(nrm.y, -1.0, 1.0)) + 4.0 * float(min(ev, 5)) + 0.5) / 25.0;
+    float phi = atan2(nrm.z, nrm.x) / 6.2831853 + 0.5;
     float2 d = octEncode(normalize(hv));
     if (s.n == 0) { s.pos.xy = float2(theta, phi); s.dir.xy = d; }
     else          { s.pos.zw = float2(theta, phi); s.dir.zw = d; }

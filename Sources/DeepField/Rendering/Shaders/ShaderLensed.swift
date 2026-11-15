@@ -112,18 +112,20 @@ fragment float4 lensedFragment(FRAME_INPUTS)
     int count = int(F.planetCount);
     if (count > 0) {
         float4 sp[2] = { shell0P.read(p), shell1P.read(p) };
-        float4 sd[2] = { sp[0].x >= 0.0 ? shell0D.read(p) : float4(0.0), sp[1].x >= 0.0 ? shell1D.read(p) : float4(0.0) };
         float radii[2] = { F.shellR0, F.shellR1 };
         for (int s = 0; s < 2; s++) {
             for (int k = 0; k < 2; k++) {
                 float2 tp = k == 0 ? sp[s].xy : sp[s].zw;
-                if (tp.x < 0.0) continue;
-                float ev = floor(tp.x / 4.0);
+                if (tp.x <= 0.0) continue;
+                float packed = tp.x * 25.0 - 0.5;           // see recordShell
+                float ev = floor(packed / 4.0);
                 int il = min(int(ev), 5);
                 if (il >= opaque) continue;
-                float theta = tp.x - ev * 4.0;
-                float3 Xs = radii[s] * float3(sin(theta) * cos(tp.y), cos(theta), sin(theta) * sin(tp.y));
-                float3 v = octDecode(k == 0 ? sd[s].xy : sd[s].zw);
+                float theta = packed - ev * 4.0, phi = tp.y * 6.2831853 - 3.1415927;
+                float3 Xs = radii[s] * float3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi));
+                if (!planetsNearShellPoint(Xs, radii[s], s, planets, count)) continue;
+                float4 sd = s == 0 ? shell0D.read(p) : shell1D.read(p);
+                float3 v = octDecode(k == 0 ? sd.xy : sd.zw);
                 float4 pc = shadePlanetsOnShell(Xs, v, s, planets, count, lights, lightCount);
                 if (pc.a > 0.0) { layers[il] = pc; opaque = il; }
             }

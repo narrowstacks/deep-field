@@ -93,8 +93,8 @@ final class Renderer {
     }
 
     /// Pixel format of each slot for a config; nil = unused (placeholder bound).
-    /// Ray hits and shell positions keep float32 (radii and angles feed fine noise); the
-    /// direction is 16-bit fixed point (about 1/50 pixel), the sky scalars half floats.
+    /// Ray hits keep float32 (radii and angles feed fine noise); directions and shell
+    /// crossing angles are 16-bit fixed point (well under a pixel), the sky scalars half floats.
     static func formats(for c: WallpaperConfig) -> [MTLPixelFormat?] {
         let lens = lensing(c.scene)
         let shells = needsShells(c)
@@ -102,8 +102,8 @@ final class Renderer {
             switch slot {
             case .hitA, .hitB: lens == 1 ? .rgba32Float : (c.scene == .nebula ? .rgba16Float : nil)
             case .sky: .rgba16Float
-            case .shell0P, .shell1P: shells ? .rgba32Float : nil
-            case .shell0D, .shell1D: shells ? .rgba16Float : nil
+            case .shell0P, .shell1P: shells ? .rgba16Unorm : nil
+            case .shell0D, .shell1D: shells ? .rgba16Snorm : nil
             case .dir: .rg16Snorm
             case .info: lens > 0 ? .r32Float : nil
             case .starId: .r16Uint
