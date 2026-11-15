@@ -15,7 +15,7 @@ final class SceneThumbnails: ObservableObject {
     private var work: DispatchWorkItem?
 
     init(reference: CGSize) {
-        let s = Theme.fit(reference, in: Theme.thumbBox)
+        let s = Theme.fit(reference, in: Theme.gallery(for: reference).box)
         size = (max(16, Int(s.width.rounded())), max(16, Int(s.height.rounded())))
     }
 

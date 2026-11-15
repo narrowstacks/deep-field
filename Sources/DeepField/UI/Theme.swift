@@ -12,7 +12,14 @@ enum Theme {
     static let windowSize = CGSize(width: 1160, height: 740)
     static let stagePadding: CGFloat = 20
     static let previewBox = CGSize(width: 680, height: 425)
-    static let thumbBox = CGSize(width: 128, height: 80)
+
+    /// The box a gallery thumbnail fits in, and the stage gallery's column count. A wide screen
+    /// gives a short preview, so the gallery takes the leftover height as four larger columns.
+    static func gallery(for reference: CGSize) -> (box: CGSize, columns: Int) {
+        fit(reference, in: previewBox).height < 340
+            ? (CGSize(width: 162, height: 102), 4)
+            : (CGSize(width: 128, height: 80), 5)
+    }
 
     /// `size` scaled to fit inside `box`, keeping its aspect ratio.
     static func fit(_ size: CGSize, in box: CGSize) -> CGSize {

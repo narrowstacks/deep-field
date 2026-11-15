@@ -5,14 +5,14 @@ import SwiftUI
 struct SceneGallery: View {
     @ObservedObject var store: ConfigStore
     @ObservedObject var thumbnails: SceneThumbnails
-    /// 5 on the normal stage, 2 beside the phone preview.
     let columns: Int
 
     var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.fixed(Theme.thumbBox.width), spacing: 10), count: columns),
+        let cell = CGSize(width: thumbnails.size.width, height: thumbnails.size.height)
+        LazyVGrid(columns: Array(repeating: GridItem(.fixed(cell.width), spacing: 10), count: columns),
                   alignment: .leading, spacing: 10) {
             ForEach(SceneKind.listed, id: \.self) { kind in
-                Cell(kind: kind, image: thumbnails.images[kind], selected: store.config.scene == kind) {
+                Cell(kind: kind, size: cell, image: thumbnails.images[kind], selected: store.config.scene == kind) {
                     store.config.scene = kind
                 }
             }
@@ -21,6 +21,7 @@ struct SceneGallery: View {
 
     private struct Cell: View {
         let kind: SceneKind
+        let size: CGSize
         let image: CGImage?
         let selected: Bool
         let action: () -> Void
@@ -37,7 +38,7 @@ struct SceneGallery: View {
                                 .frame(width: CGFloat(image.width), height: CGFloat(image.height))
                         }
                     }
-                    .frame(width: Theme.thumbBox.width, height: Theme.thumbBox.height)
+                    .frame(width: size.width, height: size.height)
                     .clipped()
                     .overlay {
                         if selected {
@@ -51,7 +52,7 @@ struct SceneGallery: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .foregroundStyle(selected ? Color.primary : Color.secondary)
-                        .frame(width: Theme.thumbBox.width, alignment: .leading)
+                        .frame(width: size.width, alignment: .leading)
                 }
                 .contentShape(Rectangle())
             }

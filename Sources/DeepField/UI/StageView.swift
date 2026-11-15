@@ -29,13 +29,12 @@ struct StageView: View {
                 HStack(alignment: .top, spacing: 20) {
                     PhoneStage(store: store, showClock: showPhoneClock)
                     SceneGallery(store: store, thumbnails: thumbnails, columns: 2)
-                    Spacer(minLength: 0)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     preview
                     caption
-                    SceneGallery(store: store, thumbnails: thumbnails, columns: 5)
+                    SceneGallery(store: store, thumbnails: thumbnails, columns: Theme.gallery(for: reference).columns)
                         .padding(.top, 14)
                     Spacer(minLength: 0)
                 }
