@@ -37,6 +37,29 @@ struct GroupHeader: View {
     }
 }
 
+/// A group header that folds its group away.
+struct CollapsibleHeader: View {
+    let title: String
+    @Binding var collapsed: Bool
+
+    var body: some View {
+        Button { collapsed.toggle() } label: {
+            HStack(spacing: 6) {
+                Image(systemName: collapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 10)
+                GroupHeader(title: title)
+                Spacer()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
+    }
+}
+
 /// A group's explanatory note, kept leading-aligned (grouped forms push short footers right).
 struct GroupFooter: View {
     let text: String

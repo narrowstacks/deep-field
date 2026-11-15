@@ -18,6 +18,7 @@ struct StageView: View {
     let reference: CGSize
     let showPhoneClock: Bool
     @Binding var actualPixels: Bool
+    @ObservedObject private var status = ConsoleStatus.shared
 
     /// `--capture-ui` only: `cacheDisplay` can't read a Metal layer, so captures show a still.
     @State private var captureStill: CGImage?
@@ -90,11 +91,16 @@ struct StageView: View {
 
     private var telemetry: some View {
         HStack {
-            Text(telemetryText)
-                .font(Theme.readout)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            Group {
+                if let message = status.message {
+                    Text(message.uppercased()).foregroundStyle(Theme.accent)
+                } else {
+                    Text(telemetryText).foregroundStyle(.secondary)
+                }
+            }
+            .font(Theme.readout)
+            .lineLimit(1)
+            .truncationMode(.tail)
             Spacer(minLength: 8)
             Picker("Preview scale", selection: $actualPixels) {
                 Text("FIT").tag(false)

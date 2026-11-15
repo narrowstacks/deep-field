@@ -61,7 +61,10 @@ struct DemoGrid: View {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)],
                       alignment: .leading, spacing: 6) {
                 ForEach(demos, id: \.1.id) { title, kind in
-                    DemoButton(title: title) { store.demo(kind) }
+                    DemoButton(title: title) {
+                        store.demo(kind)
+                        ConsoleStatus.shared.flash("\(title) triggered")
+                    }
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -74,8 +77,23 @@ struct StarPicker: View {
     @Binding var star: StarType
     var body: some View {
         Picker(title, selection: $star) {
-            ForEach(StarType.allCases) { Text($0.title).tag($0) }
+            ForEach(StarType.allCases) { s in
+                Label { Text(s.title) } icon: { Image(nsImage: Self.dot(s.color.nsColor)) }
+                    .tag(s)
+            }
         }
+    }
+
+    /// A colored dot as a bitmap: popup menus draw images but not SwiftUI shapes, and a
+    /// non-template image keeps its color there.
+    private static func dot(_ color: NSColor) -> NSImage {
+        let image = NSImage(size: NSSize(width: 8, height: 8), flipped: false) { rect in
+            color.setFill()
+            NSBezierPath(ovalIn: rect).fill()
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 }
 

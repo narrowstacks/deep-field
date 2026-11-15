@@ -5,6 +5,10 @@ import SwiftUI
 struct SceneTab: View {
     @ObservedObject var store: ConfigStore
 
+    // UI state only, stored beside (not inside) the saved config
+    @AppStorage("ui.collapsed.planets") private var planetsCollapsed = false
+    @AppStorage("ui.collapsed.camera") private var cameraCollapsed = false
+
     private var scene: SceneKind { store.config.scene }
 
     var body: some View {
@@ -141,28 +145,32 @@ struct SceneTab: View {
             events
             if scene.hasPlanets {
                 Section {
-                    PlanetsGroup(store: store)
+                    if !planetsCollapsed { PlanetsGroup(store: store) }
                 } header: {
-                    GroupHeader(title: "Planets")
+                    CollapsibleHeader(title: "Planets", collapsed: $planetsCollapsed)
                 } footer: {
-                    GroupFooter(PlanetsGroup.footer)
+                    if !planetsCollapsed { GroupFooter(PlanetsGroup.footer) }
                 }
             }
             Section {
-                switch scene {
-                case .galaxy:
-                    SliderRow(title: "Viewing angle", value: $store.config.galaxyView, range: 5...85) { String(format: "%.0f°", $0) }
-                case .tidalDisruption:
-                    SliderRow(title: "Viewing angle", value: $store.config.tdeView, range: 4...35) { String(format: "%.0f°", $0) }
-                default:
-                    SliderRow(title: "Tilt", value: $store.config.tilt, range: 1...25) { String(format: "%.0f°", $0) }
-                }
+                if !cameraCollapsed { camera }
             } header: {
-                GroupHeader(title: "Camera")
+                CollapsibleHeader(title: "Camera", collapsed: $cameraCollapsed)
             }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
+    }
+
+    @ViewBuilder private var camera: some View {
+        switch scene {
+        case .galaxy:
+            SliderRow(title: "Viewing angle", value: $store.config.galaxyView, range: 5...85) { String(format: "%.0f°", $0) }
+        case .tidalDisruption:
+            SliderRow(title: "Viewing angle", value: $store.config.tdeView, range: 4...35) { String(format: "%.0f°", $0) }
+        default:
+            SliderRow(title: "Tilt", value: $store.config.tilt, range: 1...25) { String(format: "%.0f°", $0) }
+        }
     }
 
     /// The scene's own occasional events, for the scenes that have them.
