@@ -16,6 +16,8 @@ struct PlanetSpec {
     var atmosphere: Float
     var seed: Float
     var spinMinutes: Double
+    var kind = 0               // 0 gas giant, 1 ice giant, 2 rocky, 3 lava (see the shader's PlanetLook)
+    var rings = 0.0            // outer ring radius in planet radii, 0 = none
 
     func gpu(elapsed t: Double) -> PlanetGPU {
         let a = (phase / 180 * .pi) + 2 * .pi * t / (periodMinutes * 60)
@@ -27,28 +29,33 @@ struct PlanetSpec {
         let spin = Float((2 * .pi * t / (spinMinutes * 60)).truncatingRemainder(dividingBy: 2 * .pi))
         return PlanetGPU(center: SIMD4(Float(x2), Float(y1), Float(z2), Float(shell)),
                          colorA: SIMD4(colorA, Float(radius)), colorB: SIMD4(colorB, seed),
-                         misc: SIMD4(spin, bands, atmosphere, 0))
+                         misc: SIMD4(spin, bands, atmosphere, Float(kind * 8) + Float(rings)))
     }
 }
 
 enum PlanetFactory {
-    private struct Style { let a: SIMD3<Float>, b: SIMD3<Float>, bands: Float, atmosphere: Float }
+    /// Rocky worlds use `a` for land and `b` for sea; lava worlds `a` for the glow and `b` for
+    /// the crust. `ringChance` / `ringSize`: how often it has rings, and how far out (planet radii).
+    private struct Style {
+        let a: SIMD3<Float>, b: SIMD3<Float>, bands: Float, atmosphere: Float
+        let kind: Int, ringChance: Float, ringSize: Double
+    }
     private static let styles: [Style] = [
-        Style(a: [0.95, 0.42, 0.14], b: [0.30, 0.08, 0.04], bands: 7, atmosphere: 0.25),   // rust giant
-        Style(a: [0.80, 0.90, 1.00], b: [0.22, 0.34, 0.60], bands: 3, atmosphere: 0.8),    // ice
-        Style(a: [0.20, 0.55, 1.00], b: [0.03, 0.10, 0.35], bands: 12, atmosphere: 1.0),   // ocean
-        Style(a: [0.95, 0.82, 0.60], b: [0.55, 0.38, 0.22], bands: 14, atmosphere: 0.3),   // banded gas giant
-        Style(a: [1.00, 0.35, 0.05], b: [0.10, 0.03, 0.02], bands: 2, atmosphere: 0.1),    // lava
-        Style(a: [0.35, 0.85, 0.45], b: [0.05, 0.25, 0.20], bands: 5, atmosphere: 0.7),    // jungle
-        Style(a: [0.75, 0.55, 1.00], b: [0.20, 0.10, 0.40], bands: 9, atmosphere: 0.6),    // violet
+        Style(a: [0.95, 0.42, 0.14], b: [0.30, 0.08, 0.04], bands: 7, atmosphere: 0.25, kind: 0, ringChance: 0.4, ringSize: 2.0),  // rust giant
+        Style(a: [0.80, 0.90, 1.00], b: [0.22, 0.34, 0.60], bands: 3, atmosphere: 0.8, kind: 1, ringChance: 0.5, ringSize: 1.8),   // ice giant
+        Style(a: [0.45, 0.58, 0.32], b: [0.03, 0.10, 0.35], bands: 12, atmosphere: 1.0, kind: 2, ringChance: 0, ringSize: 0),      // ocean world
+        Style(a: [0.95, 0.82, 0.60], b: [0.55, 0.38, 0.22], bands: 14, atmosphere: 0.3, kind: 0, ringChance: 1, ringSize: 2.3),    // banded gas giant
+        Style(a: [1.00, 0.35, 0.05], b: [0.10, 0.03, 0.02], bands: 2, atmosphere: 0.1, kind: 3, ringChance: 0, ringSize: 0),       // lava
+        Style(a: [0.35, 0.85, 0.45], b: [0.05, 0.25, 0.20], bands: 5, atmosphere: 0.7, kind: 2, ringChance: 0, ringSize: 0),       // jungle
+        Style(a: [0.75, 0.55, 1.00], b: [0.20, 0.10, 0.40], bands: 9, atmosphere: 0.6, kind: 0, ringChance: 0.3, ringSize: 2.0),   // violet
     ]
 
     /// The settings a layout depends on.
     private struct Key: Equatable {
-        var scene: SceneKind, seed: Int, count: Int, size: Double, orbitMinutes: Double
+        var scene: SceneKind, seed: Int, count: Int, size: Double, orbitMinutes: Double, rings: Bool
         init(_ c: WallpaperConfig) {
             scene = c.scene; seed = c.planetSeed; count = c.planetCount
-            size = c.planetSize; orbitMinutes = c.planetOrbitMinutes
+            size = c.planetSize; orbitMinutes = c.planetOrbitMinutes; rings = c.planetRings
         }
     }
     // The renderer asks every frame; the layout only changes with the settings. Main thread only.
@@ -86,11 +93,16 @@ enum PlanetFactory {
                 orbit = 10
             }
             let radius = min(rng.range(0.14, 0.32) * c.planetSize, SceneGeometry.maxPlanetRadius)
-            return PlanetSpec(shell: shell, orbit: orbit, radius: radius,
-                              periodMinutes: c.planetOrbitMinutes * pow(orbit / 11.5, 1.5),
-                              inclination: rng.range(-32, 32), node: rng.range(-90, 90), phase: rng.range(0, 360),
-                              colorA: style.a, colorB: style.b, bands: style.bands, atmosphere: style.atmosphere,
-                              seed: Float(rng.range(0, 50)), spinMinutes: rng.range(3, 8))
+            var spec = PlanetSpec(shell: shell, orbit: orbit, radius: radius,
+                                  periodMinutes: c.planetOrbitMinutes * pow(orbit / 11.5, 1.5),
+                                  inclination: rng.range(-32, 32), node: rng.range(-90, 90), phase: rng.range(0, 360),
+                                  colorA: style.a, colorB: style.b, bands: style.bands, atmosphere: style.atmosphere,
+                                  seed: Float(rng.range(0, 50)), spinMinutes: rng.range(3, 8))
+            spec.kind = style.kind
+            // decided from the planet's own seed, so adding rings didn't reshuffle existing layouts
+            let roll = (spec.seed * 7.31).truncatingRemainder(dividingBy: 1)
+            if c.planetRings && roll < style.ringChance { spec.rings = style.ringSize }
+            return spec
         }
     }
 }

@@ -76,9 +76,13 @@ enum SceneParams {
                               _ events: EventSchedule, _ demo: [UInt64: Double]) -> SceneParamsGPU {
         var p = SceneParamsGPU()
         let rate = c.cometEvents.rate
-        var outburst = 0.0
+        var outburst = 0.0, shellRadius = 0.0, shellBright = 0.0
         if let (age, _) = events.active(EventSchedule.cometOutburst, rate: rate, at: t, demo: demo) {
             outburst = smoothstep(0, 3, age) * exp(-age / 30)
+            // the ejected shell coasts outward, slowing as it spreads, and fades as it thins
+            shellRadius = 0.32 * (1 - exp(-age / 25))
+            shellBright = smoothstep(0, 2, age) * exp(-age / 22) * 1.2
+                * (1 - smoothstep(EventSchedule.cometOutburst.duration - 15, EventSchedule.cometOutburst.duration, age))
         }
         var disconnectPos = -1.0, disconnectStrength = 0.0
         if let (age, _) = events.active(EventSchedule.tailDisconnect, rate: rate, at: t, demo: demo) {
@@ -93,7 +97,7 @@ enum SceneParams {
         p.b = SIMD4(Float(ion.x), Float(ion.y), 0.35, Float(outburst))
         p.c = SIMD4(c.cometIonColor.r, c.cometIonColor.g, c.cometIonColor.b, Float(disconnectPos))
         p.d = SIMD4(c.cometDustColor.r, c.cometDustColor.g, c.cometDustColor.b, Float(disconnectStrength))
-        p.e = SIMD4(0, Float((t * 0.25).truncatingRemainder(dividingBy: 2 * .pi)), 0, 0)   // y = jet angle
+        p.e = SIMD4(Float(shellRadius), Float((t * 0.25).truncatingRemainder(dividingBy: 2 * .pi)), Float(shellBright), 0)
         return p
     }
 

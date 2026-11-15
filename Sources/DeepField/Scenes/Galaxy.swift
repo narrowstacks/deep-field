@@ -32,12 +32,18 @@ enum GalaxyModel {
         let patternSpeed = omega(corotation, darkMatter: c.darkMatter, scale: scale)
         let solidBody = omega(0.5, darkMatter: c.darkMatter, scale: scale)  // dwarf irregulars rotate nearly rigidly
         let flowPeriod = c.galaxyRotationMinutes * 60 * 0.15
+        // satellite galaxies orbit out in the halo, at the speed the rotation curve gives there
+        // (radii match the shader's `satellite` calls); without dark matter they crawl
+        func satelliteAngle(_ r: Double, _ phase: Double) -> Float {
+            Float((phase + omega(r, darkMatter: c.darkMatter, scale: scale) * t).truncatingRemainder(dividingBy: 2 * .pi))
+        }
         let p = c.palette
         return GalaxyGPU(
             shape: SIMD4(c.galaxyType.shaderIndex, Float(c.galaxyArms), Float(tan(c.galaxyPitch / 180 * .pi)), Float(barLength)),
             motion: SIMD4(Float((patternSpeed * t).truncatingRemainder(dividingBy: 2 * .pi)), Float(scale),
                           c.darkMatter ? 1 : 0, Float(flowPeriod)),
             core: p.galaxyCore.simd, arms: p.galaxyArms.simd, nebula: p.galaxyNebula.simd, dust: p.galaxyDust.simd,
-            misc: SIMD4(Float(8.5 * c.galaxySize), Float((solidBody * t).truncatingRemainder(dividingBy: 2 * .pi)), 0, 0))
+            misc: SIMD4(Float(8.5 * c.galaxySize), Float((solidBody * t).truncatingRemainder(dividingBy: 2 * .pi)),
+                        satelliteAngle(1.15, 2.2), satelliteAngle(1.6, 4.0)))
     }
 }

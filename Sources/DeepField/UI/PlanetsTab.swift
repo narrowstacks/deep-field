@@ -14,8 +14,9 @@ struct PlanetsTab: View {
                 LabeledContent("Arrangement") {
                     Button("Shuffle planets") { store.config.planetSeed += 1 }
                 }
+                Toggle("Rings on some giants", isOn: $store.config.planetRings)
             } footer: {
-                Text("Around the black hole and wormhole, planets are bent by gravity as they pass behind it.")
+                Text("Around the black hole and wormhole, planets are bent by gravity as they pass behind it. Rings show in those two scenes.")
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
