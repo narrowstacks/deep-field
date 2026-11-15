@@ -184,22 +184,66 @@ static float3 skyColor(float4 sky, uint idq, float3 dir, bool far, constant Fram
     // sky events live in sky-direction space, so lensing applies to them like everything else
     float pa = F.pixelAngle;
     if (E.snDir.w > 0.0) {
-        float c = length(dir - E.snDir.xyz);
+        float3 S = E.snDir.xyz;
+        float3 dd = dir - S;
+        float c = length(dd);
         float core = E.snDir.w * exp(-pow(c / (1.3 * pa), 2.0));
-        float halo = E.snParams.x * exp(-c / (4.0 * pa));
-        float echo = E.snParams.z * exp(-pow((c - E.snParams.y) / (1.6 * pa), 2.0));
+        float halo = E.snParams.x * (exp(-c / (4.0 * pa)) + 0.15 * exp(-c / (14.0 * pa)));
         float3 hot = mix(float3(0.70, 0.85, 1.00), float3(1.00, 0.45, 0.20), E.snParams.w);
-        col += hot * (core + halo) + float3(0.70, 0.55, 1.00) * echo;
+        float3 light = hot * (core + halo);
+        float echoR = E.snParams.y;
+        float echoW = (1.6 + 0.04 * echoR / pa) * pa;      // the echo thickens as it spreads
+        if (c < 30.0 * pa || (E.snParams.z > 0.0 && abs(c - echoR) < 6.0 * echoW)) {
+            // the flash's own sky plane: x, y in pixels from the supernova
+            float3 t1 = normalize(cross(S, float3(0.31, 0.92, 0.22)));
+            float3 t2 = cross(S, t1);
+            float2 xy = float2(dot(dd, t1), dot(dd, t2)) / pa;
+            // four faint diffraction spikes while it is at its brightest
+            float2 ax = abs(float2(xy.x + xy.y, xy.x - xy.y)) * 0.7071;
+            float spikes = (exp(-ax.x / 0.6) * exp(-ax.y / 7.0) + exp(-ax.y / 0.6) * exp(-ax.x / 7.0));
+            light += hot * spikes * E.snDir.w * 0.05;
+            if (E.snParams.z > 0.0) {
+                // Light echoes: the flash lighting up sheets of dust as it sweeps through them.
+                // The dust is fixed on the sky, so the expanding rings brighten and fade in
+                // patches as they cross it. A second, fainter sheet lags behind the first.
+                float dust = fbm(float3(xy / 22.0, 3.0));
+                float dust2 = fbm(float3(xy / 15.0, 11.0));
+                float patch1 = smoothstep(0.4, 0.72, dust);
+                float patch2 = smoothstep(0.45, 0.8, dust2);
+                float ring1 = exp(-pow((c - echoR) / echoW, 2.0));
+                float ring2 = exp(-pow((c - echoR * 0.62) / (echoW * 0.8), 2.0));
+                float echo = E.snParams.z * (ring1 * (0.12 + 1.5 * patch1) + ring2 * patch2 * 0.7);
+                // inner edges are lit by the bluer early light, outer edges by the redder tail
+                float3 echoCol = mix(float3(0.62, 0.62, 1.00), float3(0.95, 0.55, 0.85), saturate((c - echoR) / echoW * 0.5 + 0.5));
+                light += echoCol * echo;
+            }
+        }
+        col += light;
     }
     if (E.cometHead.w > 0.0) {
+        // A comet passing: green coma, a straight blue ion tail, and a broader, fainter, curved
+        // dust tail peeling off to one side.
         float3 H = E.cometHead.xyz;
         float3 seg = E.cometTail.xyz - H;
-        float tt = saturate(dot(dir - H, seg) / dot(seg, seg));
-        float dseg = length(dir - (H + seg * tt));
-        float w = E.cometTail.w * (1.0 + tt * 5.0);
-        float tail = exp(-pow(dseg / w, 2.0)) * pow(1.0 - tt, 1.5);
-        float head = exp(-pow(length(dir - H) / (E.cometTail.w * 1.1), 2.0));
-        col += E.cometHead.w * (float3(0.80, 0.95, 1.00) * head * 2.0 + float3(0.35, 0.65, 1.00) * tail * 0.6);
+        float segLen2 = dot(seg, seg);
+        float tt = saturate(dot(dir - H, seg) / segLen2);
+        float dh = length(dir - H);
+        float hw = E.cometTail.w;
+        if (dh < sqrt(segLen2) * 1.5 + hw * 8.0) {
+            float dseg = length(dir - (H + seg * tt));
+            float w = hw * (0.8 + tt * 3.0);
+            float streak = 0.75 + 0.25 * sin(tt * 40.0 - F.time * 0.3);
+            float ion = exp(-pow(dseg / w, 2.0)) * pow(1.0 - tt, 2.2) * streak;
+            float3 side = cross(H, seg);
+            float3 bend = side * (0.35 / max(length(side), 1e-6)) * sqrt(segLen2);
+            float3 dustPt = H + seg * (tt * 0.8) + bend * tt * tt;
+            float dd = length(dir - dustPt);
+            float dustT = exp(-pow(dd / (hw * (1.0 + tt * 9.0)), 2.0)) * pow(1.0 - tt, 2.0);
+            float head = exp(-pow(dh / (hw * 1.1), 2.0));
+            float coma = exp(-dh / (hw * 2.5));
+            col += E.cometHead.w * (float3(0.85, 1.00, 0.95) * head * 2.0 + float3(0.45, 0.95, 0.65) * coma * 0.35
+                                  + float3(0.35, 0.65, 1.00) * ion * 0.7 + float3(1.00, 0.85, 0.60) * dustT * 0.45);
+        }
     }
     return col;
 }

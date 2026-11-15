@@ -55,7 +55,8 @@ struct EventSchedule {
     }
 
     /// The sky direction that actually appears at a screen position, after the scene bends the
-    /// light. nil if that spot shows no sky of ours (inside the shadow or the wormhole throat).
+    /// light. nil if that spot shows no sky of ours (inside the shadow or the wormhole throat,
+    /// or behind the black hole's disk, which would hide the event's brightest moments).
     static func skyDirection(_ u: Double, _ v: Double, camera cam: Camera, config c: WallpaperConfig) -> SIMD3<Double>? {
         let d = cam.ray(u, v)
         switch c.scene {
@@ -81,6 +82,11 @@ struct EventSchedule {
                 let a0 = accel(pos)
                 let np = pos + vel * dt + 0.5 * a0 * dt * dt
                 vel += 0.5 * (a0 + accel(np)) * dt
+                if c.scene == .blackHole && pos.y * np.y < 0 {
+                    let hit = pos + (np - pos) * (pos.y / (pos.y - np.y))
+                    let rh = simd_length(SIMD2(hit.x, hit.z))
+                    if rh > Double(SceneGeometry.diskIn) * 0.85 && rh < c.diskSize * 0.8 { return nil }
+                }
                 pos = np
             }
             return simd_normalize(vel)
@@ -101,7 +107,7 @@ struct EventSchedule {
     private func placed(_ k: Kind, count: Int, _ rng: inout Rng, camera: Camera, config: WallpaperConfig,
                         uRange: Double, vRange: Double) -> [SIMD3<Double>] {
         let key = SkyPlacements.Key(rng: rng.state, scene: config.scene, tilt: config.cameraTilt,
-                                    throat: config.throat, aspect: camera.aspect)
+                                    throat: config.throat, diskSize: config.diskSize, aspect: camera.aspect)
         if let hit = placements.entries[k.id], hit.key == key {
             rng = hit.after
             return hit.dirs
@@ -213,7 +219,7 @@ struct EventSchedule {
 /// generator state (which identifies the instance) and everything the placement depends on.
 private final class SkyPlacements {
     struct Key: Equatable {
-        var rng: UInt64, scene: SceneKind, tilt: Double, throat: Double, aspect: Double
+        var rng: UInt64, scene: SceneKind, tilt: Double, throat: Double, diskSize: Double, aspect: Double
     }
     var entries: [UInt64: (key: Key, dirs: [SIMD3<Double>], after: Rng)] = [:]
 }
