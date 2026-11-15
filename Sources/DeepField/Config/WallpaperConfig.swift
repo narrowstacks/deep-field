@@ -103,6 +103,9 @@ struct WallpaperConfig: Codable, Equatable {
     }
 
     /// Anything that changes the precomputed ray lookups; other changes apply on the next frame.
+    /// Settings only one scene's bake reads are left at a fixed value for the other scenes, so
+    /// changing them doesn't re-trace a scene that ignores them. The sky pass runs for every
+    /// scene, and the pixel size sets the bake's resolution.
     struct BakeKey: Equatable {
         var scene: SceneKind, tilt: Double, diskSize: Double, throat: Double
         var starDensity: Double, galaxies: Bool, milkyWay: Bool, pixelSize: Int
@@ -110,9 +113,11 @@ struct WallpaperConfig: Codable, Equatable {
     }
 
     var bakeKey: BakeKey {
-        BakeKey(scene: scene, tilt: cameraTilt, diskSize: diskSize, throat: throat,
+        BakeKey(scene: scene, tilt: cameraTilt,
+                diskSize: scene == .blackHole ? diskSize : 0,     // the tidal disruption bakes a fixed disk
+                throat: scene == .wormhole ? throat : 0,
                 starDensity: starDensity, galaxies: galaxies, milkyWay: milkyWay, pixelSize: pixelSize,
-                nebulaType: nebulaType, nebulaSeed: nebulaSeed)
+                nebulaType: scene == .nebula ? nebulaType : .pillars, nebulaSeed: scene == .nebula ? nebulaSeed : 0)
     }
 
     /// Decodes leniently: keys missing from older saved configs fall back to defaults.
