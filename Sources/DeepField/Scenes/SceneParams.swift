@@ -18,6 +18,7 @@ enum SceneParams {
         case .ringedPlanet: return ringedPlanet(c, t, cam, events, demo)
         case .auroraOrbit: return auroraOrbit(c, t, cam, events, demo)
         case .gasGiant: return gasGiant(c, t, cam, events, demo)
+        case .dysonSwarm: return dysonSwarm(c, t, cam, events, demo)
         case .comet: return comet(c, t, cam, events, demo)
         case .stellarSurface: return stellarSurface(c, t, cam, events, demo)
         default: return SceneParamsGPU()
@@ -235,6 +236,33 @@ enum SceneParams {
             let cl = (1 - sl * sl).squareRoot()
             let site = axis * sl + (e1 * cos(lon) + e2 * sin(lon)) * cl
             p.h = SIMD4(SIMD3<Float>(site), Float(max(age / EventSchedule.cometImpact.duration, 0.0005)))
+        }
+        return p
+    }
+
+    // MARK: Dyson swarm
+
+    private static func dysonSwarm(_ c: WallpaperConfig, _ t: Double, _ cam: Camera,
+                                   _ events: EventSchedule, _ demo: [UInt64: Double]) -> SceneParamsGPU {
+        var p = SceneParamsGPU()
+        // the scene's own frame: camera at the origin, looking down +z; the star is 1 unit across
+        let r0 = 1.7, r1 = 4.3
+        let aim = simd_normalize(SIMD3(0, cam.subjectY * cam.tanHalf, 1))
+        let center = aim * 19
+        let rings = min(max(c.dysonRings, 3), 20)
+        typealias L = PickedColor.Level
+        p.a = SIMD4(SIMD3<Float>(center), 1)
+        p.b = SIMD4(SIMD3(c.dysonStar.color.r, c.dysonStar.color.g, c.dysonStar.color.b), 4.5)
+        // the innermost ring's orbit phase; outer rings scale it by Kepler's law in the shader
+        let phase = t * c.dysonOrbitSpeed * 0.012
+        p.c = SIMD4(Float(rings), Float(min(max(c.dysonDensity, 0), 1)), Float(c.dysonGlint), Float(phase))
+        p.d = SIMD4(c.dysonPanelA.light3(L.dysonPanel), 3.7)
+        p.e = SIMD4(c.dysonPanelB.light3(L.dysonPanel), Float(r0))
+        p.f = SIMD4(c.dysonHeat.light3(L.dysonHeat), Float(r1))
+        if case (let age, var rng)? = events.active(EventSchedule.swarmWave, rate: c.dysonEvents.rate, at: t, demo: demo) {
+            // a wave of panels on three neighboring rings in the outer half turns to face us
+            let ring = min(Double(rings / 2) + floor(rng.next() * Double(rings / 2)), Double(rings - 3))
+            p.g = SIMD4(Float(ring), Float(age), 26, 1)
         }
         return p
     }

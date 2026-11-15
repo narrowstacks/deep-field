@@ -163,6 +163,17 @@ struct WallpaperConfig: Codable, Equatable {
     var gasStorm = Tuned.gasStorm.color
     var gasEvents: Frequency = .normal
 
+    // Dyson swarm
+    var dysonStar: StarType = .orangeDwarf
+    var dysonDensity = 0.45            // 0 a few sparse rings, 1 nearly closed
+    var dysonRings = 12
+    var dysonOrbitSpeed = 1.0
+    var dysonGlint = 1.0
+    var dysonPanelA = Tuned.dysonPanelA.color
+    var dysonPanelB = Tuned.dysonPanelB.color
+    var dysonHeat = Tuned.dysonHeat.color
+    var dysonEvents: Frequency = .normal
+
     // Comet
     var cometTailLength = 1.0
     var cometActivity = 1.0

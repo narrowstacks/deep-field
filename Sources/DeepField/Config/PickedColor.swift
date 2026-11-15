@@ -65,6 +65,8 @@ enum PickedColor {
         static let aurora: Float = 0.6
         static let auroraCity: Float = 0.5
         static let gasCloud: Float = 0.75
+        static let dysonPanel: Float = 0.3
+        static let dysonHeat: Float = 0.1
     }
 }
 
@@ -86,6 +88,7 @@ extension WallpaperConfig {
         case ringedBandLight = "ringedBandLight", ringedBandDark = "ringedBandDark", ringedRing = "ringedRingColor"
         case auroraGreen, auroraRed, auroraFringe, auroraCity = "auroraCityColor"
         case gasZone, gasBelt, gasStorm
+        case dysonPanelA, dysonPanelB, dysonHeat
 
         var light: RGB {
             switch self {
@@ -109,6 +112,9 @@ extension WallpaperConfig {
             case .gasZone: RGB(1.0, 0.82, 0.58)
             case .gasBelt: RGB(0.62, 0.24, 0.08)
             case .gasStorm: RGB(0.9, 0.24, 0.08)
+            case .dysonPanelA: RGB(1.0, 0.62, 0.18)
+            case .dysonPanelB: RGB(0.3, 0.38, 1.0)
+            case .dysonHeat: RGB(1.0, 0.16, 0.1)
             }
         }
 
@@ -130,6 +136,8 @@ extension WallpaperConfig {
             case .auroraGreen, .auroraRed, .auroraFringe: L.aurora
             case .auroraCity: L.auroraCity
             case .gasZone, .gasBelt, .gasStorm: L.gasCloud
+            case .dysonPanelA, .dysonPanelB: L.dysonPanel
+            case .dysonHeat: L.dysonHeat
             }
         }
 

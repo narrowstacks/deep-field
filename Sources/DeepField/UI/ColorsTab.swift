@@ -89,6 +89,10 @@ struct SceneColors: View {
             ColorRow("Light zones", store.color(\.gasZone))
             ColorRow("Dark belts", store.color(\.gasBelt))
             ColorRow("Great spot", store.color(\.gasStorm))
+        case .dysonSwarm:
+            ColorRow("Panels", store.color(\.dysonPanelA))
+            ColorRow("Panels, second finish", store.color(\.dysonPanelB))
+            ColorRow("Waste heat", store.color(\.dysonHeat))
         case .auroraOrbit:
             ColorRow("Aurora (oxygen, low)", store.color(\.auroraGreen))
             ColorRow("Aurora tops (oxygen, high)", store.color(\.auroraRed))

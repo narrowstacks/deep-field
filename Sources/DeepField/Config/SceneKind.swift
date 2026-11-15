@@ -1,7 +1,7 @@
 import Foundation
 
 enum SceneKind: String, Codable, CaseIterable, Identifiable {
-    case blackHole, tidalDisruption, wormhole, binary, trinary, galaxy, pulsar, nebula, planetaryNebula, ringedPlanet, auroraOrbit, gasGiant, comet, stellarSurface
+    case blackHole, tidalDisruption, wormhole, binary, trinary, galaxy, pulsar, nebula, planetaryNebula, ringedPlanet, auroraOrbit, gasGiant, dysonSwarm, comet, stellarSurface
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -17,6 +17,7 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
         case .ringedPlanet: "Ringed Planet"
         case .auroraOrbit: "Aurora from Orbit"
         case .gasGiant: "Gas Giant Storms"
+        case .dysonSwarm: "Dyson Swarm"
         case .comet: "Comet"
         case .stellarSurface: "Star Close-up"
         }
@@ -37,6 +38,7 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
         case .ringedPlanet: 11
         case .auroraOrbit: 12
         case .gasGiant: 13
+        case .dysonSwarm: 17
         }
     }
     /// Scenes offered in the Customize window. The nebula scene is parked for now (its code is
@@ -45,7 +47,13 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
     static var listed: [SceneKind] { allCases.filter(\.isListed) }
 
     /// Glow added to the global bloom setting for scenes whose look leans on it.
-    var extraBloom: Double { self == .auroraOrbit ? 0.4 : 0 }
+    var extraBloom: Double {
+        switch self {
+        case .auroraOrbit: 0.4
+        case .dysonSwarm: 0.2
+        default: 0
+        }
+    }
 
     /// Scenes that show the orbiting planets.
     var hasPlanets: Bool { [.blackHole, .wormhole, .binary, .trinary].contains(self) }
