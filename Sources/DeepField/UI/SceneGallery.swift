@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The scene picker: a grid of baked thumbnails. Square corners throughout, the pixel motif.
+/// The scene picker: a grid of baked thumbnails, square-cornered and drawn nearest-neighbor so
+/// they keep the wallpaper's pixels.
 struct SceneGallery: View {
     @ObservedObject var store: ConfigStore
     @ObservedObject var thumbnails: SceneThumbnails
@@ -10,8 +11,8 @@ struct SceneGallery: View {
     var body: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.fixed(Theme.thumbBox.width), spacing: 10), count: columns),
                   alignment: .leading, spacing: 10) {
-            ForEach(Array(SceneKind.listed.enumerated()), id: \.element) { i, kind in
-                Cell(index: i, kind: kind, image: thumbnails.images[kind], selected: store.config.scene == kind) {
+            ForEach(SceneKind.listed, id: \.self) { kind in
+                Cell(kind: kind, image: thumbnails.images[kind], selected: store.config.scene == kind) {
                     store.config.scene = kind
                 }
             }
@@ -19,7 +20,6 @@ struct SceneGallery: View {
     }
 
     private struct Cell: View {
-        let index: Int
         let kind: SceneKind
         let image: CGImage?
         let selected: Bool
@@ -39,26 +39,18 @@ struct SceneGallery: View {
                     }
                     .frame(width: Theme.thumbBox.width, height: Theme.thumbBox.height)
                     .clipped()
-                    .overlay(alignment: .topLeading) {
-                        Text(String(format: "%02d", index + 1))
-                            .font(Theme.thumbnail)
-                            .foregroundStyle(.white.opacity(0.85))
-                            .padding(.horizontal, 2).padding(.vertical, 1)
-                            .background(Color.black.opacity(0.6))
-                    }
                     .overlay {
                         if selected {
-                            Rectangle().stroke(Theme.accent, lineWidth: 2)
-                            CornerBrackets().stroke(Theme.accent, lineWidth: 2).padding(-4)
+                            Rectangle().stroke(Color.accentColor, lineWidth: 2)
                         } else {
                             Rectangle().stroke(Color.white.opacity(hovered ? 0.4 : 0.14), lineWidth: 1)
                         }
                     }
                     Text(kind.title)
-                        .font(Theme.thumbnail)
+                        .font(.caption)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                        .foregroundStyle(selected ? Theme.accent : Color.secondary)
+                        .foregroundStyle(selected ? Color.primary : Color.secondary)
                         .frame(width: Theme.thumbBox.width, alignment: .leading)
                 }
                 .contentShape(Rectangle())

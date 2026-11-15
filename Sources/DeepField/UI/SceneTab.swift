@@ -14,13 +14,6 @@ struct SceneTab: View {
     var body: some View {
         Form {
             Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(scene.title.uppercased()).font(Theme.title)
-                    Text(scene.blurb).font(.callout).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            Section {
                 switch store.config.scene {
                 case .blackHole:
                     SliderRow(title: "Disk size", value: $store.config.diskSize, range: 8...18) { String(format: "%.1f", $0) }
@@ -113,7 +106,14 @@ struct SceneTab: View {
                         .font(.callout).foregroundStyle(.secondary)
                 }
             } header: {
-                GroupHeader(title: "Parameters")
+                // the scene itself heads its first group
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(scene.title).font(.title3.weight(.semibold)).foregroundStyle(.primary)
+                    Text(scene.blurb).font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .textCase(nil)
+                .padding(.bottom, 4)
             } footer: {
                 if [.binary, .trinary, .stellarSurface].contains(scene) {
                     GroupFooter("These stars are colored by their star type.")

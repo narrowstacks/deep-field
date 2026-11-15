@@ -24,11 +24,11 @@ struct SkyTab: View {
                 Toggle("Pulsars (a few stars blink on a steady beat)", isOn: $store.config.pulsars)
                 FrequencyRow(title: "Supernovae", value: $store.config.supernovae) {
                     store.demo(EventSchedule.supernova)
-                    ConsoleStatus.shared.flash("Supernova triggered")
+                    StageStatus.shared.flash("Supernova started")
                 }
                 FrequencyRow(title: "Comets", value: $store.config.comets) {
                     store.demo(EventSchedule.comet)
-                    ConsoleStatus.shared.flash("Comet triggered")
+                    StageStatus.shared.flash("Comet started")
                 }
             } header: {
                 GroupHeader(title: "Events")

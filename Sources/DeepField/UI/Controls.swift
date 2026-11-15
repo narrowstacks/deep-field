@@ -28,7 +28,7 @@ struct FrequencyRow: View {
             HStack {
                 Text(title)
                 Spacer()
-                if let demo { DemoButton(title: "Show me", action: demo) }
+                if let demo { DemoButton(title: "Show Me", action: demo) }
             }
             Picker(title, selection: $value) {
                 ForEach(Frequency.allCases) { Text($0.title).tag($0) }
@@ -44,13 +44,13 @@ struct DemoButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) { Label(title, systemImage: "play.fill") }
+        Button(title, action: action)
             .buttonStyle(.bordered)
             .controlSize(.small)
     }
 }
 
-/// "Show me" buttons that start a scene's events now, two to a row.
+/// Buttons that start a scene's events now, two to a row.
 struct DemoGrid: View {
     @ObservedObject var store: ConfigStore
     let demos: [(String, EventSchedule.Kind)]
@@ -63,7 +63,7 @@ struct DemoGrid: View {
                 ForEach(demos, id: \.1.id) { title, kind in
                     DemoButton(title: title) {
                         store.demo(kind)
-                        ConsoleStatus.shared.flash("\(title) triggered")
+                        StageStatus.shared.flash("\(title) started")
                     }
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }

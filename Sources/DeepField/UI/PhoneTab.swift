@@ -26,24 +26,14 @@ struct PhoneStage: View {
             .frame(width: w, height: h)
             .clipShape(RoundedRectangle(cornerRadius: w * 0.12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: w * 0.12, style: .continuous).stroke(.secondary.opacity(0.5)))
-            Text(readout)
-                .font(Theme.readout)
+            Text("\(options.width) × \(options.height)" + (options.smooth ? ", smooth" : ""))
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .frame(height: 30)
         }
         .onAppear { phone.appear() }
         .onDisappear { phone.disappear() }
-    }
-
-    private var readout: String {
-        let o = phone.options
-        var s = "PHONE \(o.width)×\(o.height)  ·  " + (o.smooth ? "SMOOTH" : "DITHERED")
-        if !o.smooth {
-            let n = o.pixelSize == 0 ? MobileOptions.autoPixelSize(desktop: store.config.pixelSize) : o.pixelSize
-            s += "  ·  \(n) PX"
-        }
-        return s
     }
 
     /// Roughly where the Lock Screen puts the date and the time.

@@ -14,14 +14,4 @@ enum CustomizeSection: Int, CaseIterable, Identifiable {
         case .phone: "Phone"
         }
     }
-
-    var symbol: String {
-        switch self {
-        case .scene: "scope"
-        case .sky: "sparkles"
-        case .image: "camera.filters"
-        case .system: "gearshape"
-        case .phone: "iphone"
-        }
-    }
 }

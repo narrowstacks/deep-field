@@ -9,7 +9,7 @@ private struct LivePreview: NSViewRepresentable {
     func updateNSView(_ nsView: WallpaperView, context: Context) { nsView.actualPixels = actualPixels }
 }
 
-/// The window's left column: the preview (or the phone preview), a telemetry line and the scene
+/// The window's left column: the preview (or the phone preview), a caption and the scene
 /// gallery. Always visible, so every change in the inspector shows at once.
 struct StageView: View {
     @ObservedObject var store: ConfigStore
@@ -18,7 +18,7 @@ struct StageView: View {
     let reference: CGSize
     let showPhoneClock: Bool
     @Binding var actualPixels: Bool
-    @ObservedObject private var status = ConsoleStatus.shared
+    @ObservedObject private var status = StageStatus.shared
 
     /// `--capture-ui` only: `cacheDisplay` can't read a Metal layer, so captures show a still.
     @State private var captureStill: CGImage?
@@ -34,7 +34,7 @@ struct StageView: View {
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     preview
-                    telemetry
+                    caption
                     SceneGallery(store: store, thumbnails: thumbnails, columns: 5)
                         .padding(.top, 14)
                     Spacer(minLength: 0)
@@ -65,7 +65,6 @@ struct StageView: View {
         .frame(width: fitted.width, height: fitted.height)
         .background(Color.black)
         .overlay(Rectangle().stroke(Theme.hairline))
-        .overlay(CornerBrackets().stroke(Theme.accent, lineWidth: 2).padding(-5))
         .frame(width: Theme.previewBox.width)
     }
 
@@ -75,35 +74,32 @@ struct StageView: View {
         captureStill = FrameCapture.render(config: store.config, width: w, height: h, time: 300, eventsEnabled: false)
     }
 
-    private var telemetryText: String {
-        let c = store.config
-        let fps = Settings.effectiveFPS
-        var parts = [
-            "TARGET \(c.scene.title)",
-            "\(Int(reference.width))×\(Int(reference.height))",
-            "\(c.pixelSize) PX",
-            "\(c.levels) LEVELS",
-            "\(Int(fps)) FPS" + (fps < Double(c.fps) ? " (CAPPED)" : ""),
-        ]
-        parts = parts.map { $0.uppercased() }
-        return parts.joined(separator: "  ·  ")
+    /// The preview's resolution, plus the frame rate when Low Power Mode or heat caps it.
+    private var captionText: String {
+        var text = "\(Int(reference.width)) × \(Int(reference.height))"
+        let fps = Int(Settings.effectiveFPS)
+        if fps < store.config.fps {
+            let reason = ProcessInfo.processInfo.isLowPowerModeEnabled && fps == 12 ? "Low Power Mode" : "Thermal limit"
+            text += "  ·  \(reason): \(fps) fps"
+        }
+        return text
     }
 
-    private var telemetry: some View {
+    private var caption: some View {
         HStack {
             Group {
                 if let message = status.message {
-                    Text(message.uppercased()).foregroundStyle(Theme.accent)
+                    Text(message).foregroundStyle(.primary)
                 } else {
-                    Text(telemetryText).foregroundStyle(.secondary)
+                    Text(captionText).foregroundStyle(.secondary)
                 }
             }
-            .font(Theme.readout)
+            .font(.caption)
             .lineLimit(1)
             .truncationMode(.tail)
             Spacer(minLength: 8)
             Picker("Preview scale", selection: $actualPixels) {
-                Text("FIT").tag(false)
+                Text("Fit").tag(false)
                 Text("1:1").tag(true)
             }
             .pickerStyle(.segmented)

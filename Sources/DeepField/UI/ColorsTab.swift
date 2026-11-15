@@ -124,12 +124,12 @@ struct PalettePresets: View {
                                 Rectangle().fill(Color(nsColor: swatches[i].nsColor)).frame(width: 10, height: 10)
                             }
                         }
-                        Text(name).font(Theme.thumbnail).lineLimit(1).minimumScaleFactor(0.8)
+                        Text(name).font(.caption).lineLimit(1).minimumScaleFactor(0.8)
                         Spacer(minLength: 0)
                     }
                     .padding(6)
                     .background(Color.white.opacity(0.06))
-                    .overlay(Rectangle().stroke(selected ? Theme.accent : Theme.hairline, lineWidth: selected ? 2 : 1))
+                    .overlay(Rectangle().stroke(selected ? Color.accentColor : Theme.hairline, lineWidth: selected ? 2 : 1))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
