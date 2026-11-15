@@ -109,13 +109,10 @@ enum PickerCheck {
 
     private static func changedFraction(_ a: CGImage, _ b: CGImage) -> Double {
         guard let da = a.dataProvider?.data as Data?, let db = b.dataProvider?.data as Data?, da.count == db.count else { return 0 }
+        let pa = [UInt8](da), pb = [UInt8](db)
         var changed = 0
-        da.withUnsafeBytes { pa in
-            db.withUnsafeBytes { pb in
-                for i in stride(from: 0, to: da.count, by: 4) where pa[i] != pb[i] || pa[i + 1] != pb[i + 1] || pa[i + 2] != pb[i + 2] {
-                    changed += 1
-                }
-            }
+        for i in stride(from: 0, to: pa.count, by: 4) where pa[i] != pb[i] || pa[i + 1] != pb[i + 1] || pa[i + 2] != pb[i + 2] {
+            changed += 1
         }
         return Double(changed) / Double(da.count / 4)
     }
