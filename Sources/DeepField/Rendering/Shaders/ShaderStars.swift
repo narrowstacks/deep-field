@@ -69,9 +69,10 @@ fragment float4 systemFragment(FRAME_INPUTS)
         float dperp = length(w);
         float R = st.pos.w;
         float scale = R * 0.9 * st.color.w;
+        float x = max(dperp - R, 0.0);
+        if (x > scale * 14.0) continue;            // glow below e^-14
         float ang = atan2(dot(w, F.camUp.xyz), dot(w, F.camRight.xyz));
         float rays = 0.7 + 0.45 * noise3(float3(cos(ang) * 3.0, sin(ang) * 3.0, F.time * 0.08 + st.misc.y));
-        float x = max(dperp - R, 0.0);
         float glow = (0.55 * exp(-x / (scale * 0.3)) + 0.12 * exp(-x / scale)) * rays;
         col += st.color.rgb * glow;
     }
