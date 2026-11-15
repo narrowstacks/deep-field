@@ -35,15 +35,24 @@ flare up and leave light echoes, and comets drift past.
 ./build.sh && open build/DeepField.app
 ```
 
-It lives in the menu bar (a circle icon). **Customize…** (⌘,) opens a window with a live preview
-where you can change the scene, colors (presets plus color pickers), star density, event
-frequency (with "Show me" buttons that trigger an event right away), planets, pixel size, color
-levels, dither pattern and frame rate. Settings save automatically.
+It lives in the menu bar (a circle icon). **Customize…** (⌘,) opens a dark two-column window. On
+the left, a live preview and a gallery of every scene, each a small dithered still with your
+current settings; click one to switch. On the right, five sections:
 
-The Colors tab's **Image** section (exposure, contrast, saturation, highlight rolloff, black point,
-vignette and bloom) works on the scene's light before it's tone mapped and dithered, so the result
-always stays dithered, and it applies to the wallpaper, the lock screen still and phone exports
-alike. Bloom is a bright pass and blur at a quarter of the shaded size; at 0 those passes don't
+- **Scene**: the selected scene's parameters, framing (Star Close-up), colors (palette presets
+  plus color pickers), its own events, planets and camera.
+- **Sky**: the background sky, its colors, and the occasional events every scene shares.
+- **Image**: tone, glow, pixel size, color levels and dither pattern.
+- **System**: frame rate, the lock screen still, and reset.
+- **Phone**: iPhone wallpaper export (the preview turns portrait).
+
+Event frequencies come with "Show me" buttons that trigger an event right away. Settings save
+automatically.
+
+The **Image** section's tone and glow controls (exposure, contrast, saturation, highlight
+rolloff, black point, vignette and bloom) work on the scene's light before it's tone mapped and
+dithered, so the result always stays dithered, and they apply to the wallpaper, the lock screen
+still and phone exports alike. Bloom is a bright pass and blur at a quarter of the shaded size; at 0 those passes don't
 run at all.
 
 A picked color is what that part shows where it's typically lit: `Config/PickedColor.swift`
@@ -53,7 +62,7 @@ background sky's colors and the galaxy's dust stay tints.
 
 ## Phone wallpapers
 
-The **Phone** tab of the Customize window turns the current scene into an iPhone wallpaper. Pick
+The **Phone** section of the Customize window turns the current scene into an iPhone wallpaper. Pick
 a model (or a custom size) and it recomposes the scene for a tall frame, with the subject below
 the Lock Screen clock; zoom and subject height adjust that, and a clock overlay shows where the
 time will sit. It's dithered with the wallpaper's look (cells a notch larger than on the
@@ -124,7 +133,8 @@ stars. Dwarf irregulars turn almost like a solid body, matching their rising rot
     [--phone-pixel 4] [--zoom 1.2] [--shift 0.05] [--speed 2] [--scene comet] [--defaults]
 .build/release/DeepField --check-live still.HEIC movie.MOV   # pairing metadata, loads as a Live Photo?
 build/DeepField.app/Contents/MacOS/DeepField --customize   # open the Customize window at launch
-build/DeepField.app/Contents/MacOS/DeepField --check-picker outdir -captureTab 1   # drive the color wells, check the preview follows
+build/DeepField.app/Contents/MacOS/DeepField --check-picker outdir -captureTab 0   # drive the color wells, check the preview follows
+build/DeepField.app/Contents/MacOS/DeepField --capture-ui out.png -captureTab N -captureScene name   # image of the window (N: 0 Scene, 1 Sky, 2 Image, 3 System, 4 Phone)
 defaults write local.deepfield.wallpaper debug -bool true     # log bake times, fps, pause/resume
 ```
 
@@ -155,7 +165,7 @@ Everything is in `Sources/DeepField`:
   (uniform layouts mirrored in the shaders).
 - `Rendering/Shaders/`: the Metal source as Swift strings, one file per area, joined in order by
   `ShaderSource.full` and compiled at runtime, so the build needs no Metal toolchain.
-- `UI/`: the SwiftUI Customize window, one file per tab.
+- `UI/`: the SwiftUI Customize window, one file per section, plus the stage, gallery and theme.
 - `Mobile/`: the phone wallpaper export (portrait still, Live Photo pair, Photos library).
 - `Dev/`: the command line above (snapshot, benchmark, event list, UI capture).
 
