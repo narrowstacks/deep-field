@@ -147,6 +147,22 @@ struct WallpaperConfig: Codable, Equatable {
     var auroraSunrise = 0.5
     var auroraEvents: Frequency = .normal
 
+    // Gas giant storms
+    var gasWind = 1.0
+    var gasTurbulence = 1.0
+    var gasStormSize = 1.0
+    var gasDistance = 2.3              // from the planet's center, in planet radii
+    var gasCenterX = -0.3              // where the planet's center sits, in screen half-widths
+    var gasCenterY = -0.55             // and half-heights
+    var gasTilt = 12.0                 // spin axis lean, degrees
+    var gasSun = 40.0                  // degrees round from behind us; higher puts more of it in night
+    var gasMoon = true
+    var gasLightning: Frequency = .normal
+    var gasZone = Tuned.gasZone.color
+    var gasBelt = Tuned.gasBelt.color
+    var gasStorm = Tuned.gasStorm.color
+    var gasEvents: Frequency = .normal
+
     // Comet
     var cometTailLength = 1.0
     var cometActivity = 1.0

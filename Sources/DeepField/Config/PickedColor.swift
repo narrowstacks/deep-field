@@ -64,6 +64,7 @@ enum PickedColor {
         static let ringedRing: Float = 0.6
         static let aurora: Float = 0.6
         static let auroraCity: Float = 0.5
+        static let gasCloud: Float = 0.75
     }
 }
 
@@ -84,6 +85,7 @@ extension WallpaperConfig {
         case planetaryInner = "planetaryInnerColor", planetaryRim = "planetaryRimColor", planetaryHalo = "planetaryHaloColor"
         case ringedBandLight = "ringedBandLight", ringedBandDark = "ringedBandDark", ringedRing = "ringedRingColor"
         case auroraGreen, auroraRed, auroraFringe, auroraCity = "auroraCityColor"
+        case gasZone, gasBelt, gasStorm
 
         var light: RGB {
             switch self {
@@ -104,6 +106,9 @@ extension WallpaperConfig {
             case .auroraRed: RGB(1.0, 0.08, 0.4)
             case .auroraFringe: RGB(1.0, 0.2, 0.85)
             case .auroraCity: RGB(1.0, 0.62, 0.28)
+            case .gasZone: RGB(1.0, 0.82, 0.58)
+            case .gasBelt: RGB(0.62, 0.24, 0.08)
+            case .gasStorm: RGB(0.9, 0.24, 0.08)
             }
         }
 
@@ -124,6 +129,7 @@ extension WallpaperConfig {
             case .ringedRing: L.ringedRing
             case .auroraGreen, .auroraRed, .auroraFringe: L.aurora
             case .auroraCity: L.auroraCity
+            case .gasZone, .gasBelt, .gasStorm: L.gasCloud
             }
         }
 

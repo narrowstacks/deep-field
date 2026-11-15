@@ -17,6 +17,7 @@ enum SceneParams {
         case .planetaryNebula: return planetaryNebula(c, t, cam, events, demo)
         case .ringedPlanet: return ringedPlanet(c, t, cam, events, demo)
         case .auroraOrbit: return auroraOrbit(c, t, cam, events, demo)
+        case .gasGiant: return gasGiant(c, t, cam, events, demo)
         case .comet: return comet(c, t, cam, events, demo)
         case .stellarSurface: return stellarSurface(c, t, cam, events, demo)
         default: return SceneParamsGPU()
@@ -190,6 +191,51 @@ enum SceneParams {
         // the ground drifts at a quarter of a real low orbit's pace by default
         p.f = SIMD4(Float(c.auroraClouds), Float(c.auroraMoonlight), Float(0.0012 * 0.25 * c.auroraDrift), Float(c.auroraLightning.rate))
         p.g = SIMD4(Float(c.auroraSunrise), 5.3, 0, 0)
+        return p
+    }
+
+    // MARK: Gas giant storms
+
+    /// Wind speed at latitude sine `sl`, radians of longitude per second; mirrors ggWind.
+    private static func gasWind(_ sl: Double, _ wind: Double) -> Double {
+        wind * 0.0025 * (0.75 * sin(sl * 21) + 0.35 * cos(sl * 8) + 0.25)
+    }
+
+    private static func gasGiant(_ c: WallpaperConfig, _ t: Double, _ cam: Camera,
+                                 _ events: EventSchedule, _ demo: [UInt64: Double]) -> SceneParamsGPU {
+        var p = SceneParamsGPU()
+        // the scene's own frame: camera at the origin, looking down +z
+        let R = 1.0
+        let aim = simd_normalize(SIMD3(c.gasCenterX * cam.aspect * cam.tanHalf, c.gasCenterY * cam.tanHalf, 1))
+        let center = aim * c.gasDistance * R
+        let lean = c.gasTilt / 180 * .pi
+        let axis = simd_normalize(SIMD3(sin(lean), cos(lean), -0.22))
+        let phase = c.gasSun / 180 * .pi
+        let sun = simd_normalize(cos(phase) * SIMD3(0, 0, -1) + sin(phase) * simd_normalize(SIMD3(-0.95, 0.3, 0)))
+        typealias L = PickedColor.Level
+        p.a = SIMD4(SIMD3<Float>(center), Float(R))
+        p.b = SIMD4(SIMD3<Float>(axis), Float(c.gasWind))
+        p.c = SIMD4(SIMD3<Float>(sun), Float(c.gasTurbulence))
+        p.d = SIMD4(c.gasZone.light3(L.gasCloud), Float(c.gasStormSize))
+        p.e = SIMD4(c.gasBelt.light3(L.gasCloud), 40)
+        p.f = SIMD4(c.gasStorm.light3(L.gasCloud), Float(c.gasLightning.rate))
+        p.i.x = 4.3
+        let towardUs = SIMD3<Double>(0, 0, -1)
+        let e1 = simd_normalize(towardUs - axis * simd_dot(towardUs, axis)), e2 = simd_cross(axis, e1)
+        if c.gasMoon {
+            // a small moon whose orbit carries it across the face of the planet
+            let a = 0.9 + 2 * .pi * t / (6 * 60)
+            let tip = 8.0 / 180 * .pi
+            let pos = center + 2.1 * R * (cos(a) * (cos(tip) * e1 + sin(tip) * axis) + sin(a) * e2)
+            p.g = SIMD4(SIMD3<Float>(pos), Float(0.045 * R))
+        }
+        if case (let age, var rng)? = events.active(EventSchedule.cometImpact, rate: c.gasEvents.rate, at: t, demo: demo) {
+            // a fragment train hits a band on the side facing us
+            let sl = 0.47, lon = rng.range(-0.5, 0.1)
+            let cl = (1 - sl * sl).squareRoot()
+            let site = axis * sl + (e1 * cos(lon) + e2 * sin(lon)) * cl
+            p.h = SIMD4(SIMD3<Float>(site), Float(max(age / EventSchedule.cometImpact.duration, 0.0005)))
+        }
         return p
     }
 

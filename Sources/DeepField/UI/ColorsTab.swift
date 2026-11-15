@@ -85,6 +85,10 @@ struct SceneColors: View {
             if c.pulsarFieldLines { ColorRow("Magnetic field", store.color(\.pulsarFieldColor)) }
             if c.pulsarRing { ColorRow("Dust ring", store.color(\.pulsarRingColor)) }
             if c.pulsarNebula { ColorRow("Wind nebula", store.color(\.pulsarNebulaColor)) }
+        case .gasGiant:
+            ColorRow("Light zones", store.color(\.gasZone))
+            ColorRow("Dark belts", store.color(\.gasBelt))
+            ColorRow("Great spot", store.color(\.gasStorm))
         case .auroraOrbit:
             ColorRow("Aurora (oxygen, low)", store.color(\.auroraGreen))
             ColorRow("Aurora tops (oxygen, high)", store.color(\.auroraRed))

@@ -118,6 +118,17 @@ struct SceneTab: View {
                     SliderRow(title: "Distance", value: $store.config.auroraDistance, range: 22...60) { String(format: "%.0f°", $0) }
                         .help("How far ahead the magnetic pole lies. Nearer brings the curtains in below you; farther puts them along the horizon")
                     SliderRow(title: "Oval size", value: $store.config.auroraOvalSize, range: 10...30) { String(format: "%.0f°", $0) }
+                case .gasGiant:
+                    SliderRow(title: "Wind", value: $store.config.gasWind, range: 0...4)
+                        .help("How fast the bands flow and the storms spin")
+                    SliderRow(title: "Turbulence", value: $store.config.gasTurbulence, range: 0...2.5)
+                    SliderRow(title: "Storm size", value: $store.config.gasStormSize, range: 0.5...2)
+                    SliderRow(title: "Distance", value: $store.config.gasDistance, range: 1.2...3)
+                        .help("How close you are, in planet radii from its center")
+                    SliderRow(title: "Sun angle", value: $store.config.gasSun, range: 0...140) { String(format: "%.0f°", $0) }
+                    SliderRow(title: "Axis tilt", value: $store.config.gasTilt, range: -40...40) { String(format: "%.0f°", $0) }
+                    Toggle("Moon", isOn: $store.config.gasMoon)
+                    FrequencyRow(title: "Lightning", value: $store.config.gasLightning)
                 case .comet:
                     SliderRow(title: "Tail length", value: $store.config.cometTailLength, range: 0.3...2)
                     SliderRow(title: "Activity", value: $store.config.cometActivity, range: 0.2...2.5)
@@ -227,6 +238,13 @@ struct SceneTab: View {
                                                ("Surge", EventSchedule.surge),
                                                ("Prominence Eruption", EventSchedule.prominenceEruption),
                                                ("Coronal Mass Ejection", EventSchedule.coronalEjection)])
+            } header: {
+                GroupHeader(title: "Events")
+            }
+        case .gasGiant:
+            Section {
+                FrequencyRow(title: "Comet impacts", value: $store.config.gasEvents)
+                DemoGrid(store: store, demos: [("Comet Impact", EventSchedule.cometImpact)])
             } header: {
                 GroupHeader(title: "Events")
             }

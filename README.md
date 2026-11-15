@@ -41,6 +41,11 @@ Requires macOS 14 or later.
     <td><img src="docs/media/gallery/ringedPlanet.png" alt="Ringed Planet"><br><b>Ringed Planet</b></td>
     <td><img src="docs/media/gallery/auroraOrbit.png" alt="Aurora from Orbit"><br><b>Aurora from Orbit</b></td>
   </tr>
+  <tr>
+    <td><img src="docs/media/gallery/gasGiant.png" alt="Gas Giant Storms"><br><b>Gas Giant Storms</b></td>
+    <td></td>
+    <td></td>
+  </tr>
 </table>
 
 - **Black Hole**: a lensed accretion disk, redshifted orange on one side and blueshifted on the
@@ -77,6 +82,10 @@ Requires macOS 14 or later.
   Aurora curtains rise along the auroral oval: a pink lower edge, rayed green walls, and red tops
   that dissolve into space, with folds and waves of brightness running along them. Now and then a
   substorm makes them surge and spread toward you.
+- **Gas Giant Storms**: a giant planet close up whose clouds actually flow: bands sliding on
+  alternating jets and curling where they shear, a great red spot and white ovals spinning in
+  place, lightning on the night side, and a small moon passing. Now and then a comet's fragments
+  hit, flash, and leave dark scars that the winds smear out along the band.
 
 ## In motion
 
