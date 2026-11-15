@@ -19,7 +19,7 @@ struct FrameParams {
     float shellR0; float shellR1; float saturation; float scene;
     float dither; float twinkle; float pulsars; float skyBrightness;
     float pixelAngle; float starCount; float lightCount; float ringStrength;   // pixelAngle: radians per drawable pixel
-    float nebulaType;
+    float nebulaType; float screenScale;   // screenScale: screen-space scenes' units per half height
     float4 camPos; float4 camRight; float4 camUp;   // camRight.w / camUp.w = drawable width / height
 };
 

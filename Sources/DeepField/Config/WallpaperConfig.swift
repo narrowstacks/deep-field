@@ -19,6 +19,9 @@ struct WallpaperConfig: Codable, Equatable {
 
     // Camera
     var tilt = 6.3                 // degrees above the disk / orbital plane
+    /// Portrait phone framing (mobile export only). Never set on the saved config, and nil
+    /// isn't encoded, so the saved format is unchanged.
+    var phoneFraming: PhoneFraming?
 
     // Black hole
     var diskSize = 15.0            // outer radius
@@ -133,6 +136,7 @@ struct WallpaperConfig: Codable, Equatable {
         var starDensity: Double, galaxies: Bool, milkyWay: Bool, pixelSize: Int
         var nebulaType: NebulaType, nebulaSeed: Int
         var tdeStar: SIMD2<Double>          // star radius and distance (tidal disruption only)
+        var phoneFraming: PhoneFraming?
     }
 
     var bakeKey: BakeKey {
@@ -141,7 +145,8 @@ struct WallpaperConfig: Codable, Equatable {
                 throat: scene == .wormhole ? throat : 0,
                 starDensity: starDensity, galaxies: galaxies, milkyWay: milkyWay, pixelSize: pixelSize,
                 nebulaType: scene == .nebula ? nebulaType : .pillars, nebulaSeed: scene == .nebula ? nebulaSeed : 0,
-                tdeStar: scene == .tidalDisruption ? SIMD2(tdeStar.radius * tdeStarSize, tdeStarDistance) : .zero)
+                tdeStar: scene == .tidalDisruption ? SIMD2(tdeStar.radius * tdeStarSize, tdeStarDistance) : .zero,
+                phoneFraming: phoneFraming)
     }
 
     /// Decodes leniently: keys missing from older saved configs fall back to defaults, and so

@@ -32,6 +32,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
+    <key>NSPhotoLibraryAddUsageDescription</key><string>Deep Field adds the phone wallpapers you export to Photos, so they sync to your iPhone.</string>
+    <key>NSPhotoLibraryUsageDescription</key><string>Deep Field only adds the phone wallpapers you export to Photos; it doesn't read your library.</string>
 </dict>
 </plist>
 PLIST

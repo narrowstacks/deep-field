@@ -152,6 +152,7 @@ fragment float4 stellarFragment(FRAME_INPUTS)
     float W = F.camRight.w, H = F.camUp.w;
     float T = F.time;
     float2 q = float2((float(p.x) + 0.5 - W * 0.5) / (H * 0.5), -(float(p.y) + 0.5 - H * 0.5) / (H * 0.5));
+    q *= F.screenScale;
     float2 C = S.a.xy;
     float R = S.a.z;
     float2 d = q - C;
