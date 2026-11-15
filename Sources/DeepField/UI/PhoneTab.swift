@@ -112,7 +112,7 @@ struct PhoneTab: View {
             HStack {
                 Toggle("Show the Lock Screen clock", isOn: $showClock)
                 Spacer()
-                Button("Reset framing") { phone.options.framing = PhoneFraming() }
+                Button("Reset Framing") { phone.options.framing = PhoneFraming() }
                     .disabled(phone.options.framing == PhoneFraming())
             }
         } header: {
@@ -136,16 +136,19 @@ struct PhoneTab: View {
                 }
             }
             Picker("Live Photo motion", selection: $phone.options.motionSpeed) {
-                Text("1× (as on the desktop)").tag(1.0)
+                Text("1×").tag(1.0)
                 Text("2×").tag(2.0)
                 Text("4×").tag(4.0)
             }
+            .help("1× is the desktop's speed. Faster makes the motion show in a short loop.")
             LabeledContent("Live Photo") {
                 HStack {
                     Button("Save Files…") { phone.saveLivePhotoFiles() }
                     Button("Add to Photos") { phone.addLivePhotoToPhotos() }
+                        .help("Reaches your iPhone through iCloud Photos. You can also AirDrop both files.")
                 }
             }
+            .help("Press and hold it in Photos to play it.")
             if phone.busy || !phone.status.isEmpty {
                 HStack {
                     if phone.busy {
@@ -157,7 +160,8 @@ struct PhoneTab: View {
         } header: {
             GroupHeader(title: "Export")
         } footer: {
-            GroupFooter("The Live Photo is a 3-second loop with orbits held still, paired with the still; press and hold it in Photos to play it. iOS 17 and later can play Live Photo wallpapers on the Lock Screen when it wakes, but often shows \"Motion not available\" for ones not taken with the Camera, so expect a still wallpaper there. Add to Photos reaches your iPhone through iCloud Photos; or AirDrop both files together.")
+            GroupFooter("The Live Photo is a 3-second loop paired with the still. iOS may show it as a still on the Lock Screen.")
+                .help("Orbits are held still in the loop. iOS 17 and later can play Live Photo wallpapers when the Lock Screen wakes, but often shows \"Motion not available\" for ones not taken with the Camera.")
         }
         .disabled(phone.busy)
     }

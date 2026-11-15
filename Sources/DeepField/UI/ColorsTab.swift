@@ -97,7 +97,7 @@ struct SceneColors: View {
                     Button("Natural") {
                         store.config.nebulaHa = RGB(1.0, 0.22, 0.35); store.config.nebulaOIII = RGB(0.15, 0.85, 0.9); store.config.nebulaSII = RGB(1.0, 0.65, 0.2)
                     }
-                    Button("Hubble palette") {
+                    Button("Hubble Palette") {
                         store.config.nebulaSII = RGB(1.0, 0.35, 0.12); store.config.nebulaHa = RGB(0.35, 1.0, 0.4); store.config.nebulaOIII = RGB(0.2, 0.45, 1.0)
                     }
                 }

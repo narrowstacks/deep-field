@@ -63,7 +63,7 @@ struct DemoGrid: View {
                 ForEach(demos, id: \.1.id) { title, kind in
                     DemoButton(title: title) {
                         store.demo(kind)
-                        StageStatus.shared.flash("\(title) started")
+                        StageStatus.shared.flash(title.prefix(1) + title.dropFirst().lowercased() + " started")
                     }
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }

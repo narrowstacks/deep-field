@@ -11,6 +11,18 @@ struct SceneTab: View {
 
     private var scene: SceneKind { store.config.scene }
 
+    /// A short note under the scene's own controls, where one helps.
+    private var note: String? {
+        switch scene {
+        case .binary, .trinary, .stellarSurface: "Star colors follow the star type."
+        case .pulsar: "Slowed down from hundreds of turns a second so the beams don't strobe."
+        case .galaxy: store.config.darkMatter
+            ? "Outer stars orbit as fast as inner ones, as observed in real galaxies."
+            : "Without dark matter the outer disk lags behind. Real galaxies don't do this."
+        default: nil
+        }
+    }
+
     var body: some View {
         Form {
             Section {
@@ -38,12 +50,12 @@ struct SceneTab: View {
                     SliderRow(title: "Star size", value: $store.config.tdeStarSize, range: 0.5...1.6)
                     SliderRow(title: "Star distance", value: $store.config.tdeStarDistance, range: 16...28) { String(format: "%.0f", $0) }
                     SliderRow(title: "Stream brightness", value: $store.config.tdeStreamBrightness, range: 0...2)
+                        .help("Gas peeled off the star, spiraling into the disk")
                     SliderRow(title: "Disk speed", value: $store.config.diskSpeed, range: 0.1...3)
                     Toggle("Jets", isOn: $store.config.tdeJets)
-                    Text("A star strays too close and overflows toward the hole. Tides stretch it into an egg, and a stream of its gas peels off the tip, spirals in, and feeds the accretion disk. The star, stream and jets are all bent by the hole's gravity.")
-                        .font(.callout).foregroundStyle(.secondary)
                 case .pulsar:
                     SliderRow(title: "Rotation period", value: $store.config.pulsarPeriod, range: 0.5...12) { String(format: "%.1f s", $0) }
+                        .help("Real pulsars spin up to hundreds of times a second. This one is slowed down so the beams don't strobe.")
                     SliderRow(title: "Magnetic angle", value: $store.config.pulsarInclination, range: 0...90) { String(format: "%.0f°", $0) }
                     SliderRow(title: "Spin axis tilt", value: $store.config.pulsarAxisTilt, range: -60...60) { String(format: "%.0f°", $0) }
                     Picker("Beams", selection: $store.config.pulsarBeams) {
@@ -65,12 +77,11 @@ struct SceneTab: View {
                     if store.config.pulsarRing {
                         SliderRow(title: "Ring brightness", value: $store.config.pulsarRingIntensity, range: 0.2...3)
                     }
-                    Toggle("Wind nebula (torus and jets)", isOn: $store.config.pulsarNebula)
+                    Toggle("Wind nebula", isOn: $store.config.pulsarNebula)
+                        .help("The torus and jets around the pulsar")
                     if store.config.pulsarNebula {
                         SliderRow(title: "Nebula brightness", value: $store.config.pulsarNebulaIntensity, range: 0.2...3)
                     }
-                    Text("Real pulsars spin up to hundreds of times a second; this one is slowed way down so the beams don't strobe.")
-                        .font(.callout).foregroundStyle(.secondary)
                 case .nebula:
                     Picker("Type", selection: $store.config.nebulaType) {
                         ForEach(NebulaType.allCases) { Text($0.title).tag($0) }
@@ -78,7 +89,7 @@ struct SceneTab: View {
                     LabeledContent("Shape seed") {
                         HStack {
                             TextField("Seed", value: $store.config.nebulaSeed, format: .number).frame(width: 80)
-                            Button("Generate new") { store.config.nebulaSeed = Int.random(in: 1...99_999) }
+                            Button("New Shape") { store.config.nebulaSeed = Int.random(in: 1...99_999) }
                         }
                     }
                     SliderRow(title: "Flow speed", value: $store.config.nebulaFlow, range: 0.1...4)
@@ -100,10 +111,9 @@ struct SceneTab: View {
                     SliderRow(title: "Size", value: $store.config.galaxySize, range: 0.6...1.5)
                     SliderRow(title: "Edge orbit period", value: $store.config.galaxyRotationMinutes, range: 1...30) { String(format: "%.0f min", $0) }
                     Toggle("Dark matter halo", isOn: $store.config.darkMatter)
-                    Text(store.config.darkMatter
-                         ? "Flat rotation curve: stars at the edge orbit as fast as those near the middle, as observed in real galaxies. The unseen halo supplies the extra gravity."
-                         : "Visible mass only: orbital speed falls off like v ∝ 1/√r, so the outer disk lags far behind. This is what we'd expect without dark matter, and it doesn't match observations.")
-                        .font(.callout).foregroundStyle(.secondary)
+                        .help(store.config.darkMatter
+                              ? "A flat rotation curve: stars at the edge orbit as fast as those near the middle, as observed in real galaxies. The unseen halo supplies the extra gravity."
+                              : "Visible mass only: orbital speed falls off like v ∝ 1/√r, so the outer disk lags far behind. Real galaxies don't do this.")
                 }
             } header: {
                 // the scene itself heads its first group
@@ -114,10 +124,9 @@ struct SceneTab: View {
                 }
                 .textCase(nil)
                 .padding(.bottom, 4)
+                .help(scene.details ?? "")
             } footer: {
-                if [.binary, .trinary, .stellarSurface].contains(scene) {
-                    GroupFooter("These stars are colored by their star type.")
-                }
+                if let note { GroupFooter(note) }
             }
             if scene == .stellarSurface {
                 Section {
@@ -126,9 +135,9 @@ struct SceneTab: View {
                     SliderRow(title: "Top of the star", value: $store.config.starLimbY, range: -0.9...1)
                     LabeledContent("Framing") {
                         HStack {
-                            Button("Whole star") { frameStar(zoom: 0.45, x: 0, top: 0.8) }
+                            Button("Whole Star") { frameStar(zoom: 0.45, x: 0, top: 0.8) }
                             Button("Limb") { frameStar(zoom: 1, x: -0.15, top: 0.12) }
-                            Button("Close-up") { frameStar(zoom: 3, x: -0.1, top: -0.2) }
+                            Button("Close-Up") { frameStar(zoom: 3, x: -0.1, top: -0.2) }
                         }
                     }
                 } header: {
@@ -180,7 +189,7 @@ struct SceneTab: View {
             Section {
                 FrequencyRow(title: "Outbursts and tail breaks", value: $store.config.cometEvents)
                 DemoGrid(store: store, demos: [("Outburst", EventSchedule.cometOutburst),
-                                               ("Tail disconnection", EventSchedule.tailDisconnect)])
+                                               ("Tail Disconnection", EventSchedule.tailDisconnect)])
             } header: {
                 GroupHeader(title: "Events")
             }
@@ -189,18 +198,18 @@ struct SceneTab: View {
                 FrequencyRow(title: "Flares and eruptions", value: $store.config.starFlares)
                 DemoGrid(store: store, demos: [("Flare", EventSchedule.stellarFlare),
                                                ("Surge", EventSchedule.surge),
-                                               ("Prominence eruption", EventSchedule.prominenceEruption),
-                                               ("Coronal mass ejection", EventSchedule.coronalEjection)])
+                                               ("Prominence Eruption", EventSchedule.prominenceEruption),
+                                               ("Coronal Mass Ejection", EventSchedule.coronalEjection)])
             } header: {
                 GroupHeader(title: "Events")
             }
         case .wormhole:
             Section {
                 FrequencyRow(title: "Wormhole events", value: $store.config.wormholeEvents)
-                DemoGrid(store: store, demos: [("Something falls in", EventSchedule.infall),
-                                               ("Something comes out", EventSchedule.emergence),
-                                               ("Rim flare", EventSchedule.throatFlare),
-                                               ("Far-side supernova", EventSchedule.farSupernova)])
+                DemoGrid(store: store, demos: [("Infall", EventSchedule.infall),
+                                               ("Emergence", EventSchedule.emergence),
+                                               ("Rim Flare", EventSchedule.throatFlare),
+                                               ("Far-Side Supernova", EventSchedule.farSupernova)])
             } header: {
                 GroupHeader(title: "Events")
             }
