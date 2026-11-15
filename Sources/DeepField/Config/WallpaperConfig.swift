@@ -97,6 +97,9 @@ struct WallpaperConfig: Codable, Equatable {
     var starSpots = 1.0
     var starFlares: Frequency = .normal
     var starRotation = 1.0
+    var starZoom = 1.0                 // 1 = the limb close-up; about 0.45 shows the whole disk
+    var starCenterX = -0.15            // disk center, fraction of the half screen width
+    var starLimbY = 0.12               // top of the disk, fraction of the half screen height
 
     // Sky
     var starDensity = 1.0
@@ -117,6 +120,8 @@ struct WallpaperConfig: Codable, Equatable {
     var supernovae: Frequency = .normal
     var comets: Frequency = .normal
     var wormholeEvents: Frequency = .normal
+
+    static let starZoomRange = 0.4...4.0
 
     /// Camera elevation for the current scene; the galaxy and tidal disruption have their own.
     var cameraTilt: Double {
@@ -201,6 +206,13 @@ struct WallpaperConfig: Codable, Equatable {
         if c.binaryStars.count < 2 { c.binaryStars += d.binaryStars.dropFirst(c.binaryStars.count) }
         if c.trinaryStars.count < 3 { c.trinaryStars += d.trinaryStars.dropFirst(c.trinaryStars.count) }
         if c.galaxyArms < 1 { c.galaxyArms = 1 }
+        func clamp(_ kp: WritableKeyPath<WallpaperConfig, Double>, _ r: ClosedRange<Double>) {
+            let v = c[keyPath: kp]
+            c[keyPath: kp] = v.isNaN ? d[keyPath: kp] : min(max(v, r.lowerBound), r.upperBound)
+        }
+        clamp(\.starZoom, Self.starZoomRange)
+        clamp(\.starCenterX, -1...1)
+        clamp(\.starLimbY, -0.9...1)
         return c
     }
 }

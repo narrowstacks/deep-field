@@ -108,41 +108,70 @@ enum SceneParams {
     private static func stellarSurface(_ c: WallpaperConfig, _ t: Double, _ cam: Camera,
                                        _ events: EventSchedule, _ demo: [UInt64: Double]) -> SceneParamsGPU {
         var p = SceneParamsGPU()
-        let radius = 1.7
-        // the limb arcs across the lower middle (in portrait, with its top at the subject height)
-        let center = cam.portrait ? SIMD2(0, cam.subjectY * cam.screenScale - radius)
-            : SIMD2(-0.15 * cam.aspect, 0.12 - radius)
+        // Zoom 1 puts the limb across the lower middle; smaller zooms back off to the whole disk.
+        // In portrait the disk stays centered with its top at the subject height.
+        let radius = 1.7 * c.starZoom
+        let s = cam.screenScale
+        let center = cam.portrait ? SIMD2(0, cam.subjectY * s - radius)
+            : SIMD2(c.starCenterX * cam.aspect, c.starLimbY - radius)
         let rotation = (t * 0.004 * c.starRotation).truncatingRemainder(dividingBy: 2 * .pi)
         let col = c.closeStar.color
         p.a = SIMD4(Float(center.x), Float(center.y), Float(radius), Float(rotation))
         p.b = SIMD4(col.r, col.g, col.b, Float(c.starSpots * c.closeStar.activity.clampedActivity))
+        let arc = visibleLimb(center: center, radius: radius, halfWidth: cam.aspect * s, halfHeight: s)
+        p.g = SIMD4(Float(arc.mid), Float(arc.half), 0, 0)
+        func limbAngle(_ rng: inout Rng) -> Double { arc.mid + arc.half * rng.range(-0.85, 0.85) }
 
         // Slots: see the star close-up section of ShaderStars.swift. Progress is age / duration.
         let rate = c.starFlares.rate
         if case (let age, var rng)? = events.active(EventSchedule.stellarFlare, rate: rate, at: t, demo: demo) {
-            let ang = rng.range(0.6, 2.5)
-            let depth = rng.range(0.0, 0.025)   // close to the limb, so its loop arcade stands clear of it
+            let ang = limbAngle(&rng)
+            let depth = rng.range(0.0, 0.015)   // just inside the limb, so its loop arcade stands clear of it
             let bright = smoothstep(0, 1.5, age) * exp(-age / 12)
-            p.c = SIMD4(Float(ang), Float(depth), Float(bright * 3), Float(rng.range(0.08, 0.13)))
+            p.c = SIMD4(Float(ang), Float(depth), Float(bright * 3), Float(rng.range(0.05, 0.08)))
             p.f.x = Float(age / EventSchedule.stellarFlare.duration)
         }
         if case (let age, var rng)? = events.active(EventSchedule.surge, rate: rate, at: t, demo: demo) {
             let f = age / EventSchedule.surge.duration
-            p.f.y = Float(rng.range(0.5, 2.6))
+            p.f.y = Float(limbAngle(&rng))
             p.f.z = Float(f)
-            p.f.w = Float(1.4 * smoothstep(0, 0.04, f) * (1 - smoothstep(0.85, 1, f)))
+            p.f.w = Float(smoothstep(0, 0.04, f) * (1 - smoothstep(0.85, 1, f)))
         }
         if case (let age, var rng)? = events.active(EventSchedule.coronalEjection, rate: rate, at: t, demo: demo) {
             let f = age / EventSchedule.coronalEjection.duration
-            let ang = rng.range(0.9, 2.2)
-            p.d = SIMD4(Float(ang), Float(f), Float(smoothstep(0, 0.04, f) * (1 - smoothstep(0.65, 1, f))), Float(rng.range(0, 50)))
+            let ang = limbAngle(&rng)
+            p.d = SIMD4(Float(ang), Float(f), Float(smoothstep(0, 0.04, f) * (1 - smoothstep(0.7, 1, f))), Float(rng.range(0, 50)))
         }
         if case (let age, var rng)? = events.active(EventSchedule.prominenceEruption, rate: rate, at: t, demo: demo) {
             let f = age / EventSchedule.prominenceEruption.duration
-            let ang = rng.range(0.6, 2.5)
+            let ang = limbAngle(&rng)
             p.e = SIMD4(Float(ang), Float(f), Float(smoothstep(0, 0.06, f) * (1 - smoothstep(0.85, 1, f))), Float(rng.range(0, 50)))
         }
         return p
+    }
+
+    /// The stretch of limb that's on screen, as a middle angle and half span (radians), so limb
+    /// features and events land where they can be seen at any zoom and framing.
+    static func visibleLimb(center: SIMD2<Double>, radius: Double, halfWidth: Double, halfHeight: Double)
+        -> (mid: Double, half: Double) {
+        let n = 180
+        let onScreen = (0..<n).map { i -> Bool in
+            let a = Double(i) / Double(n) * 2 * .pi
+            let pt = center + radius * SIMD2(cos(a), sin(a))
+            return abs(pt.x) < halfWidth * 0.94 && abs(pt.y) < halfHeight * 0.94
+        }
+        if onScreen.allSatisfy({ $0 }) { return (.pi / 2, .pi) }
+        // the longest run of on-screen angles, going around the circle
+        var best = (start: 0, length: 0), start = 0, length = 0
+        for i in 0..<(2 * n) {
+            guard onScreen[i % n] else { length = 0; continue }
+            if length == 0 { start = i }
+            length += 1
+            if length > best.length { best = (start, length) }
+        }
+        if best.length == 0 { return (atan2(-center.y, -center.x), 0.3) }   // the limb is off screen
+        let step = 2 * Double.pi / Double(n)
+        return (Double(best.start) * step + Double(best.length - 1) * step / 2, Double(best.length) * step / 2)
     }
 }
 
