@@ -78,13 +78,14 @@ static float3 tdeStreamColor(float s, float u, constant FrameParams& F, constant
     float streaks = fbm(float3((s - flow) * 7.0, u * 3.2, 3.0));
     float clumps = noise3(float3((s - flow * 1.3) * 30.0, u * 1.5, 11.0));
     fil = 0.12 + 1.3 * smoothstep(0.32, 0.78, streaks) * (0.6 + 0.6 * clumps);
+    fil = max(fil, 1.2 * (1.0 - smoothstep(0.0, 0.12, s)));   // a solid neck where it leaves the star
     float3 star = S.a.rgb;
     float3 warm = mix(S.d.rgb, S.f.rgb, 0.25);
     float3 col = mix(star, warm * 0.8, smoothstep(0.03, 0.32, s));
     col = mix(col, warm * warm * 0.7, smoothstep(0.1, 0.6, s) * smoothstep(0.9, -0.2, fil));  // dimmer gaps cool and redden
     float shock = exp(-pow((s - 1.0) / 0.14, 2.0));
     col = mix(col, mix(S.f.rgb, float3(1.0), 0.4) * 1.4, shock * 0.7);
-    float bright = (0.85 - 0.4 * smoothstep(0.0, 0.5, s)) * (1.0 - 0.5 * smoothstep(1.1, 1.8, s));
+    float bright = (1.1 - 0.65 * smoothstep(0.0, 0.5, s)) * (1.0 - 0.5 * smoothstep(1.1, 1.8, s));
     return col * bright;
 }
 

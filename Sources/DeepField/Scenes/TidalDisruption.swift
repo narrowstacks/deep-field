@@ -51,11 +51,11 @@ struct TDEGeometry {
         nearAxis = r * 1.45
         farAxis = r * 1.06
         startAngle = angle
-        startRadius = distance - nearAxis * 0.85
+        startRadius = distance - nearAxis * 0.6
         mergeRadius = Self.diskOuter * 0.86
         winding = 2.5
         end = 1.85
-        width0 = r * 0.5
+        width0 = r * 0.6
         width1 = 0.45
     }
 
