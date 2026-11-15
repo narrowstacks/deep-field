@@ -115,7 +115,7 @@ enum SceneParams {
             let ang = rng.range(0.6, 2.5)
             let depth = rng.range(0.0, 0.025)   // close to the limb, so its loop arcade stands clear of it
             let bright = smoothstep(0, 1.5, age) * exp(-age / 12)
-            p.c = SIMD4(Float(ang), Float(depth), Float(bright * 3), Float(rng.range(0.07, 0.11)))
+            p.c = SIMD4(Float(ang), Float(depth), Float(bright * 3), Float(rng.range(0.08, 0.13)))
             p.f.x = Float(age / EventSchedule.stellarFlare.duration)
         }
         if case (let age, var rng)? = events.active(EventSchedule.surge, rate: rate, at: t, demo: demo) {
@@ -126,7 +126,7 @@ enum SceneParams {
         }
         if case (let age, var rng)? = events.active(EventSchedule.coronalEjection, rate: rate, at: t, demo: demo) {
             let f = age / EventSchedule.coronalEjection.duration
-            let ang = rng.range(0.7, 2.4)
+            let ang = rng.range(0.9, 2.2)
             p.d = SIMD4(Float(ang), Float(f), Float(smoothstep(0, 0.04, f) * (1 - smoothstep(0.65, 1, f))), Float(rng.range(0, 50)))
         }
         if case (let age, var rng)? = events.active(EventSchedule.prominenceEruption, rate: rate, at: t, demo: demo) {

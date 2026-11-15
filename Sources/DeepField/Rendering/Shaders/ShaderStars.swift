@@ -395,7 +395,7 @@ fragment float4 stellarFragment(FRAME_INPUTS)
             // late on, material falls back down the legs near the limb
             if (fp > 0.3 && L.y < 0.45) {
                 float lx = abs(L.x) - (0.12 + 0.1 * fp) - 0.06 * L.y;
-                float rain = smoothstep(0.6, 0.9, noise3(float3(L.x * 40.0, L.y * 18.0 + T * 0.7, seed)))
+                float rain = smoothstep(0.6, 0.9, noise3(float3(L.x * 70.0, L.y * 9.0 + T * 0.5, seed)))
                            * exp(-pow(lx / 0.03, 2.0)) * smoothstep(0.45, 0.2, L.y);
                 e += mix(hAlpha, hot, 0.3) * rain * smoothstep(0.3, 0.5, fp) * 2.5 / dil;
             }

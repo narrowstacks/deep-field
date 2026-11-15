@@ -46,7 +46,8 @@ static float2 beamLight(float3 ro, float3 rd, float3 axis, float3 spin, float w,
         den = max(1.0 - b * b, 1e-5);
         t = (b * e - dd) / den;
         s = e + t * b;
-        if (it == 0) ax = rotateAbout(axis, spin, -trail * max(s, 0.0));
+        // (straightened where we look along it: there the closest point is ill-defined)
+        if (it == 0) ax = rotateAbout(axis, spin, -trail * clamp(s, 0.0, 40.0) * smoothstep(0.05, 0.4, sqrt(den)));
     }
     tHit = t;
     if (s < 0.15 || t < 0.0) return float2(0.0);
@@ -54,11 +55,14 @@ static float2 beamLight(float3 ro, float3 rd, float3 axis, float3 spin, float w,
     float ws = w * s;
     if (d0 > ws * 12.0) return float2(0.0);
     // fades with distance from the star, and where it passes close to the camera
-    float along = smoothstep(0.15, 0.9, s) * exp(-s / 16.0) * smoothstep(3.0, 12.0, t);
-    float path = 1.0 / max(sqrt(den), 0.25);           // a longer path through it when it points our way
+    float along = smoothstep(0.15, 0.9, s) * exp(-s / 16.0) * smoothstep(6.0, 16.0, length(ax * s - ro));
+    // A longer path through it when it points our way. Seen almost end-on the closest point is
+    // ill-defined, so there the beam hands over to the flash glare (computed on the CPU).
+    float sinPhi = sqrt(den);
+    float path = smoothstep(0.08, 0.3, sinPhi) / max(sinPhi, 0.25);
     float wc = max(ws * 0.13, pixAng * t * 0.6);        // the hot core, at least a pixel wide
     // knots streaming outward (smoothed out where we look down the beam, or they read as rings)
-    float knots = mix(1.0, 0.7 + 0.6 * noise3(float3(s * 0.8 - T * 3.0, dot(axis, spin) * 7.0, 0.0)), 1.0 / path);
+    float knots = mix(1.0, 0.7 + 0.6 * noise3(float3(s * 0.8 - T * 3.0, dot(axis, spin) * 7.0, 0.0)), max(sinPhi, 0.25));
     float wg = ws * 0.4;
     float glow = (exp(-(d0 * d0) / (wg * wg)) * knots + exp(-(d0 * d0) / (ws * ws)) * 0.25 + exp(-d0 / (ws * 1.5)) * 0.03) * along * path;
     float core = exp(-(d0 * d0) / (wc * wc)) * (ws * 0.13 / wc) * along * path * (0.85 + 0.3 * knots);
@@ -228,7 +232,7 @@ fragment float4 pulsarFragment(FRAME_INPUTS)
         float3 wv = ro + rd * tc;
         float wx = abs(dot(wv, F.camRight.xyz)), wy = abs(dot(wv, F.camUp.xyz));
         float spikes = exp(-wy / 0.04) * exp(-wx / 1.6) + exp(-wx / 0.04) * exp(-wy / 1.1);
-        col += (beamCol * (exp(-dmin / 1.3) * 1.8 + exp(-dmin / 5.0) * 0.25) + mix(beamCol, float3(1.0), 0.5) * spikes * 1.2) * fl * starVis;
+        col += (beamCol * (exp(-dmin / 1.1) * 1.8 + exp(-dmin / 2.5) * 0.15) + mix(beamCol, float3(1.0), 0.5) * spikes * 1.2) * fl * starVis;
     }
     return finalize(col, p, F);
 }
