@@ -73,6 +73,9 @@ struct Galaxy {
     float4 misc;     // radius, solid-body angle
 };
 
+// x squared. (pow(x, 2.0) is undefined for negative x in Metal.)
+static float sq(float x) { return x * x; }
+
 // ---------- noise ----------
 
 static float hash13(float3 p) {

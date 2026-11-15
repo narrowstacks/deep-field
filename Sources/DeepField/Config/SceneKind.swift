@@ -43,7 +43,7 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
     static var listed: [SceneKind] { allCases.filter(\.isListed) }
 
     /// Glow added to the global bloom setting for scenes whose look leans on it.
-    var extraBloom: Double { self == .auroraOrbit ? 0.6 : 0 }
+    var extraBloom: Double { self == .auroraOrbit ? 0.4 : 0 }
 
     /// Scenes that show the orbiting planets.
     var hasPlanets: Bool { [.blackHole, .wormhole, .binary, .trinary].contains(self) }

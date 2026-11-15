@@ -54,7 +54,7 @@ static float rgRingOpacity(float r, float fp, float4 P) {
         for (int k = 0; k < 6; k++) {
             float rk = 1.55 + 0.13 * float(k) + 0.03 * sin(float(k) * 2.7);
             float wk = max(0.005 + 0.004 * fract(float(k) * 0.618), e);
-            o += exp(-pow((r - rk) / wk, 2.0)) * (0.55 + 0.35 * fract(float(k) * 0.37)) * min(1.0, 0.008 / wk);
+            o += exp(-sq((r - rk) / wk)) * (0.55 + 0.35 * fract(float(k) * 0.37)) * min(1.0, 0.008 / wk);
         }
     } else {
         float c = rgBand(r, 1.24, 1.53, e * 2.0) * (0.14 + 0.08 * fine + 0.08 * broad + 0.08 * smoothstep(1.42, 1.53, r));
@@ -63,7 +63,7 @@ static float rgRingOpacity(float r, float fp, float4 P) {
         float a = rgBand(r, 2.02, 2.27, e * 1.5) * saturate(0.45 + 0.3 * fine + 0.25 * broad - 0.15 * smoothstep(2.12, 2.27, r));
         a *= 0.25 + 0.75 * smoothstep(0.004, 0.01 + e, abs(r - 2.215));
         float w = max(0.006, e);
-        float f = exp(-pow((r - 2.33) / w, 2.0)) * 0.3 * (0.006 / w);
+        float f = exp(-sq((r - 2.33) / w)) * 0.3 * (0.006 / w);
         o = c + b + d + a + f;
     }
     return saturate(o * P.z);

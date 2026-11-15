@@ -147,7 +147,7 @@ static float4 pnKnots(float3 X, float3 v, float3 ap, float3 bp, float sa, float 
             // lit side: a soft glow that wraps further round some knots than others
             float wrap = mix(0.6, -0.3, hC);
             float side = smoothstep(wrap, -1.0, a2 / (h * stretch));
-            float lit = exp(-pow((hd - 0.85) / 0.6, 2.0)) * side + 0.05 * exp(-hd * hd);
+            float lit = exp(-sq((hd - 0.85) / 0.6)) * side + 0.05 * exp(-hd * hd);
             float bright = hF < 0.15 ? 0.0 : 0.35 + 1.3 * hD * hD;      // some are only dark smudges
             float flick = 0.85 + 0.3 * noise3(float3(float(i), float(j), T * 0.12));
             float3 kc = pnRimColor(colRim, 0.3 + 0.6 * hE);
@@ -157,7 +157,7 @@ static float4 pnKnots(float3 X, float3 v, float3 ap, float3 bp, float sa, float 
             float L = h * (2.0 + 6.0 * hash13(h3 + 2.2));
             float curl = (hash13(h3 + 31.1) - 0.5) * 1.2 / L;
             float pc = perp - curl * along * along;
-            float tail = along > 0.0 ? exp(-pow(pc / (h * (0.7 + 0.6 * along / L)), 2.0)) * exp(-along / L) : 0.0;
+            float tail = along > 0.0 ? exp(-sq(pc / (h * (0.7 + 0.6 * along / L)))) * exp(-along / L) : 0.0;
             absorb = max(absorb, max(exp(-hd * hd * 1.2) * (0.35 + 0.4 * hB), tail * (0.2 + 0.35 * hA)));
         }
     }
@@ -188,7 +188,7 @@ fragment float4 planetaryFragment(FRAME_INPUTS)
         neb += pnShell(ro, rd, ax, R, el, jitter, colRim, T, seed) * 0.24;
         // a faint, uneven skirt fading out beyond the rim
         float skirt = exp(-pow(max(dmin - 0.9 * R, 0.0) / (0.45 * R), 1.5)) * smoothstep(0.55 * R, 0.95 * R, dmin);
-        neb += pnRimColor(colRim, 1.0) * skirt * 0.14 * pow(fbm(X / R * 2.2 + seed + 4.0), 2.0);
+        neb += pnRimColor(colRim, 1.0) * skirt * 0.14 * sq(fbm(X / R * 2.2 + seed + 4.0));
 
         // the inside: oxygen ionized twice over by the star's hard light, thinning at the very middle
         float inner = 0.0;
@@ -214,11 +214,11 @@ fragment float4 planetaryFragment(FRAME_INPUTS)
                 float ph = fract(T / 400.0 + float(k) * 0.25);
                 float rr = R * (1.15 + 0.85 * ph), w = R * 0.07;
                 // a thin shell seen edge-on: a soft ring at its radius, broken into arcs
-                float ring = exp(-pow((dmin - rr) / w, 2.0));
+                float ring = exp(-sq((dmin - rr) / w));
                 if (ring < 0.01) continue;
                 float3 u = normalize(X + 1e-4);
                 float arcs = smoothstep(0.4, 0.75, fbm(u * 2.2 + float3(float(k) * 7.3 + seed, 0.0, 0.0)));
-                float life = pow(sin(3.14159265 * ph), 2.0) * (1.0 - 0.6 * ph);
+                float life = sq(sin(3.14159265 * ph)) * (1.0 - 0.6 * ph);
                 neb += mix(colHalo, colHalo * float3(1.0, 0.6, 1.4), ph) * ring * arcs * life * 0.09;
             }
         }
@@ -227,7 +227,7 @@ fragment float4 planetaryFragment(FRAME_INPUTS)
         if (S.e.w > 0.001) {
             // seen edge-on it's a soft bright ring at its radius, with a fainter fill across it
             float rr = S.e.z * R, w = R * (0.05 + 0.06 * S.e.z);
-            float shell = exp(-pow((dmin - rr) / w, 2.0)) + 0.25 * smoothstep(rr, 0.5 * rr, dmin);
+            float shell = exp(-sq((dmin - rr) / w)) + 0.25 * smoothstep(rr, 0.5 * rr, dmin);
             float clumpy = 0.55 + 0.9 * fbm(normalize(X + 1e-4) * 4.0 + float3(seed, 3.0, 0.0));
             neb += mix(colIn, float3(1.0, 0.95, 0.9), 0.35) * shell * clumpy * S.e.w * 0.32;
         }

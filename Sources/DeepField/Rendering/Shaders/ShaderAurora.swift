@@ -74,7 +74,7 @@ static float3 auEmission(float3 p, float3 pole, float3 pe1, float3 pe2, float T,
     // the red tops reach higher in some places than others
     float topH = 0.03 + 0.012 * noise3(float3(psi * 16.0, T * 0.03 * act, seed + 6.0));
     float red = smoothstep(topH - 0.012, topH, a) * exp(-max(a - topH, 0.0) / 0.012) * 0.24;
-    float fringe = exp(-pow((a - AU_BASE + 0.0004) / 0.0011, 2.0)) * (0.45 + 0.6 * sub);
+    float fringe = exp(-sq((a - AU_BASE + 0.0004) / 0.0011)) * (0.45 + 0.6 * sub);
     // Each ray reaches its own height and fades out softly above it, so the tops are ragged
     // and dissolve into space instead of ending on a line.
     float reach = 0.034 + 0.03 * r1 + 0.012 * r2;
@@ -123,7 +123,7 @@ static float3 auLightning(float3 g, float cloud, float T, float rate, float seed
         float slot = T * (2.2 + 2.0 * h) * rate + h * 40.0;
         float roll = hash13(float3(c.xy, floor(slot)));
         float flash = roll > 0.86 ? exp(-fract(slot) * 7.0) * (0.6 + 0.8 * fract(roll * 13.0)) : 0.0;
-        col += float3(0.75, 0.82, 1.0) * flash * exp(-pow(dist / 0.012, 2.0)) * (0.5 + cloud) * 2.2;
+        col += float3(0.75, 0.82, 1.0) * flash * exp(-sq(dist / 0.012)) * (0.5 + cloud) * 2.2;
     }
     return col;
 }
@@ -157,7 +157,7 @@ fragment float4 auroraFragment(FRAME_INPUTS)
         // the aurora overhead lights the ground and clouds below it a little
         float3 pole = float3(0.0, cos(S.a.z), sin(S.a.z));
         float gam = acos(clamp(dot(P, pole), -1.0, 1.0));
-        col += S.b.rgb * S.b.w * (1.0 + 2.0 * S.d.w) * exp(-pow((gam - S.a.w) / 0.03, 2.0)) * (0.006 + 0.03 * cloud);
+        col += S.b.rgb * S.b.w * (1.0 + 2.0 * S.d.w) * exp(-sq((gam - S.a.w) / 0.03)) * (0.006 + 0.03 * cloud);
         // seen through more air toward the limb, the ground fades into a blue haze
         float slant = 1.0 / max(dot(normalize(P), -rd), 0.05);
         col = col * exp(-0.035 * slant) + float3(0.001, 0.003, 0.009) * (1.0 - exp(-0.03 * slant)) * (0.3 + S.f.y);
