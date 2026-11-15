@@ -18,19 +18,24 @@ struct CustomizeView: View {
 
     /// Normally the Scene tab; `-captureTab N` picks another for `--capture-ui`.
     @State private var tab = Settings.captureTab
+    static let phoneTab = 5
 
     var body: some View {
         VStack(spacing: 0) {
-            LivePreview(reference: reference)
-                .aspectRatio(reference.width / reference.height, contentMode: .fit)
-                .frame(maxWidth: .infinity)
-                .background(Color.black)
+            // the Phone tab shows its own portrait preview instead
+            if tab != Self.phoneTab {
+                LivePreview(reference: reference)
+                    .aspectRatio(reference.width / reference.height, contentMode: .fit)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.black)
+            }
             TabView(selection: $tab) {
                 SceneTab(store: store).tabItem { Text("Scene") }.tag(0)
                 ColorsTab(store: store).tabItem { Text("Colors") }.tag(1)
                 SkyTab(store: store).tabItem { Text("Sky & Events") }.tag(2)
                 PlanetsTab(store: store).tabItem { Text("Planets") }.tag(3)
                 DisplayTab(store: store).tabItem { Text("Display") }.tag(4)
+                PhoneTab(store: store).tabItem { Text("Phone") }.tag(Self.phoneTab)
             }
             .padding(12)
         }

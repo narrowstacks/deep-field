@@ -61,6 +61,57 @@ enum FrameCapture {
         p.cb.commit()
     }
 
+    /// Many frames of one config from a single bake (the phone loop). Encoding runs on the main
+    /// thread, like the live views (the scene state caches aren't thread-safe); call `frame` from
+    /// any thread, and it waits for the GPU there.
+    final class Sequence {
+        private let config: WallpaperConfig
+        private let baked: Baked
+        private let target: MTLTexture
+        private let buffer: MTLBuffer
+        private let width: Int, height: Int
+        private let events = EventSchedule(seed: 1, enabled: false)
+
+        init?(config: WallpaperConfig, width w: Int, height h: Int) {
+            let r = Renderer.shared
+            guard let target = r.makeTexture(.bgra8Unorm, w, h, usage: [.renderTarget, .shaderRead]),
+                  let buffer = r.device.makeBuffer(length: w * 4 * h, options: .storageModeShared),
+                  let baked = onMain({ r.bake(width: w, height: h, config: config, wait: true) }) else { return nil }
+            self.config = config
+            self.baked = baked
+            self.target = target
+            self.buffer = buffer
+            width = w
+            height = h
+        }
+
+        /// The frame at `time`, with planets and star orbits held at `orbitTime`.
+        func frame(time: Double, orbitTime: Double) -> CGImage? {
+            let r = Renderer.shared
+            let cb: MTLCommandBuffer? = onMain {
+                guard let cb = r.queue.makeCommandBuffer() else { return nil }
+                r.encodeFrame(cb, target: target, baked: baked, elapsed: time, config: config, events: events,
+                              orbitTime: orbitTime)
+                guard let blit = cb.makeBlitCommandEncoder() else { return nil }
+                blit.copy(from: target, sourceSlice: 0, sourceLevel: 0, sourceOrigin: MTLOrigin(),
+                          sourceSize: MTLSize(width: width, height: height, depth: 1),
+                          to: buffer, destinationOffset: 0, destinationBytesPerRow: width * 4,
+                          destinationBytesPerImage: width * 4 * height)
+                blit.endEncoding()
+                cb.commit()
+                return cb
+            }
+            guard let cb else { return nil }
+            cb.waitUntilCompleted()
+            guard cb.status == .completed else { return nil }
+            return Pending(cb: cb, buffer: buffer, width: width, height: height).image()
+        }
+    }
+
+    private static func onMain<T>(_ body: () -> T) -> T {
+        Thread.isMainThread ? body() : DispatchQueue.main.sync(execute: body)
+    }
+
     /// Scales `image` up by a whole `factor` and crops it to `width` x `height` from the top
     /// left (the shaded size is rounded up, so the last cells overhang). Nearest-neighbor keeps
     /// the dither cells crisp; otherwise it's smoothed with high-quality interpolation.

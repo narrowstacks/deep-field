@@ -18,6 +18,7 @@ struct FrameParams {
     var dither: Float, twinkle: Float, pulsars: Float, skyBrightness: Float
     var pixelAngle: Float, starCount: Float, lightCount: Float, ringStrength: Float
     var nebulaType: Float
+    var screenScale: Float     // screen-space scenes' units per half screen height (1 on the desktop)
     var camPos: SIMD4<Float>
     var camRight: SIMD4<Float>   // w = drawable width
     var camUp: SIMD4<Float>      // w = drawable height

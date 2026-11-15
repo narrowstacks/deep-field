@@ -40,6 +40,30 @@ where you can change the scene, colors (presets plus color pickers), star densit
 frequency (with "Show me" buttons that trigger an event right away), planets, pixel size, color
 levels, dither pattern and frame rate. Settings save automatically.
 
+## Phone wallpapers
+
+The **Phone** tab of the Customize window turns the current scene into an iPhone wallpaper. Pick
+a model (or a custom size) and it recomposes the scene for a tall frame, with the subject below
+the Lock Screen clock; zoom and subject height adjust that, and a clock overlay shows where the
+time will sit. It's dithered with the wallpaper's look (cells a notch larger than on the
+desktop, or a size you pick) or smooth.
+
+- **Still**: PNG or HEIC.
+- **Live Photo**: a 3-second loop with events off and planets and star orbits held still, at 2x
+  the wallpaper's speed by default so the motion shows. The pulsar's loop is a whole number of
+  turns; elsewhere the last second dissolves, cell by cell along a Bayer threshold, into the
+  frames before the start, so it loops without a jump. It's saved as a HEIC still plus a HEVC
+  QuickTime movie that share a content identifier (the still's Apple maker note key 17, the
+  movie's `com.apple.quicktime.content.identifier`, and a `still-image-time` metadata track at
+  the middle frame). **Save Files…** writes the pair to a folder (AirDrop both together), and
+  **Add to Photos** adds it to the Photos library as one Live Photo (asks for permission to add
+  to Photos the first time), which reaches the iPhone through iCloud Photos.
+
+What to expect on the iPhone: the Live Photo plays in Photos when you press and hold it. iOS 17
+and later can play a Live Photo wallpaper on the Lock Screen, but they often refuse ones that
+weren't taken with the Camera ("Motion not available"). Apple says the requirements are
+undocumented, so there it's usually a still wallpaper.
+
 ## Galaxy rotation
 
 Each star orbits at its own angular speed, ω(r) = v(r) / r, taken from a rotation curve:
@@ -85,9 +109,17 @@ stars. Dwarf irregulars turn almost like a solid body, matching their rising rot
     [--demo 1:440]                                            # force event kind 1 to start at t=440 s
 .build/release/DeepField --benchmark [--scene galaxy] [--size 3440x1440] [--frames 120]
 .build/release/DeepField --list-events 60 --scene wormhole   # when events fire (seed 1)
+.build/release/DeepField --mobile-export outdir [--device 17-pro-max|1179x2556] [--live] [--smooth] \
+    [--phone-pixel 4] [--zoom 1.2] [--shift 0.05] [--speed 2] [--scene comet] [--defaults]
+.build/release/DeepField --check-live still.HEIC movie.MOV   # pairing metadata, loads as a Live Photo?
 build/DeepField.app/Contents/MacOS/DeepField --customize   # open the Customize window at launch
 defaults write local.deepfield.wallpaper debug -bool true     # log bake times, fps, pause/resume
 ```
+
+`--defaults` starts from the default settings instead of your saved ones. `--mobile-export`
+always writes the portrait still as `<name>.png` (deterministic); with `--live` it also writes
+the Live Photo pair, prints its pairing metadata, checks that PhotoKit loads it as a Live Photo
+(without touching the library), and writes `<name> preview.mp4`, the loop played three times.
 
 Snapshots are deterministic, so comparing `md5` of a set of them before and after a change
 shows whether the output moved. Event kind ids for `--demo` are listed in `Scenes/Events.swift`.
@@ -112,6 +144,7 @@ Everything is in `Sources/DeepField`:
 - `Rendering/Shaders/`: the Metal source as Swift strings, one file per area, joined in order by
   `ShaderSource.full` and compiled at runtime, so the build needs no Metal toolchain.
 - `UI/`: the SwiftUI Customize window, one file per tab.
+- `Mobile/`: the phone wallpaper export (portrait still, Live Photo pair, Photos library).
 - `Dev/`: the command line above (snapshot, benchmark, event list, UI capture).
 
 

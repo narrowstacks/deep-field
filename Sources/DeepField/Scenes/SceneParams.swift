@@ -90,9 +90,11 @@ enum SceneParams {
             disconnectPos = 0.08 + 1.4 * f * c.cometTailLength
             disconnectStrength = smoothstep(0, 0.1, f) * (1 - smoothstep(0.75, 1, f))
         }
-        // head lower right, tails streaming up and to the left, away from an off-screen sun
-        let head = SIMD2(0.42 * cam.aspect, -0.32)
-        let ion = simd_normalize(SIMD2(-0.94, 0.36))
+        // head lower right, tails streaming up and to the left, away from an off-screen sun;
+        // in portrait the tails rise more steeply, up through the tall frame
+        let s = cam.screenScale
+        let head = cam.portrait ? SIMD2(0.3 * cam.aspect * s, cam.subjectY * s) : SIMD2(0.42 * cam.aspect, -0.32)
+        let ion = simd_normalize(cam.portrait ? SIMD2(-0.4, 0.92) : SIMD2(-0.94, 0.36))
         p.a = SIMD4(Float(head.x), Float(head.y), Float(c.cometActivity), Float(c.cometTailLength))
         p.b = SIMD4(Float(ion.x), Float(ion.y), 0.35, Float(outburst))
         p.c = SIMD4(c.cometIonColor.r, c.cometIonColor.g, c.cometIonColor.b, Float(disconnectPos))
@@ -107,7 +109,9 @@ enum SceneParams {
                                        _ events: EventSchedule, _ demo: [UInt64: Double]) -> SceneParamsGPU {
         var p = SceneParamsGPU()
         let radius = 1.7
-        let center = SIMD2(-0.15 * cam.aspect, 0.12 - radius)   // the limb arcs across the lower middle
+        // the limb arcs across the lower middle (in portrait, with its top at the subject height)
+        let center = cam.portrait ? SIMD2(0, cam.subjectY * cam.screenScale - radius)
+            : SIMD2(-0.15 * cam.aspect, 0.12 - radius)
         let rotation = (t * 0.004 * c.starRotation).truncatingRemainder(dividingBy: 2 * .pi)
         let col = c.closeStar.color
         p.a = SIMD4(Float(center.x), Float(center.y), Float(radius), Float(rotation))

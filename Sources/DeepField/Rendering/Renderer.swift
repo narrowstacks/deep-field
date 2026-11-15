@@ -141,9 +141,9 @@ final class Renderer {
         guard let pipeline = bakePipelines[c.scene], let enc = cb.makeComputeCommandEncoder() else { return nil }
         let shells = Self.needsShells(c)
         let cam = Camera(c, aspect: Double(w) / Double(h))
-        let look = Camera.look(for: c.scene)
+        let look = cam.look
         var p = BakeParams(width: Float(w), height: Float(h),
-                           camDist: Float(Camera.distance(for: c.scene)), camElev: Float(c.cameraTilt / 180 * .pi),
+                           camDist: Float(cam.distance), camElev: Float(c.cameraTilt / 180 * .pi),
                            tanHalfFov: Float(cam.tanHalf), diskIn: SceneGeometry.diskIn,
                            diskOut: Float(c.scene == .tidalDisruption ? TDEGeometry.diskOuter * 1.2 : c.diskSize),
                            roll: Float(SceneGeometry.roll),
@@ -176,8 +176,9 @@ final class Renderer {
     }
 
     /// `elapsed` is seconds since launch (Double, so long orbital periods stay precise).
+    /// `orbitTime`, if given, holds planets and star orbits at that time instead (phone loops).
     func encodeFrame(_ cb: MTLCommandBuffer, target: MTLTexture, baked: Baked, elapsed: Double,
-                     config c: WallpaperConfig, events: EventSchedule) {
+                     config c: WallpaperConfig, events: EventSchedule, orbitTime: Double? = nil) {
         let rp = MTLRenderPassDescriptor()
         rp.colorAttachments[0].texture = target
         rp.colorAttachments[0].loadAction = .dontCare
@@ -185,8 +186,8 @@ final class Renderer {
         guard let enc = cb.makeRenderCommandEncoder(descriptor: rp) else { return }
 
         let cam = Camera(c, aspect: Double(target.width) / Double(target.height))
-        var planets = PlanetFactory.make(c).map { $0.gpu(elapsed: elapsed) }
-        var stars = StarSystem.stars(c, elapsed: elapsed)
+        var planets = PlanetFactory.make(c).map { $0.gpu(elapsed: orbitTime ?? elapsed) }
+        var stars = StarSystem.stars(c, elapsed: orbitTime ?? elapsed)
         var lights = StarSystem.lights(c, stars: stars)
         // a lensed scene baked without shells can't show planets (until the rebake catches up)
         let planetCount = Self.lensing(c.scene) > 0 && !baked.shells ? 0 : planets.count
@@ -208,6 +209,7 @@ final class Renderer {
                             pulsars: c.pulsars ? 1 : 0, skyBrightness: Float(c.nebula),
                             pixelAngle: Float(pixelAngle), starCount: Float(starCount), lightCount: Float(lightCount),
                             ringStrength: Float(c.photonRing), nebulaType: c.nebulaType.shaderIndex,
+                            screenScale: Float(cam.screenScale),
                             camPos: SIMD4(cam.pos),
                             camRight: SIMD4(Float(cam.right.x), Float(cam.right.y), Float(cam.right.z), Float(target.width)),
                             camUp: SIMD4(Float(cam.up.x), Float(cam.up.y), Float(cam.up.z), Float(target.height)))

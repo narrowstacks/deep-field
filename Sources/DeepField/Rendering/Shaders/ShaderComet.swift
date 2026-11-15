@@ -12,6 +12,7 @@ fragment float4 cometFragment(FRAME_INPUTS)
     float3 col = SKY(p, octDecode(dirTex.read(p).xy), false);
     float W = F.camRight.w, H = F.camUp.w;
     float2 q = float2((float(p.x) + 0.5 - W * 0.5) / (H * 0.5), -(float(p.y) + 0.5 - H * 0.5) / (H * 0.5));
+    q *= F.screenScale;
     float2 v = q - S.a.xy;
     float act = S.a.z, L = S.a.w;
     float burst = S.b.w;

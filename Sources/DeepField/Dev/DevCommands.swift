@@ -6,9 +6,13 @@ import Foundation
 ///     --snapshot out.png [--size 3440x1440] [--time 10] [--no-events]
 ///     --benchmark [--size 3440x1440] [--time 300] [--frames 120] [--no-events]
 ///     --list-events [minutes]
+///     --mobile-export outdir [--device 17-pro-max|WIDTHxHEIGHT] [--live] [--smooth]
+///         [--phone-pixel N] [--zoom 1.0] [--shift 0.0] [--speed 2]
+///     --check-live still.heic movie.mov     (pairing metadata, and whether it loads as a Live Photo)
 ///
 /// Shared options: `--scene <SceneKind>`, `--preset <palette name>`, `--config '<json>'` (overrides
-/// any settings), `--demo id:start,...` (forces event kind `id` to start at `start` seconds).
+/// any settings), `--defaults` (start from the default settings instead of the saved ones),
+/// `--demo id:start,...` (forces event kind `id` to start at `start` seconds).
 enum DevCommands {
     static func runIfRequested() {
         let args = Arguments(CommandLine.arguments)
@@ -21,12 +25,21 @@ enum DevCommands {
                 }
             }
         }
-        guard args.has("--list-events") || args.has("--snapshot") || args.has("--benchmark") else { return }
+        guard args.has("--list-events") || args.has("--snapshot") || args.has("--benchmark")
+                || args.has("--mobile-export") || args.has("--check-live") else { return }
 
         let config = args.config()
         let eventsEnabled = !args.has("--no-events")
         if args.has("--list-events") {
             EventSchedule(seed: 1).list(minutes: args.value("--list-events").flatMap(Double.init) ?? 60, config: config)
+            exit(0)
+        }
+        if let i = args.args.firstIndex(of: "--check-live"), i + 2 < args.args.count {
+            MobileExportCommand.check(URL(fileURLWithPath: args.args[i + 1]), URL(fileURLWithPath: args.args[i + 2]))
+            exit(0)
+        }
+        if let out = args.value("--mobile-export") {
+            MobileExportCommand.run(out: out, config: config, args: args)
             exit(0)
         }
         let size = args.size()
@@ -46,7 +59,7 @@ enum DevCommands {
     }
 }
 
-private struct Arguments {
+struct Arguments {
     let args: [String]
     init(_ args: [String]) { self.args = args }
 
@@ -66,9 +79,9 @@ private struct Arguments {
         return (parts[0], parts[1])
     }
 
-    /// The saved config with --scene, --preset and --config applied.
+    /// The saved config (or the defaults, with --defaults) with --scene, --preset and --config applied.
     func config() -> WallpaperConfig {
-        var config = ConfigStore.shared.config
+        var config = has("--defaults") ? WallpaperConfig() : ConfigStore.shared.config
         if let s = value("--scene"), let kind = SceneKind(rawValue: s) { config.scene = kind }
         if let p = value("--preset"), let preset = PaletteConfig.presets.first(where: { $0.0 == p }) { config.palette = preset.1 }
         if let json = value("--config"), let patch = json.data(using: .utf8),
