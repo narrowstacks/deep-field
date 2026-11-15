@@ -42,7 +42,7 @@ struct ImageTab: View {
                 // label plus seven segments doesn't fit one row here, so the titles sit above
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Pixel size")
-                    Picker("Pixel size", selection: c.pixelSize) {
+                    Picker("Pixel size", selection: $store.config.pixelSize) {
                         ForEach([1, 2, 3, 4, 6, 8], id: \.self) { Text("\($0) px").tag($0) }
                     }
                     .pickerStyle(.segmented)
@@ -50,13 +50,13 @@ struct ImageTab: View {
                 }
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Color levels per channel")
-                    Picker("Color levels per channel", selection: c.levels) {
+                    Picker("Color levels per channel", selection: $store.config.levels) {
                         ForEach([2, 3, 4, 5, 6, 8, 16], id: \.self) { Text("\($0)").tag($0) }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
                 }
-                Picker("Dither pattern", selection: c.dither) {
+                Picker("Dither pattern", selection: $store.config.dither) {
                     ForEach(DitherPattern.allCases) { Text($0.title).tag($0) }
                 }
             } header: {
