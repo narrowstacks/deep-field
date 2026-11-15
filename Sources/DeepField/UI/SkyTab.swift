@@ -10,7 +10,8 @@ struct SkyTab: View {
                 SliderRow(title: "Star density", value: $store.config.starDensity, range: 0.2...3)
                 SliderRow(title: "Nebula brightness", value: $store.config.nebula, range: 0...4)
                 Toggle("Distant galaxies", isOn: $store.config.galaxies)
-                Toggle("Galactic band (a Milky Way of dense stars and dust)", isOn: $store.config.milkyWay)
+                Toggle("Milky Way band", isOn: $store.config.milkyWay)
+                    .help("A band of dense stars and dust across the sky")
             } header: {
                 GroupHeader(title: "Background")
             }
@@ -21,14 +22,15 @@ struct SkyTab: View {
             }
             Section {
                 FrequencyRow(title: "Twinkling stars", value: $store.config.twinkles)
-                Toggle("Pulsars (a few stars blink on a steady beat)", isOn: $store.config.pulsars)
+                Toggle("Blinking stars", isOn: $store.config.pulsars)
+                    .help("A few stars blink on a steady beat, like distant pulsars")
                 FrequencyRow(title: "Supernovae", value: $store.config.supernovae) {
                     store.demo(EventSchedule.supernova)
-                    ConsoleStatus.shared.flash("Supernova triggered")
+                    StageStatus.shared.flash("Supernova started")
                 }
                 FrequencyRow(title: "Comets", value: $store.config.comets) {
                     store.demo(EventSchedule.comet)
-                    ConsoleStatus.shared.flash("Comet triggered")
+                    StageStatus.shared.flash("Comet started")
                 }
             } header: {
                 GroupHeader(title: "Events")

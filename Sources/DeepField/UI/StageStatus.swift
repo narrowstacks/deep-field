@@ -1,9 +1,9 @@
 import Foundation
 
-/// A short-lived message for the stage's telemetry line. Events can be subtle and take minutes
-/// to play out, so "Show me" confirms the click did something.
-final class ConsoleStatus: ObservableObject {
-    static let shared = ConsoleStatus()
+/// A short-lived message for the caption under the preview. Events can be subtle and take
+/// minutes to play out, so a Show Me button confirms the click did something.
+final class StageStatus: ObservableObject {
+    static let shared = StageStatus()
     @Published private(set) var message: String?
     private var clear: DispatchWorkItem?
 

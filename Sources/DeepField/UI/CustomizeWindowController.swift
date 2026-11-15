@@ -13,10 +13,8 @@ final class CustomizeWindowController {
             let w = NSWindow(contentViewController: NSHostingController(rootView: CustomizeView()))
             w.title = "Customize Deep Field"
             w.styleMask = [.titled, .closable, .miniaturizable]
-            // the console is dark in both system appearances
+            // dark in both system appearances: colors are judged against a black sky
             w.appearance = NSAppearance(named: .darkAqua)
-            w.titlebarAppearsTransparent = true
-            w.backgroundColor = NSColor(srgbRed: 0.043, green: 0.051, blue: 0.071, alpha: 1)
             w.isReleasedWhenClosed = false
             w.center()
             closeObserver = NotificationCenter.default.addObserver(

@@ -23,7 +23,8 @@ struct ImageTab: View {
                         .help("Puts tone and glow back to their defaults")
                 }
             } footer: {
-                GroupFooter("For every scene, applied before the dither, so the result stays pixel-dithered.")
+                GroupFooter("Applies to every scene.")
+                    .help("Applied before the dither, so the result stays pixel-dithered")
             }
             Section {
                 SliderRow(title: "Bloom", value: c.bloom, range: WallpaperConfig.bloomRange,
@@ -36,7 +37,7 @@ struct ImageTab: View {
             } header: {
                 GroupHeader(title: "Glow")
             } footer: {
-                GroupFooter("Bloom adds a glow around bright light; off, it costs nothing.")
+                GroupFooter("Adds a glow around bright light. Off uses no extra power.")
             }
             Section {
                 // label plus seven segments doesn't fit one row here, so the titles sit above

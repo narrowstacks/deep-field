@@ -97,7 +97,7 @@ struct SceneColors: View {
                     Button("Natural") {
                         store.config.nebulaHa = RGB(1.0, 0.22, 0.35); store.config.nebulaOIII = RGB(0.15, 0.85, 0.9); store.config.nebulaSII = RGB(1.0, 0.65, 0.2)
                     }
-                    Button("Hubble palette") {
+                    Button("Hubble Palette") {
                         store.config.nebulaSII = RGB(1.0, 0.35, 0.12); store.config.nebulaHa = RGB(0.35, 1.0, 0.4); store.config.nebulaOIII = RGB(0.2, 0.45, 1.0)
                     }
                 }
@@ -124,12 +124,12 @@ struct PalettePresets: View {
                                 Rectangle().fill(Color(nsColor: swatches[i].nsColor)).frame(width: 10, height: 10)
                             }
                         }
-                        Text(name).font(Theme.thumbnail).lineLimit(1).minimumScaleFactor(0.8)
+                        Text(name).font(.caption).lineLimit(1).minimumScaleFactor(0.8)
                         Spacer(minLength: 0)
                     }
                     .padding(6)
                     .background(Color.white.opacity(0.06))
-                    .overlay(Rectangle().stroke(selected ? Theme.accent : Theme.hairline, lineWidth: selected ? 2 : 1))
+                    .overlay(Rectangle().stroke(selected ? Color.accentColor : Theme.hairline, lineWidth: selected ? 2 : 1))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

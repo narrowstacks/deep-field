@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Two columns: the stage (preview, telemetry, scene gallery) and the inspector (a section bar
+/// Two columns: the stage (preview, caption, scene gallery) and the inspector (a section picker
 /// and that section's controls). Dark in both system appearances, since colors are judged
 /// against a black sky.
 struct CustomizeView: View {
@@ -24,18 +24,23 @@ struct CustomizeView: View {
             StageView(store: store, thumbnails: thumbnails, section: section, reference: Self.reference,
                       showPhoneClock: showPhoneClock, actualPixels: $actualPixels)
                 .frame(width: Theme.stageWidth)
-            Rectangle().fill(Theme.hairline).frame(width: 1)
+                .background(Theme.stageBackground)
+            Divider()
             VStack(spacing: 0) {
-                SectionBar(selection: $section)
-                DitherBand()
+                Picker("Section", selection: $section) {
+                    ForEach(CustomizeSection.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 4)
                 inspector
             }
-            .frame(width: Theme.inspectorWidth - 1)
-            .background(Theme.panel)
+            .frame(maxWidth: .infinity)
+            .background(Theme.inspectorBackground)
         }
         .frame(width: Theme.windowSize.width, height: Theme.windowSize.height)
-        .background(Theme.background)
-        .tint(Theme.accent)
         .preferredColorScheme(.dark)
         .background { shortcuts }
         .onChange(of: section) { if section == .phone { actualPixels = false } }

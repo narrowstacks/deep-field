@@ -4,7 +4,7 @@ extension SceneKind {
         switch self {
         case .blackHole: "A lensed accretion disk and photon ring. Planets bend as they pass behind."
         case .tidalDisruption: "A star stretched by tides feeds a stream of gas into the disk."
-        case .wormhole: "A throat to another universe, with our own sky wrapped around its rim."
+        case .wormhole: "A wormhole showing another sky through its throat, with ours bent around the rim."
         case .binary: "Two stars in orbit, with eclipses and planets lit by both."
         case .trinary: "A close pair of stars and a distant third."
         case .galaxy: "A rotating galaxy with density-wave arms and a dark matter halo."
@@ -12,6 +12,14 @@ extension SceneKind {
         case .nebula: "Glowing gas and dark dust."
         case .comet: "A coma with jets, a blue ion tail and a curved dust tail."
         case .stellarSurface: "The limb of a star: granulation, spots, loops and eruptions."
+        }
+    }
+
+    /// The longer story behind a scene, shown as the tooltip on its name.
+    var details: String? {
+        switch self {
+        case .tidalDisruption: "A star strays too close and overflows toward the hole. Tides stretch it into an egg, and a stream of its gas peels off the tip, spirals in, and feeds the accretion disk. The star, stream and jets are all bent by the hole's gravity."
+        default: nil
         }
     }
 }

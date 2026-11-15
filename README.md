@@ -76,7 +76,7 @@ Requires macOS 14 or later.
 </table>
 
 Events are rare on purpose: a few per hour, at a frequency you choose per scene. The Customize
-window has a "Show me" button next to each one.
+window has a **Show Me** button next to each one.
 
 ## Features
 
@@ -127,7 +127,7 @@ right, five sections:
 - **Phone**: iPhone wallpaper export (the preview turns portrait).
 
 The preview's **Fit / 1:1** switch shows the middle of the screen at the wallpaper's true pixel
-size, to judge pixel size, levels and dither. Event frequencies come with "Show me" buttons that
+size, to judge pixel size, levels and dither. Event frequencies come with **Show Me** buttons that
 trigger an event right away. ⌘1 to ⌘5 pick a section, ⌘[ and ⌘] step through the scenes, and ⌘W
 closes the window. Settings save automatically.
 
