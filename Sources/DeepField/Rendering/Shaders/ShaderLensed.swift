@@ -9,9 +9,11 @@ static float diskNoise(float r, float ang, float seed) {
     return n * 0.75 + noise3(q) * 0.25;
 }
 
-static float4 shadeDisk(float4 h, constant FrameParams& F, constant Palette& Pal) {
+// Accretion disk at a crossing h = (radius, angle, redshift g, event). rec / app / core: the
+// receding, approaching and hottest colors; rin / rout: inner edge and outer radius.
+static float4 shadeDisk(float4 h, constant FrameParams& F, float3 rec, float3 app, float3 core, float rin, float rout) {
     float r = h.x, phi = h.y, g = h.z;
-    float x = (r - F.diskIn) / (F.diskOut - F.diskIn);
+    float x = (r - rin) / (rout - rin);
     float prof = smoothstep(-0.02, 0.05, x) * (1.0 - smoothstep(0.45, 1.0, x));
     if (prof <= 0.0) return float4(0.0);
 
@@ -27,68 +29,70 @@ static float4 shadeDisk(float4 h, constant FrameParams& F, constant Palette& Pal
     float dens = smoothstep(0.28, 0.80, n);
 
     float heat = 1.0 - saturate(x);
-    float3 rec = Pal.receding.rgb, app = Pal.approaching.rgb;
     float3 warm = mix(rec * rec * 0.5, rec, smoothstep(0.0, 0.6, heat));
-    warm = mix(warm, Pal.core.rgb, smoothstep(0.7, 1.0, heat) * 0.6);
+    warm = mix(warm, core, smoothstep(0.7, 1.0, heat) * 0.6);
     float3 cool = mix(app * app * 0.85, mix(app, float3(1.0), 0.35), smoothstep(0.2, 1.0, heat));
     float shift = smoothstep(0.95, 1.30, g);
     float3 col = mix(warm, cool, shift);
 
     float beaming = pow(clamp(g, 0.35, 1.8), 2.2);
-    float radial = pow(F.diskIn / r, 1.3);
+    float radial = pow(rin / r, 1.3);
     float emit = prof * radial * beaming * (0.30 + 1.1 * dens);
     float alpha = saturate(prof * (0.55 + 0.7 * dens) * 1.25);
     return float4(col * emit * 2.2, alpha);
 }
 
-// Tidal disruption: the star's debris in the disk plane. S.a = (orbit angle, pericenter,
-// eccentricity, stream progress tau), S.b = (stream brightness, disk amount, disk inner edge, flare).
-static float4 shadeTDE(float4 h, constant FrameParams& F, constant Palette& Pal, constant SceneParams& S) {
-    float r = h.x, phi = h.y, g = h.z;
-    float omegaO = S.a.x, rp = S.a.y, ecc = S.a.z, tau = S.a.w;
-    float nu = phi - omegaO;
-    nu -= 6.2831853 * floor(nu / 6.2831853 + 0.5);
-    float denom = 1.0 + ecc * cos(nu);
-    float rOrb = denom > 0.03 ? rp * (1.0 + ecc) / denom : 1e4;
-    float3 starCol = S.e.rgb;
-    float beaming = pow(clamp(g, 0.35, 1.8), 2.0);
+// ---------- star meets black hole ----------
+// S: a = (star color, spot activity), b = (stream brightness, jets on, 0, 0),
+// c = (jet color, disk outer radius), d / e / f = disk receding / approaching / core colors.
+// The bake (bakeBlackHole) traced the star, stream and jets; see its notes for the layout.
 
-    // the stream: debris strung out along the orbit, the bound head swinging round the hole
-    // first while the unbound tail stretches back out the way the star came in
-    float stream = 0.0;
-    if (S.b.x > 0.0) {
-        float nuHead = min(-0.35 + 3.4 * pow(tau, 0.6), 2.9);
-        float nuTail = -0.35 - 1.6 * pow(tau, 0.8);
-        float inRange = smoothstep(nuTail - 0.05, nuTail + 0.1, nu) * (1.0 - smoothstep(nuHead - 0.15, nuHead, nu));
-        float w = 0.3 + 0.045 * rOrb + 0.7 * tau;
-        float along = saturate((nu - nuTail) / max(nuHead - nuTail, 0.01));
-        float flow = fbm(float3(nu * 9.0 - F.time * 0.4, (r - rOrb) / w * 1.5, 3.0));
-        stream = exp(-pow((r - rOrb) / w, 2.0)) * inRange * (0.35 + 0.65 * along) * (0.5 + 0.9 * flow) * S.b.x;
-    }
+static float4 tdeDisk(float4 h, constant FrameParams& F, constant SceneParams& S) {
+    return shadeDisk(h, F, S.d.rgb, S.e.rgb, S.f.rgb, F.diskIn, S.c.w);
+}
 
-    // the debris that falls back circularizes into a fresh, hot disk that creeps inward
-    float disk = 0.0;
-    float3 diskCol = float3(0.0);
-    if (S.b.y > 0.0) {
-        float rin = S.b.z, rout = 2.4 * rp;
-        float prof = smoothstep(rin * 0.85, rin * 1.1, r) * (1.0 - smoothstep(rout * 0.8, rout * 1.4, r));
-        float omega = F.diskSpeed * pow(r, -1.5);
-        float n = diskNoise(r, phi - omega * fract(F.time / 30.0) * 30.0, 0.0);
-        disk = prof * (0.4 + 0.9 * smoothstep(0.3, 0.8, n)) * S.b.y;
-        float heat = 1.0 - saturate((r - rin) / (rout - rin));
-        float3 warm = mix(Pal.receding.rgb * 0.6, Pal.core.rgb, heat);
-        diskCol = mix(warm, mix(Pal.approaching.rgb, float3(1.0), 0.3), smoothstep(0.95, 1.3, g));
-    }
-    float3 streamCol = mix(starCol, Pal.receding.rgb, 0.35 + 0.4 * tau);
-    float3 emit = (streamCol * stream * 1.6 + diskCol * disk * (0.6 + S.b.w)) * beaming;
-    return float4(emit, saturate(stream * 1.4 + disk * 0.9));
+// The star's surface at a baked hit: granulation, spots, limb darkening, and the tip toward
+// the hole (where the stream leaves) heated and lit by the disk.
+static float3 tdeStarSurface(float4 st, constant FrameParams& F, constant SceneParams& S) {
+    float3 n = octDecode(st.xy);
+    float mu = st.z;
+    float t = F.time;
+    float gran = fbm(n * 16.0 + float3(0.0, 0.0, t * 0.02));
+    float cells = noise3(n * 45.0 + t * 0.02);
+    float spots = S.a.w > 0.0 ? smoothstep(0.7, 0.78, fbm(n * 5.0 + 5.3)) * S.a.w : 0.0;
+    float3 base = S.a.rgb;
+    // limb darkening, deeper in color toward the edge
+    float3 tint = pow(max(base, 0.001), 4.0 - 3.0 * sqrt(mu));
+    float3 col = tint * (0.25 + 0.95 * pow(mu, 0.7)) * (0.85 + 0.25 * gran + 0.1 * cells);
+    col *= 1.0 - spots * (0.85 - 0.5 * base * base);                                // dark umbrae, warmer edges
+    float tip = smoothstep(0.6, 0.98, n.x);
+    col += mix(base, float3(1.0), 0.3) * tip * 0.3 * (0.6 + 0.8 * gran);    // the L1 tip, where gas boils off
+    col += S.f.rgb * saturate(n.x) * 0.12 * (0.3 + 0.7 * mu);              // lit by the disk
+    return col * 0.8;
+}
+
+// Gas in the stream: hot where it leaves the star, cooling and clumping into filaments on the
+// way in, shocked bright again where it slams into the disk's rim, then trailing round it.
+static float3 tdeStreamColor(float s, float u, constant FrameParams& F, constant SceneParams& S, thread float& fil) {
+    float flow = F.time * 0.012;             // the gas drifts toward the hole, slowly
+    float streaks = fbm(float3((s - flow) * 7.0, u * 3.2, 3.0));
+    float clumps = noise3(float3((s - flow * 1.3) * 30.0, u * 1.5, 11.0));
+    fil = 0.12 + 1.3 * smoothstep(0.32, 0.78, streaks) * (0.6 + 0.6 * clumps);
+    fil = max(fil, 1.2 * (1.0 - smoothstep(0.0, 0.12, s)));   // a solid neck where it leaves the star
+    float3 star = S.a.rgb;
+    float3 warm = mix(S.d.rgb, S.f.rgb, 0.25);
+    float3 col = mix(star, warm * 0.8, smoothstep(0.03, 0.32, s));
+    col = mix(col, warm * warm * 0.7, smoothstep(0.1, 0.6, s) * smoothstep(0.9, -0.2, fil));  // dimmer gaps cool and redden
+    float shock = exp(-pow((s - 1.0) / 0.14, 2.0));
+    col = mix(col, mix(S.f.rgb, float3(1.0), 0.4) * 1.4, shock * 0.7);
+    float bright = (1.1 - 0.65 * smoothstep(0.0, 0.5, s)) * (1.0 - 0.5 * smoothstep(1.1, 1.8, s));
+    return col * bright;
 }
 
 fragment float4 lensedFragment(FRAME_INPUTS)
 {
     uint2 p = uint2(in.pos.xy);
     bool wormhole = F.scene > 0.5 && F.scene < 1.5;
-    bool tde = F.scene > 4.5;
     int lightCount = int(F.lightCount);
 
     // Layers indexed by event order along the ray (0 = nearest), composited back to front.
@@ -96,15 +100,16 @@ fragment float4 lensedFragment(FRAME_INPUTS)
     float4 layers[6] = { float4(0.0), float4(0.0), float4(0.0), float4(0.0), float4(0.0), float4(0.0) };
     int opaque = 6;
     if (!wormhole) {
+        float3 rec = Pal.receding.rgb, app = Pal.approaching.rgb, core = Pal.core.rgb;
         float4 A = hitA.read(p);
         if (A.w > 0.0) {
             int ia = min(int(A.w) - 1, 5);
-            layers[ia] = tde ? shadeTDE(A, F, Pal, S) : shadeDisk(A, F, Pal);
+            layers[ia] = shadeDisk(A, F, rec, app, core, F.diskIn, F.diskOut);
             if (layers[ia].a >= 1.0) opaque = ia;
             float4 B = hitB.read(p);              // a second crossing only exists after a first
             int ib = min(int(B.w) - 1, 5);
             if (B.w > 0.0 && ib < opaque) {
-                layers[ib] = tde ? shadeTDE(B, F, Pal, S) : shadeDisk(B, F, Pal);
+                layers[ib] = shadeDisk(B, F, rec, app, core, F.diskIn, F.diskOut);
                 if (layers[ib].a >= 1.0) opaque = min(opaque, ib);
             }
         }
@@ -171,13 +176,70 @@ fragment float4 lensedFragment(FRAME_INPUTS)
         }
     }
     for (int i = 5; i >= 0; i--) col = col * (1.0 - layers[i].a) + layers[i].rgb;
-    if (tde && S.c.w > 0.0) {
-        // the incoming star, stretched along its orbit as tides pull it apart
-        float2 d = float2(p) + 0.5 - S.c.xy;
-        float2 u = S.d.xy, v = float2(-u.y, u.x);
-        float a = dot(d, u) / S.d.z, b = dot(d, v);
-        float q = (a * a + b * b) / (S.c.z * S.c.z);
-        col += S.e.rgb * (exp(-q * 2.0) * 3.0 + exp(-q * 0.6) * 0.08) * S.c.w;
+    return finalize(col, p, F);
+}
+
+// Star meets black hole: the disk, the star, the stream and the jets, all from the bake.
+fragment float4 tdeFragment(FRAME_INPUTS)
+{
+    uint2 p = uint2(in.pos.xy);
+    float4 layers[6] = { float4(0.0), float4(0.0), float4(0.0), float4(0.0), float4(0.0), float4(0.0) };
+    int opaque = 6;
+    float4 A = hitA.read(p);
+    if (A.w > 0.0) {
+        int ia = min(int(A.w) - 1, 5);
+        layers[ia] = tdeDisk(A, F, S);
+        if (layers[ia].a >= 1.0) opaque = ia;
+        float4 B = hitB.read(p);
+        int ib = min(int(B.w) - 1, 5);
+        if (B.w > 0.0 && ib < opaque) {
+            layers[ib] = tdeDisk(B, F, S);
+            if (layers[ib].a >= 1.0) opaque = min(opaque, ib);
+        }
+    }
+    float4 star = shell1P.read(p);
+    if (star.w > 0.0) {
+        int is = min(int(star.w) - 1, 5);
+        if (is < opaque) { layers[is] = float4(tdeStarSurface(star, F, S), 1.0); opaque = is; }
+    }
+
+    float3 col = float3(0.0);
+    float4 info = infoTex.read(p);
+    if (opaque == 6 && info.x >= 1.0) {
+        col = SKY(p, octDecode(dirTex.read(p).xy), false);
+        col += Pal.ring.rgb * exp(-(info.x - 1.5) * 40.0) * 1.2 * F.ringStrength;  // photon ring
+    }
+
+    // Gas (stream and jets) was split at the first disk crossing: what lies behind it goes
+    // under the nearest layer, the rest on top.
+    float4 sv = shell0P.read(p);
+    float3 gasBack = float3(0.0), gasFront = float3(0.0);
+    float aBack = 0.0, aFront = 0.0;
+    if (sv.x + sv.y > 0.002) {
+        float fil;
+        float3 sc = tdeStreamColor(sv.z, sv.w, F, S, fil) * S.b.x;
+        // an emitting, absorbing slab: thick gas saturates at its own color instead of white
+        aBack = 1.0 - exp(-sv.y * fil * 1.4);
+        aFront = 1.0 - exp(-sv.x * fil * 1.4);
+        gasBack = sc * aBack * 1.3;
+        gasFront = sc * aFront * 1.3;
+    }
+    if (S.b.y > 0.0 && info.y + info.z > 0.001) {
+        // knots running out along the jets, brightest at the base
+        float y = info.w;
+        float knots = 0.4 + 0.9 * smoothstep(0.4, 0.85, noise3(float3(y * 0.5 - F.time * 0.25, 0.0, 5.0)));
+        float3 jc = S.c.rgb * knots * (0.12 + 0.45 * exp(-y / 3.0));
+        gasBack += jc * info.z;
+        gasFront += jc * info.y;
+    }
+    for (int i = 5; i >= 1; i--) col = col * (1.0 - layers[i].a) + layers[i].rgb;
+    col = col * (1.0 - aBack) + gasBack;
+    col = col * (1.0 - layers[0].a) + layers[0].rgb;
+    col = col * (1.0 - aFront) + gasFront;
+    if (star.w == 0.0) {
+        // a tight glow round the star (lensed with it)
+        float d = max(-star.z - 0.93, 0.0);
+        col += S.a.rgb * (exp(-d * 10.0) * 0.35 + exp(-d * 3.0) * 0.025);
     }
     return finalize(col, p, F);
 }

@@ -12,8 +12,10 @@ size. Pick a scene:
   neutron star) with granulation, sunspots, coronas and eclipses. Planets are lit by every star.
 - **Galaxy**: spiral, barred spiral, elliptical, irregular or ring, with a dust-laned disk, a
   bulge that sits partly in front of and partly behind the disk, and a halo of globular clusters.
-- **Star Meets Black Hole**: a tidal disruption. A star falls in on a near-parabolic orbit, is
-  torn into a stream at closest approach, and its debris forms a new disk that flares and fades.
+- **Star Meets Black Hole**: a tidally stretched, egg-shaped star beside the hole is stripped
+  into a glowing stream that feeds the existing accretion disk, with a bright shock where it
+  hits the rim and optional jets. Star, stream and jets are all lensed. Star type, size and
+  distance, stream brightness, disk colors and jets are adjustable.
 - **Pulsar**: a spinning neutron star with lighthouse beams, dipole field lines, and a wind
   nebula (torus and jets). Period, magnetic angle, tilt, beam width and colors are adjustable.
 - **Comet**: a coma with rotating jets, a blue ion tail combed into streamers, and a curved dust

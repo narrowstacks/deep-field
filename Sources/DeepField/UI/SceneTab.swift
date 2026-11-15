@@ -33,10 +33,20 @@ struct SceneTab: View {
                     SliderRow(title: "Separation", value: $store.config.starSeparation, range: 3...10) { String(format: "%.1f", $0) }
                     SliderRow(title: "Inner orbit period", value: $store.config.starOrbitMinutes, range: 0.5...20) { String(format: "%.1f min", $0) }
                 case .tidalDisruption:
-                    StarPicker(title: "Doomed star", star: $store.config.tdeStar)
-                    SliderRow(title: "Cycle length", value: $store.config.tdeCycleMinutes, range: 1...15) { String(format: "%.0f min", $0) }
+                    StarPicker(title: "Star", star: $store.config.tdeStar)
+                    SliderRow(title: "Star size", value: $store.config.tdeStarSize, range: 0.5...1.6)
+                    SliderRow(title: "Star distance", value: $store.config.tdeStarDistance, range: 16...28) { String(format: "%.0f", $0) }
+                    SliderRow(title: "Stream brightness", value: $store.config.tdeStreamBrightness, range: 0...2)
+                    Picker("Disk colors", selection: $store.config.tdeDiskColors) {
+                        ForEach(TDEDiskColors.allCases) { Text($0.title).tag($0) }
+                    }
+                    SliderRow(title: "Disk speed", value: $store.config.diskSpeed, range: 0.1...3)
+                    Toggle("Jets", isOn: $store.config.tdeJets)
+                    if store.config.tdeJets {
+                        ColorPicker("Jet color", selection: store.color(\.tdeJetColor), supportsOpacity: false)
+                    }
                     SliderRow(title: "Viewing angle", value: $store.config.tdeView, range: 4...35) { String(format: "%.0f°", $0) }
-                    Text("A star on a near-parabolic orbit is torn apart by tides at closest approach. Half its debris is flung away; the rest swings round the hole, settles into a new accretion disk, and flares before fading. Then another star wanders in.")
+                    Text("A star strays too close and overflows toward the hole. Tides stretch it into an egg, and a stream of its gas peels off the tip, spirals in, and feeds the accretion disk. The star, stream and jets are all bent by the hole's gravity.")
                         .font(.callout).foregroundStyle(.secondary)
                 case .pulsar:
                     SliderRow(title: "Rotation period", value: $store.config.pulsarPeriod, range: 0.5...12) { String(format: "%.1f s", $0) }

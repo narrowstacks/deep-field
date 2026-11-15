@@ -11,7 +11,7 @@ enum SceneParams {
                       width: Int, height: Int, events: EventSchedule,
                       demo: [UInt64: Double] = ConfigStore.shared.demoEvents) -> SceneParamsGPU {
         switch c.scene {
-        case .tidalDisruption: return tidalDisruption(c, t, cam, width, height)
+        case .tidalDisruption: return tidalDisruption(c)
         case .pulsar: return pulsar(c, t, cam)
         case .nebula: return nebula(c)
         case .comet: return comet(c, t, cam, events, demo)
