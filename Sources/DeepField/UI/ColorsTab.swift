@@ -85,6 +85,18 @@ struct SceneColors: View {
             if c.pulsarFieldLines { ColorRow("Magnetic field", store.color(\.pulsarFieldColor)) }
             if c.pulsarRing { ColorRow("Dust ring", store.color(\.pulsarRingColor)) }
             if c.pulsarNebula { ColorRow("Wind nebula", store.color(\.pulsarNebulaColor)) }
+        case .ringedPlanet:
+            ColorRow("Light bands", store.color(\.ringedBandLight))
+            ColorRow("Dark bands", store.color(\.ringedBandDark))
+            if store.config.ringedRingStyle != .none { ColorRow("Rings", store.color(\.ringedRingColor)) }
+            LabeledContent("Presets") {
+                Menu("Apply") {
+                    ForEach(RingedPlanetPreset.all, id: \.name) { preset in
+                        Button(preset.name) { preset.apply(to: &store.config) }
+                    }
+                }
+                .fixedSize()
+            }
         case .planetaryNebula:
             ColorRow("Inner glow (oxygen)", store.color(\.planetaryInnerColor))
             ColorRow("Rim (hydrogen)", store.color(\.planetaryRimColor))

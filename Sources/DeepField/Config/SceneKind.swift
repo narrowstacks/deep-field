@@ -1,7 +1,7 @@
 import Foundation
 
 enum SceneKind: String, Codable, CaseIterable, Identifiable {
-    case blackHole, tidalDisruption, wormhole, binary, trinary, galaxy, pulsar, nebula, planetaryNebula, comet, stellarSurface
+    case blackHole, tidalDisruption, wormhole, binary, trinary, galaxy, pulsar, nebula, planetaryNebula, ringedPlanet, comet, stellarSurface
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -14,6 +14,7 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
         case .pulsar: "Pulsar"
         case .nebula: "Nebula"
         case .planetaryNebula: "Planetary Nebula"
+        case .ringedPlanet: "Ringed Planet"
         case .comet: "Comet"
         case .stellarSurface: "Star Close-up"
         }
@@ -31,6 +32,7 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
         case .comet: 8
         case .stellarSurface: 9
         case .planetaryNebula: 10
+        case .ringedPlanet: 11
         }
     }
     /// Scenes offered in the Customize window. The nebula scene is parked for now (its code is

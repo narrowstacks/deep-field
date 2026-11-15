@@ -106,6 +106,28 @@ struct WallpaperConfig: Codable, Equatable {
     var planetaryHaloColor = Tuned.planetaryHalo.color
     var planetaryEvents: Frequency = .normal
 
+    // Ringed planet
+    var ringedSize = 1.0
+    var ringedTilt = 16.0              // how far open the rings are to us, degrees
+    var ringedRoll = -14.0             // the ring plane's slant across the screen, degrees
+    var ringedSun = 60.0               // angle between the sun and us, seen from the planet, degrees
+    var ringedSunHeight = -10.0        // the sun above the ring plane, degrees; below it (the default) we see
+                                       // the rings' unlit side, and their shadow falls across the planet
+    var ringedBands = 1.0              // band scale: below 1 broader, above 1 finer
+    var ringedTurbulence = 1.0
+    var ringedWind = 1.0               // how fast the bands drift and shear
+    var ringedRingStyle: RingStyle = .classic
+    var ringedRingWidth = 1.0          // stretches the rings outward from their inner edge
+    var ringedRingDensity = 1.0
+    var ringedSpokes = true
+    var ringedMoonCount = 2
+    var ringedMoonSize = 1.0
+    var ringedMoonSpeed = 1.0
+    var ringedBandLight = Tuned.ringedBandLight.color
+    var ringedBandDark = Tuned.ringedBandDark.color
+    var ringedRingColor = Tuned.ringedRing.color
+    var ringedEvents: Frequency = .normal
+
     // Comet
     var cometTailLength = 1.0
     var cometActivity = 1.0
@@ -221,8 +243,10 @@ struct WallpaperConfig: Codable, Equatable {
         c.levels = min(max(c.levels, 2), 256)
         c.fps = min(max(c.fps, 1), 120)
         c.planetCount = min(max(c.planetCount, 0), 6)
+        c.ringedMoonCount = min(max(c.ringedMoonCount, 0), 3)
         for kp in [\WallpaperConfig.starOrbitMinutes, \.planetOrbitMinutes, \.galaxyRotationMinutes,
-                   \.tdeCycleMinutes, \.pulsarPeriod, \.nebulaFlow, \.planetSize, \.galaxySize] {
+                   \.tdeCycleMinutes, \.pulsarPeriod, \.nebulaFlow, \.planetSize, \.galaxySize,
+                   \.ringedRingWidth, \.ringedBands, \.ringedMoonSpeed] {
             positive(kp, min: 0.05)
         }
         if c.binaryStars.count < 2 { c.binaryStars += d.binaryStars.dropFirst(c.binaryStars.count) }

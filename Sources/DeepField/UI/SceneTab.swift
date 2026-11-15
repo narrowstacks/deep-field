@@ -103,6 +103,14 @@ struct SceneTab: View {
                         .help("Dense droplets of gas around the inner rim, lit on the side facing the star")
                     Toggle("Halo", isOn: $store.config.planetaryHalo)
                         .help("Faint older shells from earlier puffs, drifting outward")
+                case .ringedPlanet:
+                    SliderRow(title: "Size", value: $store.config.ringedSize, range: 0.7...1.3)
+                    SliderRow(title: "Bands", value: $store.config.ringedBands, range: 0.5...2)
+                        .help("Lower for a few broad belts, higher for many fine ones")
+                    SliderRow(title: "Turbulence", value: $store.config.ringedTurbulence, range: 0...2.5)
+                        .help("How much the bands swirl and streak where they meet")
+                    SliderRow(title: "Wind", value: $store.config.ringedWind, range: 0...3)
+                        .help("How fast the bands drift and shear past each other")
                 case .comet:
                     SliderRow(title: "Tail length", value: $store.config.cometTailLength, range: 0.3...2)
                     SliderRow(title: "Activity", value: $store.config.cometActivity, range: 0.2...2.5)
@@ -138,6 +146,7 @@ struct SceneTab: View {
             } footer: {
                 if let note { GroupFooter(note) }
             }
+            if scene == .ringedPlanet { ringedSections }
             if scene == .stellarSurface {
                 Section {
                     SliderRow(title: "Zoom", value: $store.config.starZoom, range: WallpaperConfig.starZoomRange)
@@ -213,6 +222,13 @@ struct SceneTab: View {
             } header: {
                 GroupHeader(title: "Events")
             }
+        case .ringedPlanet:
+            Section {
+                FrequencyRow(title: "Great white storms", value: $store.config.ringedEvents)
+                DemoGrid(store: store, demos: [("White Storm", EventSchedule.whiteStorm)])
+            } header: {
+                GroupHeader(title: "Events")
+            }
         case .planetaryNebula:
             Section {
                 FrequencyRow(title: "Shell ejections", value: $store.config.planetaryEvents)
@@ -232,6 +248,46 @@ struct SceneTab: View {
             }
         default:
             EmptyView()
+        }
+    }
+
+    /// The ringed planet's rings, lighting and moons, each in its own group.
+    @ViewBuilder private var ringedSections: some View {
+        Section {
+            Picker("Style", selection: $store.config.ringedRingStyle) {
+                ForEach(RingStyle.allCases) { Text($0.title).tag($0) }
+            }
+            if store.config.ringedRingStyle != .none {
+                SliderRow(title: "Width", value: $store.config.ringedRingWidth, range: 0.6...1.6)
+                SliderRow(title: "Density", value: $store.config.ringedRingDensity, range: 0.3...1.6)
+                    .help("Lower for thin, see-through rings, higher for solid ones")
+                if store.config.ringedRingStyle != .narrow {
+                    Toggle("Spokes", isOn: $store.config.ringedSpokes)
+                        .help("Faint wisps of dust over the dense ring, turning with the planet's magnetic field")
+                }
+            }
+            SliderRow(title: "Opening", value: $store.config.ringedTilt, range: 2...40) { String(format: "%.0f°", $0) }
+                .help("How far the ring plane is tipped toward you")
+            SliderRow(title: "Slant", value: $store.config.ringedRoll, range: -40...40) { String(format: "%.0f°", $0) }
+        } header: {
+            GroupHeader(title: "Rings")
+        }
+        Section {
+            SliderRow(title: "Sun angle", value: $store.config.ringedSun, range: 0...160) { String(format: "%.0f°", $0) }
+                .help("0° lights the planet from behind you; past 90° it turns into a crescent and the rings glow, backlit")
+            SliderRow(title: "Sun height", value: $store.config.ringedSunHeight, range: -25...40) { String(format: "%.0f°", $0) }
+                .help("The sun above the ring plane. Below it, you see the rings' unlit side, glowing where they're thin, and their shadow falls across the planet")
+        } header: {
+            GroupHeader(title: "Lighting")
+        }
+        Section {
+            Stepper("Moons: \(store.config.ringedMoonCount)", value: $store.config.ringedMoonCount, in: 0...3)
+            if store.config.ringedMoonCount > 0 {
+                SliderRow(title: "Moon size", value: $store.config.ringedMoonSize, range: 0.5...2)
+                SliderRow(title: "Orbit speed", value: $store.config.ringedMoonSpeed, range: 0.2...4)
+            }
+        } header: {
+            GroupHeader(title: "Moons")
         }
     }
 

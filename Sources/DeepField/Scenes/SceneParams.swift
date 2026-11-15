@@ -15,6 +15,7 @@ enum SceneParams {
         case .pulsar: return pulsar(c, t, cam)
         case .nebula: return nebula(c)
         case .planetaryNebula: return planetaryNebula(c, t, cam, events, demo)
+        case .ringedPlanet: return ringedPlanet(c, t, cam, events, demo)
         case .comet: return comet(c, t, cam, events, demo)
         case .stellarSurface: return stellarSurface(c, t, cam, events, demo)
         default: return SceneParamsGPU()
@@ -97,6 +98,69 @@ enum SceneParams {
             p.e.w = Float(smoothstep(0, 0.04, f) * (1 - smoothstep(0.55, 1, f)) * (1.4 - 0.8 * f))
         }
         p.f = SIMD4(0.75, 0.88, 1.0, Float(star))
+        return p
+    }
+
+    // MARK: Ringed planet
+
+    private static func ringedPlanet(_ c: WallpaperConfig, _ t: Double, _ cam: Camera,
+                                     _ events: EventSchedule, _ demo: [UInt64: Double]) -> SceneParamsGPU {
+        var p = SceneParamsGPU()
+        let toCam = -cam.center
+        // the spin axis: screen up, tipped toward us to open the rings, then slanted
+        let open = c.ringedTilt / 180 * .pi
+        let axis0 = simd_normalize(cos(open) * cam.up + sin(open) * toCam)
+        let axis = simd_normalize(simd_quatd(angle: c.ringedRoll / 180 * .pi, axis: toCam).act(axis0))
+        // The sun, set against the ring plane: `ringedSun` degrees round from us (off to the
+        // right), `ringedSunHeight` degrees above the plane. Lower than our own view of the rings,
+        // their shadow falls across the side of the planet we see.
+        let phase = c.ringedSun / 180 * .pi, height = c.ringedSunHeight / 180 * .pi
+        let c1 = simd_normalize(toCam - axis * simd_dot(toCam, axis))
+        var c2 = simd_cross(axis, c1)
+        if simd_dot(c2, cam.right) < 0 { c2 = -c2 }
+        let sun = simd_normalize(cos(height) * (cos(phase) * c1 + sin(phase) * c2) + sin(height) * axis)
+        let R = 4.4 * c.ringedSize
+        typealias L = PickedColor.Level
+        p.a = SIMD4(SIMD3<Float>(axis), Float(R))
+        p.b = SIMD4(SIMD3<Float>(sun), 1.05)
+        p.c = SIMD4(c.ringedBandLight.light3(L.ringedBand), 0)
+        p.d = SIMD4(c.ringedBandDark.light3(L.ringedBand), 0)
+        p.e = SIMD4(c.ringedRingColor.light3(L.ringedRing), 0)
+        p.i = SIMD4(Float(c.ringedBands), Float(c.ringedTurbulence), Float(c.ringedWind), 0)
+        p.j = SIMD4(c.ringedRingStyle.shaderIndex, Float(c.ringedRingWidth), Float(c.ringedRingDensity), c.ringedSpokes ? 1 : 0)
+
+        // Up to three moons outside the rings. e1 points our way in the ring plane. The inner moon's
+        // orbit is tipped so its near side rises across the face of the planet, casting its shadow
+        // on the clouds as it goes.
+        let e1 = simd_normalize(simd_cross(axis, cam.right)), e2 = simd_cross(axis, e1)
+        let moons = [(orbit: 2.75, period: 7.0, radius: 0.045, phase: 1.3, tip: 14.5),
+                     (orbit: 3.9, period: 16.0, radius: 0.075, phase: 4.1, tip: -3.0),
+                     (orbit: 5.3, period: 34.0, radius: 0.06, phase: 2.4, tip: 7.0)]
+        for (i, m) in moons.prefix(c.ringedMoonCount).enumerated() {
+            let a = m.phase + 2 * .pi * t * c.ringedMoonSpeed / (m.period * 60)
+            let tip = m.tip / 180 * .pi
+            let pos = R * m.orbit * (cos(a) * (cos(tip) * e1 + sin(tip) * axis) + sin(a) * e2)
+            let v = SIMD4(SIMD3<Float>(pos), Float(R * m.radius * c.ringedMoonSize))
+            switch i {
+            case 0: p.f = v
+            case 1: p.g = v
+            default: p.h = v
+            }
+        }
+
+        // A great white storm breaks out in one band and spreads round the planet. It's drawn in
+        // the bands' drifting frame (see rgDrift in the shader): it appears facing us and then
+        // rides the band.
+        if case (let age, var rng)? = events.active(EventSchedule.whiteStorm, rate: c.ringedEvents.rate, at: t, demo: demo) {
+            let lat = 0.52
+            let wrap = Double(SceneGeometry.flowPeriod) * 1000
+            let start = (t - age).truncatingRemainder(dividingBy: wrap)
+            let drift = start * c.ringedWind * (0.0025 + 0.004 * cos(lat * 19))
+            let view = simd_normalize(toCam - axis * simd_dot(toCam, axis))
+            let lonView = atan2(simd_dot(view, e2), simd_dot(view, e1))
+            p.c.w = Float(lonView + drift + rng.range(-0.5, 0.3))
+            p.d.w = Float(max(age / EventSchedule.whiteStorm.duration, 0.001))
+        }
         return p
     }
 

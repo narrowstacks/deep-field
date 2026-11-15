@@ -10,6 +10,7 @@ extension SceneKind {
         case .galaxy: "A rotating galaxy with density-wave arms and a dark matter halo."
         case .pulsar: "A spinning neutron star with lighthouse beams and a wind nebula."
         case .nebula: "Glowing gas and dark dust."
+        case .ringedPlanet: "A banded gas giant and its rings, each shadowing the other, with small moons in orbit."
         case .planetaryNebula: "A dying star's shed shell, lit from inside by the white dwarf left behind."
         case .comet: "A coma with jets, a blue ion tail and a curved dust tail."
         case .stellarSurface: "The limb of a star: granulation, spots, loops and eruptions."

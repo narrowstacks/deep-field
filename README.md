@@ -38,7 +38,7 @@ Requires macOS 14 or later.
   </tr>
   <tr>
     <td><img src="docs/media/gallery/planetaryNebula.png" alt="Planetary Nebula"><br><b>Planetary Nebula</b></td>
-    <td></td>
+    <td><img src="docs/media/gallery/ringedPlanet.png" alt="Ringed Planet"><br><b>Ringed Planet</b></td>
     <td></td>
   </tr>
 </table>
@@ -66,6 +66,12 @@ Requires macOS 14 or later.
   barrel of glowing gas shows as a ring: deep blue near the star, teal oxygen inside, a gold to
   crimson hydrogen rim with soft dense knots, and a faint halo of older shells drifting outward.
   Now and then the star flares and throws off a new shell.
+- **Ringed Planet**: a banded gas giant whose jets shear the clouds past each other, with rings
+  that turn (inner rings faster) and carry faint spokes. Rings and planet shadow each other; with
+  the sun below the ring plane you see the rings' translucent unlit side and their striped shadow
+  across the globe. Moons cross the disk and slip into the planet's shadow, and now and then a
+  great white storm breaks out and wraps around a band. Ring style, bands, wind, moons and color
+  presets are all adjustable.
 
 ## In motion
 

@@ -60,6 +60,8 @@ enum PickedColor {
         static let planetaryInner: Float = 0.5
         static let planetaryRim: Float = 0.6
         static let planetaryHalo: Float = 0.25
+        static let ringedBand: Float = 0.75
+        static let ringedRing: Float = 0.6
     }
 }
 
@@ -78,6 +80,7 @@ extension WallpaperConfig {
         case pulsarField = "pulsarFieldColor", pulsarRing = "pulsarRingColor"
         case cometIon = "cometIonColor", cometDust = "cometDustColor"
         case planetaryInner = "planetaryInnerColor", planetaryRim = "planetaryRimColor", planetaryHalo = "planetaryHaloColor"
+        case ringedBandLight = "ringedBandLight", ringedBandDark = "ringedBandDark", ringedRing = "ringedRingColor"
 
         var light: RGB {
             switch self {
@@ -91,6 +94,9 @@ extension WallpaperConfig {
             case .planetaryInner: RGB(0.25, 0.8, 1.0)
             case .planetaryRim: RGB(1.0, 0.3, 0.24)
             case .planetaryHalo: RGB(1.0, 0.35, 0.45)
+            case .ringedBandLight: RGB(1.0, 0.76, 0.38)
+            case .ringedBandDark: RGB(0.6, 0.26, 0.07)
+            case .ringedRing: RGB(1.0, 0.82, 0.55)
             }
         }
 
@@ -107,6 +113,8 @@ extension WallpaperConfig {
             case .planetaryInner: L.planetaryInner
             case .planetaryRim: L.planetaryRim
             case .planetaryHalo: L.planetaryHalo
+            case .ringedBandLight, .ringedBandDark: L.ringedBand
+            case .ringedRing: L.ringedRing
             }
         }
 

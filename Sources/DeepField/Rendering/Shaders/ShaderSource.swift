@@ -15,7 +15,7 @@
 //  2. A fragment shader per frame reads those lookups, animates on top of them, applies the
 //     palette, tone maps, and dithers: lensedFragment (black hole, tidal disruption, wormhole),
 //     systemFragment, galaxyFragment, pulsarFragment, cometFragment, stellarFragment,
-//     nebulaFragment, planetaryFragment.
+//     nebulaFragment, planetaryFragment, ringedFragment.
 //
 // Texture slots (Renderer.Slot). A scene allocates only the ones it uses (Renderer.formats);
 // the rest are bound to a 1x1 placeholder and never read or written.
@@ -32,6 +32,6 @@
 
 enum ShaderSource {
     static var full: String {
-        [common, bake, sky, planets, lensed, stars, galaxy, pulsar, comet, nebula, planetary].joined(separator: "\n\n")
+        [common, bake, sky, planets, lensed, stars, galaxy, pulsar, comet, nebula, planetary, ringed].joined(separator: "\n\n")
     }
 }
