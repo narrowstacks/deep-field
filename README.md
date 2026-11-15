@@ -46,8 +46,10 @@ current settings; click one to switch. On the right, five sections:
 - **System**: frame rate, the lock screen still, and reset.
 - **Phone**: iPhone wallpaper export (the preview turns portrait).
 
-Event frequencies come with "Show me" buttons that trigger an event right away. Settings save
-automatically.
+The preview's **Fit / 1:1** switch shows the middle of the screen at the wallpaper's true pixel
+size, to judge pixel size, levels and dither. Event frequencies come with "Show me" buttons that
+trigger an event right away. ⌘1 to ⌘5 pick a section, ⌘[ and ⌘] step through the scenes, and ⌘W
+closes the window. Settings save automatically.
 
 The **Image** section's tone and glow controls (exposure, contrast, saturation, highlight
 rolloff, black point, vignette and bloom) work on the scene's light before it's tone mapped and
