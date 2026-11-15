@@ -150,7 +150,7 @@ static float network(float3 P, float T, float fw) {
     float line = exp(-edge / we) * (width / we);
     // the borders are strings of bright mottles with gaps, not continuous walls
     float beads = smoothstep(0.35, 0.75, noise3(x * 2.5 + float3(0.0, 0.0, T * 0.01)));
-    float kb = 1.0 - smoothstep(0.2, 0.5, fw * 65.0);
+    float kb = 1.0 - smoothstep(0.5, 1.0, fw * 65.0);
     return line * mix(0.8, 0.4 + 0.8 * beads, kb);
 }
 
@@ -216,24 +216,48 @@ static float prominence(float2 L, float Lp, float Hp, float arch, float seed, fl
     return mask * thr * (0.25 + 0.75 * bubbles);
 }
 
-// An active-region loop system seen side on (as in 171): nested thin loops between feet at
-// x = +-W with apexes up to Hh, patchy along their length and fading with height, over a
-// diffuse glow. Returns emission.
-static float loopFamily(float2 L, float W, float Hh, float strands, float seed, float T, float px) {
-    float2 en = float2(L.x / W, L.y / Hh);
-    float e = length(en);
-    if (e > 1.2 || L.y < 0.0) return 0.0;
-    float u = atan2(en.y, en.x);              // 0..pi from one foot to the other
-    // each strand takes its own path: bend the nested shells by an amount that varies with both
-    // the shell and the position along it, so neighbors aren't concentric copies
-    e += 0.18 * (noise3(float3(e * 2.5, u * 1.3, seed + T * 0.004)) - 0.5) * smoothstep(0.0, 0.4, en.y);
-    float ph = e * strands + 0.8 * noise3(float3(u * 1.5, seed, T * 0.01));
-    float k = saturate(min(W, Hh) / strands / (2.5 * px) - 0.4);
-    float str = pow(0.5 + 0.5 * cos(6.2831853 * ph), 2.0);   // averages 0.375
-    float along = noise3(float3(ph * 0.7, u * 2.5 - T * 0.02, seed + 2.0));
-    float lines = mix(0.375, str, k) * (0.2 + 1.6 * along * along);
-    float env = smoothstep(1.15, 0.9, e) * smoothstep(0.2, 0.5, e) * exp(-L.y / (0.6 * Hh + 0.02));
-    return env * (lines * 1.6 + exp(-e * e * 1.5) * 0.25);
+// An active-region loop system seen side on (as in 171): a fan of n thin, separate strands,
+// each with its own footpoints (spread over about +-W), apex height (up to Hh), sideways shear
+// and slight kinks, brightest along the legs and near the top and patchy along its length
+// (blobs draining down), some of them faint, over a diffuse glow. Returns emission.
+static float loopFamily(float2 L, float W, float Hh, int n, float fanChance, float seed, float T, float px) {
+    if (L.y < 0.0 || abs(L.x) > W * 1.7 + Hh * 0.5 || L.y > Hh * 1.15) return 0.0;
+    float em = 0.0;
+    // the strands leave one compact cluster of footpoints (one magnetic polarity) and land either
+    // in a second cluster (a bipolar arcade) or spread out along the limb (a fan)
+    float fan = step(hash13(float3(seed, 3.0, 17.0)), fanChance);
+    float side = hash13(float3(seed, 4.0, 17.0)) < 0.5 ? -1.0 : 1.0;
+    for (int k = 0; k < n; k++) {
+        float fk = float(k);
+        float3 hk = hash33(float3(seed * 7.3 + fk * 1.91, fk * 3.7 + 1.3, seed + 11.0));
+        float h2 = hash13(float3(seed, fk, 19.0));
+        float xa = -0.85 + 0.25 * (hk.x - 0.5);
+        float xb = mix(0.85 + 0.45 * (hk.y - 0.5), -0.55 + 1.6 * hk.y, fan);
+        xb = max(xb, xa + 0.25);
+        float w = W * 0.5 * (xb - xa);                              // half the footpoint separation
+        float c = side * W * 0.5 * (xa + xb);                       // footpoint midpoint
+        // tall or squat, never a family of round arcs
+        float hh = min(Hh * (0.4 + 0.6 * hk.z) * (0.7 + 0.3 * w / W), w * (0.9 + 2.0 * fract(h2 * 7.13)));
+        float sh = (h2 - 0.5) * 1.1;                                // shear: the apex leans sideways
+        float x = L.x - c - sh * L.y;
+        x += 0.06 * w * sin(L.y / hh * (4.0 + 3.0 * hk.x) + fk * 2.3 + seed);   // kinks
+        // an inverted U with steep legs: |x/w|^3 + (y/h)^2 = 1
+        float ax = abs(x) / w, ay = L.y / hh;
+        float f = ax * ax * ax + ay * ay;
+        float2 g = float2(3.0 * ax * ax / w, 2.0 * ay / hh);
+        float dist = (f - 1.0) / max(length(g), 1e-4);             // distance to the strand, in R
+        float wl = (0.0006 + 0.0007 * hk.z) * (0.6 + 0.8 * h2);
+        float we = max(wl, 1.2 * px);
+        if (abs(dist) > we * 3.0) continue;
+        float leg = 1.0 - saturate(ay);                              // 0 at the top, 1 at the feet
+        float along = noise3(float3(leg * 7.0 - T * 0.04, fk * 1.7 + sign(x) * 5.0, seed + 2.0));
+        float shape = 0.45 + 0.6 * smoothstep(0.3, 0.9, leg) + 0.35 * smoothstep(0.25, 0.0, leg);
+        float amp = h2 < 0.3 ? 0.3 : 0.7 + 0.6 * hk.x;             // a few faint ones
+        em += exp(-dist * dist / (we * we)) * (wl / we) * amp * shape * (0.15 + 1.8 * along * along);
+    }
+    float2 en = float2(L.x / (W * 1.2), L.y / Hh);
+    float haze = exp(-dot(en, en) * 2.5) * 0.1;
+    return (em * 1.4 + haze) * exp(-L.y / (0.8 * Hh + 0.02)) * smoothstep(0.0, 0.004, L.y);
 }
 
 fragment float4 stellarFragment(FRAME_INPUTS)
@@ -269,16 +293,20 @@ fragment float4 stellarFragment(FRAME_INPUTS)
         float net = network(P, T, fw);
         float big = fbm(float3(P * 3.2 + 5.0)) + 0.6 * (noise3(P * 12.0 + 1.0) - 0.5);   // patches: quiet, enhanced, coronal-hole-dim
         float mid = (noise3(P * 70.0 + 2.0) - 0.5) * (1.0 - smoothstep(0.2, 0.5, fw * 70.0));
-        float spot = 1.0, plage = 0.0, core = 0.0;
-        for (int i = 0; i < 8; i++) {
+        float spot = 1.0, plage = 0.0, core = 0.0, glow = 0.0;
+        for (int i = 0; i < 12; i++) {
             ActiveRegion ar = activeRegion(i, T, spotAmt);
             float3 dv = P - ar.D;
             if (ar.vis <= 0.0 || dot(dv, dv) > ar.size * ar.size * 6.0) continue;
             float2 l = float2(dot(dv, ar.e1), dot(dv, ar.e2));
-            float2 le = l / (ar.size * float2(1.0, 0.6));
-            plage += exp(-dot(le, le) * 1.2) * ar.vis * (0.5 + 1.2 * net + 0.6 * mid);
-            float2 lc = l / (ar.size * float2(0.35, 0.2));
-            core += exp(-dot(lc, lc)) * ar.vis;
+            // compact plage threaded with bright network and mottles, a soft glow around it,
+            // and a small white-hot core where the loops are densest
+            float2 le = l / (ar.size * float2(0.8, 0.5));
+            float pl = exp(-dot(le, le) * 1.5);
+            plage += pl * ar.vis * (0.5 + 1.6 * net + 1.2 * max(mid, 0.0));
+            glow += exp(-dot(le, le) * 0.35) * ar.vis;
+            float2 lc = l / (ar.size * float2(0.36, 0.22));
+            core += exp(-dot(lc, lc)) * ar.vis * (0.3 + 1.2 * net + 1.5 * max(mid, 0.0));
             if (ar.spots > 0.0) {
                 float seed = float(i) * 7.1 + ar.size * 100.0;
                 float rl = ar.size * (0.2 + 0.12 * fract(seed * 3.7)) * ar.spots;   // leader penumbra radius
@@ -316,11 +344,14 @@ fragment float4 stellarFragment(FRAME_INPUTS)
                       * (0.5 + 0.6 * noise3(float3(al * 14.0, y / w, fi + gen))) * smoothstep(0.0, 0.2, age) * (1.0 - smoothstep(0.8, 1.0, age)));
         }
         // limb darkening, stronger toward the blue, so the edge reddens
-        float3 ld = max(1.0 - float3(0.42, 0.56, 0.7) * om - 0.12 * om * om, 0.05);
-        float b = (1.0 + gran) * (0.5 + 0.8 * big + 0.12 * mid) * (0.8 + 1.5 * net * (0.4 + 0.6 * smoothstep(0.2, 0.6, big)))
-                * spot * (1.0 - 0.55 * fil);
-        b += plage * (0.6 + 0.5 * om) + core * 1.4;
-        col = surf * ld * b * 0.6;
+        float3 ld = max(1.0 - float3(0.32, 0.46, 0.6) * om - 0.12 * om * om, 0.05);
+        // high contrast, as in filtered full-disk images: dim cell interiors, darker still in the
+        // quiet, coronal-hole-like patches, against bright, beaded network borders
+        float enh = smoothstep(0.25, 0.8, big);
+        float b = (1.0 + gran) * (0.07 + 0.3 * enh + 0.06 * mid + net * (0.55 + 1.5 * enh))
+                * spot * (1.0 - 0.7 * fil);
+        b += plage * (4.0 + 1.0 * om);
+        col = surf * ld * b * 0.6 + hot * glow * 0.3 + mix(hot, float3(1.0), 0.6) * core * 2.5;
         // the chromosphere seen edge-on brightens the last sliver inside the limb
         col += chrom * 0.3 * exp(-(1.0 - r) / 0.004);
     } else {
@@ -341,15 +372,19 @@ fragment float4 stellarFragment(FRAME_INPUTS)
             float fringe = mix(0.5 * smoothstep(0.012, 0.002, h), jets * 0.75, 0.0035 / sp);
             col += chrom * (fringe * 0.8 + exp(-h / 0.002) * 0.5);
         }
-        // glow of the transition region and scattered light hugging the limb
-        col += chrom * (0.14 * exp(-h / 0.025) + 0.07 * exp(-h / 0.1));
-        // corona: steep close in, with helmet streamers that narrow into faint radial rays
-        if (h < 3.0) {
+        // glow of the transition region, the inner corona and scattered light hugging the limb.
+        // Besides falling with height it fades over a fixed share of the screen, so zoomed in it
+        // stays a soft halo along the limb and the sky beyond keeps its own dark color.
+        float hs = h * R / F.screenScale;   // height in half screen heights
+        float fade = exp(-hs * hs / 0.035);
+        if (fade > 0.002) {
+            // lumpy, with helmet streamers that narrow into faint radial rays
             float st = fbm(float3(u * 1.6, 7.0 + T * 0.0015));
             float stream = smoothstep(0.45 + 0.1 * saturate(h - 0.3), 0.75, st);
             float rays = 0.8 + 0.4 * noise3(float3(u * 45.0, h * 1.5));
             float rr = 1.0 + h;
-            col += mix(surf, hot, 0.5) * (0.07 * pow(rr, -8.0) + (0.008 + 0.07 * stream) * pow(rr, -3.0) * rays);
+            col += chrom * (0.16 * exp(-h / 0.02) + 0.2 * exp(-h / 0.1) * (0.6 + 0.8 * stream)) * fade;
+            col += mix(surf, hot, 0.5) * (0.07 * pow(rr, -8.0) + 0.07 * stream * pow(rr, -3.0) * rays) * fade;
         }
         // quiescent prominences and active-region loop systems, placed along the visible limb;
         // they stand for days, so they only come and go slowly
@@ -375,13 +410,13 @@ fragment float4 stellarFragment(FRAME_INPUTS)
             float gen = floor(cyc), age = fract(cyc);
             float a0 = arcMid + arcHalf * 0.9 * (2.0 * hash13(float3(fi, gen, 33.0)) - 1.0);
             float Wl = 0.025 + 0.04 * hash13(float3(fi, gen, 34.0));
-            float Hl = 0.03 + 0.07 * hash13(float3(fi, gen, 35.0));
-            float lean = (hash13(float3(fi, gen, 36.0)) - 0.5) * 0.8;
+            float Hl = 0.04 + 0.07 * hash13(float3(fi, gen, 35.0));
+            float lean = (hash13(float3(fi, gen, 36.0)) - 0.5) * 0.5;
             float2 L = float2(wrapPi(ang - a0) - lean * h, h + 0.008 * hash13(float3(fi, gen, 37.0)));
-            if (abs(L.x) > Wl * 1.3 || L.y > Hl * 1.3) continue;
+            if (abs(L.x) > Wl * 1.7 + Hl * 0.5 || L.y > Hl * 1.15) continue;
             float vis = smoothstep(0.0, 0.2, age) * (1.0 - smoothstep(0.75, 1.0, age));
             float boost = 1.0 + 2.0 * S.c.z * exp(-pow(wrapPi(a0 - S.c.x) / 0.15, 2.0));   // a nearby flare lights them up
-            loops += loopFamily(L, Wl, Hl, 4.0 + 3.0 * hash13(float3(fi, gen, 38.0)), fi * 3.1 + gen, T, px) * vis * boost;
+            loops += loopFamily(L, Wl, Hl, 6 + int(4.0 * hash13(float3(fi, gen, 38.0))), 0.5, fi * 3.1 + gen, T, px) * vis * boost;
         }
         col += chrom * prom * 0.22 + mix(surf, hot, 0.4) * loops * 0.35;
     }
@@ -410,13 +445,7 @@ fragment float4 stellarFragment(FRAME_INPUTS)
             rib *= exp(-pow(l.y / len, 4.0)) * (1.0 - offDisk);
             float kern = exp(-length(l) / (sz * 0.12)) * (1.0 - smoothstep(0.0, 0.25, fp));
             float ah = sz * (0.35 + 0.9 * smoothstep(0.03, 0.6, fp));
-            float arc = 0.0;
-            for (int k = 0; k < 3; k++) {   // successive arches along the arcade, a little offset
-                float fk = float(k);
-                float2 lk = l - float2(sz * 0.1 * (fk - 1.0), -sz * 0.12 * fk);
-                arc += loopFamily(lk, sep * (1.0 + 0.1 * fk), ah * (0.85 + 0.1 * fk), 3.5, seed + fk * 3.3, T, px);
-            }
-            arc *= smoothstep(0.0, 0.15, fp);
+            float arc = loopFamily(l + float2(0.0, sz * 0.1), sep, ah, 10, 0.0, seed, T, px) * 1.6 * smoothstep(0.0, 0.15, fp);
             float glow = exp(-length_squared(l - float2(0.0, ah * 0.4)) / (sz * sz)) * smoothstep(0.0, 0.05, fp) * (1.0 - smoothstep(0.15, 0.6, fp));
             float3 arcCol = mix(mix(hot, float3(1.0), 0.5), mix(chrom, hot, 0.4), smoothstep(0.25, 0.8, fp));
             col += mix(hot, float3(1.0), 0.7) * fb * (rib * 1.2 + kern * 1.5) + arcCol * arc * (0.35 + 0.4 * fb) + mix(hot, float3(1.0), 0.3) * glow * 0.3 * fb;
@@ -461,13 +490,19 @@ fragment float4 stellarFragment(FRAME_INPUTS)
                 float e = length(en);
                 float uu = atan2(max(en.y, 0.0), en.x);
                 float spacing = 0.003 * (1.0 + 6.0 * rise);
-                float rope = smoothstep(0.5, 0.75, e) * smoothstep(1.1, 0.92, e);
+                // as it rises the rope loosens from a band into a broad, billowing cloud
+                float rope = smoothstep(0.5 - 0.25 * rise, 0.75 - 0.2 * rise, e) * smoothstep(1.1 + 0.1 * rise, 0.92 - 0.1 * rise, e);
                 float thr = threads(e * Hh, uu * 6.0 - T * 0.03, spacing, px, seed);
                 // a second set of threads crossing at an angle: the twist of the flux rope
                 float twist = threads(e * Hh + 0.3 * Hh * sin(uu * 3.0), uu * 3.0, spacing * 1.5, px, seed + 9.0);
                 float wisps = smoothstep(0.3 + 0.2 * rise, 0.6 + 0.1 * rise, fbm(float3(Lw / (0.1 + Hh) * 2.0, seed)));
-                float em = rope * (0.6 * thr + 0.4 * twist * smoothstep(0.1, 0.4, fp)) * mix(1.0, wisps, smoothstep(0.25, 0.6, fp));
-                em *= smoothstep(0.0, 0.01, L.y) / (1.0 + 3.0 * Hh);
+                // thin, ragged filaments: the ridges of a noise field, combed a little along the arch
+                float ridge = 1.0 - abs(2.0 * fbm(float3(Lw / (0.1 + Hh) * float2(4.0, 3.0) + float2(uu, 0.0), seed + 5.0)) - 1.0);
+                float filaments = ridge * ridge * ridge * 2.2;
+                float loose = smoothstep(0.0, 0.35, rise);
+                float combed = mix(0.6 * thr + 0.4 * twist * smoothstep(0.1, 0.4, fp), 1.0, 0.6 * loose);
+                float em = rope * combed * mix(1.0, wisps * mix(1.0, filaments, loose), smoothstep(0.25, 0.6, fp));
+                em *= smoothstep(0.0, 0.01, L.y) / (1.0 + 5.0 * Hh) * (1.0 - 0.4 * loose);
                 // before it goes, it's a quiet prominence hanging under the arch
                 float hang = 1.0 - smoothstep(0.15, 0.4, fp);
                 if (hang > 0.0) em += prominence(L, Wp * 0.9, Hh * 0.95, 0.3, seed, T, px) * hang;
@@ -477,7 +512,7 @@ fragment float4 stellarFragment(FRAME_INPUTS)
                     em += exp(-lx * lx / 2e-4) * threads(L.x, L.y / 0.01 + T * 0.4, 0.003, px, seed + 2.0)
                           * smoothstep(0.15, 0.03, L.y) * smoothstep(0.4, 0.6, fp) * 0.5;
                 }
-                col += mix(chrom, hot, 0.15) * em * 1.1 * S.e.z * offDisk;
+                col += mix(chrom, hot, 0.1) * em * 1.0 * S.e.z * offDisk;
             }
         }
 
@@ -502,7 +537,7 @@ fragment float4 stellarFragment(FRAME_INPUTS)
                 float lead = 0.25 + 0.75 * smoothstep(-0.6, 0.9, cos(phi));
                 // fibrous: soft strands running along the front, broken into clumps
                 float fib = mix(1.0, threads(dB + 0.1 * rb * noise3(float3(phi * 2.0, seed, 3.0)), phi * 4.0, 0.07 * rb, px, seed), 0.45);
-                float3 cq = float3(Lw * 2.5 / rb, seed + 1.0);
+                float3 cq = float3(Lw * 4.0 / rb, seed + 1.0);
                 float clumps = 0.35 + 0.9 * smoothstep(0.25, 0.75, (noise3(cq) * 2.0 + noise3(cq * 2.1 + 3.0)) / 3.0 + 0.17);
                 float front = shell * lead * fib * clumps;
                 // legs: faint flanks of the cone reaching back toward the limb
@@ -521,7 +556,7 @@ fragment float4 stellarFragment(FRAME_INPUTS)
                 float cav = smoothstep(0.0, -0.35 * rb, dB) * (1.0 - exp(-dot(cw, cw) / 0.08));
                 float dim = 1.0 / (rF * rF);
                 col *= 1.0 - 0.3 * cav * S.d.z * offDisk;
-                col += (mix(surf, hot, 0.5) * (front + legs) * 0.8 + chrom * core * 1.2) * dim * S.d.z * offDisk;
+                col += (mix(surf, hot, 0.5) * (front + legs) * 0.55 + chrom * core * 1.0) * dim * S.d.z * offDisk;
             }
         }
     }
