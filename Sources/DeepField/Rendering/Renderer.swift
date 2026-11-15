@@ -1,41 +1,10 @@
 import Metal
 import QuartzCore
 
-struct BakeParams {
-    var width: Float, height: Float, camDist: Float, camElev: Float
-    var tanHalfFov: Float, diskIn: Float, diskOut: Float, roll: Float
-    var shellR0: Float, shellR1: Float, throat: Float, starDensity: Float
-    var scene: Float, galaxies: Float, lookX: Float, lookY: Float
-    var milkyWay: Float, nebulaType: Float = 0, nebulaSeed: Float = 0, pad2: Float = 0
-}
-
-struct FrameParams {
-    var time: Float, levels: Float, diskIn: Float, diskOut: Float
-    var exposure: Float, diskSpeed: Float, flowPeriod: Float, planetCount: Float
-    var shellR0: Float, shellR1: Float, saturation: Float, scene: Float
-    var dither: Float, twinkle: Float, pulsars: Float, skyBrightness: Float
-    var throat: Float, starCount: Float, lightCount: Float, ringStrength: Float
-    var camPos: SIMD4<Float>, camRight: SIMD4<Float>, camUp: SIMD4<Float>, camFwd: SIMD4<Float>
-}
-
-struct PaletteGPU {
-    var receding, approaching, core, ring, nebulaA, nebulaB, farA, farB, starWarm, starCool, galaxy, pad: SIMD4<Float>
-
-    init(_ p: PaletteConfig) {
-        receding = p.receding.simd; approaching = p.approaching.simd; core = p.core.simd; ring = p.ring.simd
-        nebulaA = p.nebulaA.simd; nebulaB = p.nebulaB.simd; farA = p.farA.simd; farB = p.farB.simd
-        starWarm = p.starWarm.simd; starCool = p.starCool.simd; galaxy = p.galaxy.simd; pad = .zero
-    }
-}
-
-/// Static per-pixel lookups from a bake (see the texture slot list in Shaders.swift).
+/// Static per-pixel lookups from a bake (see the texture slot list in Shaders/ShaderSource.swift).
 struct Baked {
     let textures: [MTLTexture]
     let key: WallpaperConfig.BakeKey
-}
-
-extension SIMD4 where Scalar == Float {
-    init(_ v: SIMD3<Double>) { self.init(Float(v.x), Float(v.y), Float(v.z), 0) }
 }
 
 final class Renderer {
@@ -55,7 +24,7 @@ final class Renderer {
         self.device = device
         self.queue = queue
         do {
-            let lib = try device.makeLibrary(source: shaderSource, options: nil)
+            let lib = try device.makeLibrary(source: ShaderSource.full, options: nil)
             func compute(_ name: String) throws -> MTLComputePipelineState {
                 try device.makeComputePipelineState(function: lib.makeFunction(name: name)!)
             }
@@ -92,20 +61,28 @@ final class Renderer {
 
     /// Trace every pixel's light ray once. Reruns only when the size or a bake-affecting setting changes.
     func bake(width w: Int, height h: Int, config c: WallpaperConfig, wait: Bool) -> Baked? {
+        guard let cb = queue.makeCommandBuffer(), let baked = encodeBake(cb, width: w, height: h, config: c) else { return nil }
+        cb.commit()
+        if wait { cb.waitUntilCompleted() }
+        return baked
+    }
+
+    /// Encodes the ray bake and the sky pass into `cb` without committing it.
+    func encodeBake(_ cb: MTLCommandBuffer, width w: Int, height h: Int, config c: WallpaperConfig) -> Baked? {
         let formats: [MTLPixelFormat] = [.rgba32Float, .rgba32Float, .rgba32Float,
                                          .rgba32Float, .rgba16Float, .rgba32Float, .rgba16Float,
                                          .rgba32Float]
         let textures = formats.compactMap { makeTexture($0, w, h) }
         guard textures.count == formats.count, let pipeline = bakePipelines[c.scene],
-              let cb = queue.makeCommandBuffer(), let enc = cb.makeComputeCommandEncoder() else { return nil }
+              let enc = cb.makeComputeCommandEncoder() else { return nil }
         let cam = Camera(c, aspect: Double(w) / Double(h))
         let look = Camera.look(for: c.scene)
         var p = BakeParams(width: Float(w), height: Float(h),
                            camDist: Float(Camera.distance(for: c.scene)), camElev: Float(c.cameraTilt / 180 * .pi),
-                           tanHalfFov: Float(cam.tanHalf), diskIn: Scene.diskIn,
+                           tanHalfFov: Float(cam.tanHalf), diskIn: SceneGeometry.diskIn,
                            diskOut: Float(c.scene == .tidalDisruption ? 40 : c.diskSize),
-                           roll: Float(Scene.roll),
-                           shellR0: Scene.shellRadii[0], shellR1: Scene.shellRadii[1],
+                           roll: Float(SceneGeometry.roll),
+                           shellR0: SceneGeometry.shellRadii[0], shellR1: SceneGeometry.shellRadii[1],
                            throat: Float(c.throat), starDensity: Float(c.starDensity),
                            scene: c.scene.shaderIndex, galaxies: c.galaxies ? 1 : 0,
                            lookX: Float(look.x), lookY: Float(look.y), milkyWay: c.milkyWay ? 1 : 0,
@@ -125,8 +102,6 @@ final class Renderer {
         skyEnc.setBytes(&p, length: MemoryLayout<BakeParams>.stride, index: 0)
         skyEnc.dispatchThreads(grid, threadsPerThreadgroup: group)
         skyEnc.endEncoding()
-        cb.commit()
-        if wait { cb.waitUntilCompleted() }
         return Baked(textures: textures, key: c.bakeKey)
     }
 
@@ -145,25 +120,25 @@ final class Renderer {
         var lights = StarSystem.lights(c, stars: stars)
         let planetCount = planets.count, starCount = stars.count, lightCount = lights.count
         // setFragmentBytes needs at least one element
-        if planets.isEmpty { planets = [PlanetGPU(center: .zero, colorA: .zero, colorB: .zero, misc: .zero)] }
-        if stars.isEmpty { stars = [StarGPU(pos: .zero, color: .zero, misc: .zero)] }
-        if lights.isEmpty { lights = [LightGPU(pos: .zero, color: .zero)] }
+        if planets.isEmpty { planets = [.empty] }
+        if stars.isEmpty { stars = [.empty] }
+        if lights.isEmpty { lights = [.empty] }
 
-        let wrap = Double(Scene.flowPeriod) * 1000   // disk animation is periodic in flowPeriod
+        let wrap = Double(SceneGeometry.flowPeriod) * 1000   // disk animation is periodic in flowPeriod
+        let pixelAngle = 2 * cam.tanHalf / Double(target.height)
         var f = FrameParams(time: Float(elapsed.truncatingRemainder(dividingBy: wrap)), levels: Float(c.levels),
-                            diskIn: Scene.diskIn, diskOut: Float(c.diskSize),
+                            diskIn: SceneGeometry.diskIn, diskOut: Float(c.diskSize),
                             exposure: Float(c.brightness), diskSpeed: Float(1.6 * c.diskSpeed),
-                            flowPeriod: Scene.flowPeriod, planetCount: Float(planetCount),
-                            shellR0: Scene.shellRadii[0], shellR1: Scene.shellRadii[1],
+                            flowPeriod: SceneGeometry.flowPeriod, planetCount: Float(planetCount),
+                            shellR0: SceneGeometry.shellRadii[0], shellR1: SceneGeometry.shellRadii[1],
                             saturation: Float(c.saturation), scene: c.scene.shaderIndex,
                             dither: c.dither.shaderIndex, twinkle: Float(c.twinkles.rate),
                             pulsars: c.pulsars ? 1 : 0, skyBrightness: Float(c.nebula),
-                            throat: Float(c.throat), starCount: Float(starCount), lightCount: Float(lightCount),
+                            pixelAngle: Float(pixelAngle), starCount: Float(starCount), lightCount: Float(lightCount),
                             ringStrength: Float(c.photonRing),
                             camPos: SIMD4(cam.pos),
                             camRight: SIMD4(Float(cam.right.x), Float(cam.right.y), Float(cam.right.z), Float(target.width)),
-                            camUp: SIMD4(Float(cam.up.x), Float(cam.up.y), Float(cam.up.z), Float(target.height)),
-                            camFwd: SIMD4(cam.fwd))
+                            camUp: SIMD4(Float(cam.up.x), Float(cam.up.y), Float(cam.up.z), Float(target.height)))
         var palette = PaletteGPU(c.palette)
         var ev = events.gpu(at: elapsed, config: c, camera: cam, heightPixels: target.height)
 

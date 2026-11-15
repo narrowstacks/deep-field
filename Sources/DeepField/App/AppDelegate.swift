@@ -1,45 +1,7 @@
 import AppKit
 import ServiceManagement
 
-enum Settings {
-    private static let d = UserDefaults.standard
-    static var debug: Bool { d.bool(forKey: "debug") }
-    /// Testing only: keep rendering even when the desktop is covered.
-    static var ignoreOcclusion: Bool { d.bool(forKey: "ignoreOcclusion") }
-
-    /// Frame rate after power and thermal caps.
-    static var effectiveFPS: Double {
-        var f = Double(ConfigStore.shared.config.fps)
-        let info = ProcessInfo.processInfo
-        if info.isLowPowerModeEnabled { f = min(f, 12) }
-        if info.thermalState == .serious || info.thermalState == .critical { f = min(f, 8) }
-        return f
-    }
-}
-
-final class WallpaperWindow: NSWindow {
-    let wallpaper: WallpaperView
-
-    init(screen: NSScreen) {
-        wallpaper = WallpaperView(frame: NSRect(origin: .zero, size: screen.frame.size))
-        super.init(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
-        setFrame(screen.frame, display: false)
-        // Desktop level: below every app window and below Finder's desktop icons.
-        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
-        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
-        ignoresMouseEvents = true
-        isOpaque = true
-        hasShadow = false
-        backgroundColor = .black
-        isReleasedWhenClosed = false
-        animationBehavior = .none
-        contentView = wallpaper
-    }
-
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
-}
-
+/// Menu bar item, one wallpaper window per screen, and pausing when nobody can see them.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windows: [WallpaperWindow] = []
     private var statusItem: NSStatusItem!
@@ -71,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.sessionInactive = false; self?.applyPause()
         }
         ws.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
-            self?.windows.forEach { $0.wallpaper.settingsChanged() }
+            self?.windows.forEach { $0.wallpaper.systemStateChanged() }
         }
 
         let nc = NotificationCenter.default
@@ -80,7 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         for name in [Notification.Name.NSProcessInfoPowerStateDidChange, ProcessInfo.thermalStateDidChangeNotification] {
             nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                self?.windows.forEach { $0.wallpaper.settingsChanged() }
+                self?.windows.forEach { $0.wallpaper.systemStateChanged() }
             }
         }
     }
@@ -89,8 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windows.forEach { $0.orderOut(nil) }
         windows = NSScreen.screens.map { screen in
             let w = WallpaperWindow(screen: screen)
-            w.orderFrontRegardless() // the desktop window level keeps it beneath everything
-
+            w.orderFrontRegardless()   // the desktop window level keeps it beneath everything
             return w
         }
         applyPause()
@@ -144,11 +105,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         rebuildMenu()
     }
 }
-
-Snapshot.runIfRequested()
-
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.setActivationPolicy(.accessory)
-app.run()

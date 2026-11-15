@@ -82,8 +82,8 @@ final class WallpaperView: NSView {
         layoutDrawable()
     }
 
-    /// Power/thermal state changed, or the user changed settings.
-    func settingsChanged() {
+    /// Power or thermal state changed (frame rate caps), or the active Space changed.
+    func systemStateChanged() {
         layoutDrawable()
         updateRunning()
     }

@@ -76,12 +76,35 @@ stars. Dwarf irregulars turn almost like a solid body, matching their rising rot
 
 ```bash
 .build/release/DeepField --snapshot out.png --time 444 [--size 3440x1440] [--scene wormhole] \
-    [--preset Synthwave] [--config '{"galaxyType": "barred", "darkMatter": false}'] [--no-events]
+    [--preset Synthwave] [--config '{"galaxyType": "barred", "darkMatter": false}'] [--no-events] \
+    [--demo 1:440]                                            # force event kind 1 to start at t=440 s
+.build/release/DeepField --benchmark [--scene galaxy] [--size 3440x1440] [--frames 120]
 .build/release/DeepField --list-events 60 --scene wormhole   # when events fire (seed 1)
 build/DeepField.app/Contents/MacOS/DeepField --customize   # open the Customize window at launch
 defaults write local.deepfield.wallpaper debug -bool true     # log bake times, fps, pause/resume
 ```
 
-Settings live in `Config.swift`. Scene geometry, planets and star systems are in
-`SceneModel.swift`, galaxy kinematics in `Galaxy.swift`, events in `Events.swift`, and all GPU
-code in `Shaders.swift`.
+Snapshots are deterministic, so comparing `md5` of a set of them before and after a change
+shows whether the output moved. Event kind ids for `--demo` are listed in `Scenes/Events.swift`.
+
+`--benchmark` renders every listed scene (or just `--scene`, hidden ones included) offscreen at
+3440x1440 and the configured pixel size, and prints, per scene, the GPU time of a bake (ray trace
+plus sky pass, mean of 3 after a warm-up) and the mean and max GPU time per frame over 120 frames
+starting at t = 300 s (`--time`), from `MTLCommandBuffer` GPU timestamps. It also prints the CPU
+time spent encoding each frame. `--config` and `--preset` apply as for snapshots.
+
+## Code layout
+
+Everything is in `Sources/DeepField`:
+
+- `App/`: entry point, app delegate and menu bar, the per-screen wallpaper windows, runtime flags.
+- `Config/`: the settings model (`WallpaperConfig`, whose Codable keys are the saved format),
+  scene kinds and options, star types, palettes and presets, and `ConfigStore`.
+- `Scenes/`: CPU-side scene state: camera, planets, star systems, galaxy kinematics, the event
+  schedule, and per-frame parameters for the newer scenes (`SceneParams`, `TidalDisruption`).
+- `Rendering/`: `Renderer` (pipelines, bake, frame encoding), `WallpaperView`, and `GPUTypes`
+  (uniform layouts mirrored in the shaders).
+- `Rendering/Shaders/`: the Metal source as Swift strings, one file per area, joined in order by
+  `ShaderSource.full` and compiled at runtime, so the build needs no Metal toolchain.
+- `UI/`: the SwiftUI Customize window, one file per tab.
+- `Dev/`: the command line above (snapshot, benchmark, event list, UI capture).

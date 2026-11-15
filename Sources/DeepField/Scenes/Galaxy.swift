@@ -1,19 +1,6 @@
 import Foundation
 import simd
 
-struct GalaxyGPU {
-    var shape: SIMD4<Float>     // type, arm count, tan(pitch), bar length (fraction of radius)
-    var motion: SIMD4<Float>    // pattern angle, velocity scale, dark matter (0/1), flow period (s)
-    var core: SIMD4<Float>
-    var arms: SIMD4<Float>
-    var nebula: SIMD4<Float>
-    var dust: SIMD4<Float>
-    var misc: SIMD4<Float>      // radius (scene units), solid-body angle (irregulars), 0, 0
-
-    static let empty = GalaxyGPU(shape: .zero, motion: .zero, core: .zero, arms: .zero,
-                                 nebula: .zero, dust: .zero, misc: .zero)
-}
-
 /// Galaxy rotation, following observed rotation curves.
 ///
 /// With a dark matter halo the circular speed rises and then stays flat out to the edge,
