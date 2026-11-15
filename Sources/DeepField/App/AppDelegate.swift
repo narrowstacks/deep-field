@@ -14,9 +14,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // a UI capture never touches desktop pictures or the network
+        if !Settings.capturingUI { Updater.start() }
         buildWindows()
         buildStatusItem()
-        if !Settings.capturingUI { LockScreenStill.shared.start() }   // a capture never touches desktop pictures
+        if !Settings.capturingUI { LockScreenStill.shared.start() }
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--capture-ui"), i + 1 < args.count {
             CustomizeWindowController.shared.captureForDebug(to: args[i + 1])
@@ -94,9 +96,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         loginItem.target = self
         menu.addItem(loginItem)
         menu.addItem(.separator())
+        let about = NSMenuItem(title: "About Deep Field", action: #selector(showAbout), keyEquivalent: "")
+        about.target = self
+        menu.addItem(about)
+        if Updater.isAvailable {
+            let update = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+            update.target = self
+            menu.addItem(update)
+        }
+        menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Deep Field", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
     }
+
+    @objc private func showAbout() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .credits: NSAttributedString(string: "Animated, pixel-dithered space wallpapers.\ngithub.com/narrowstacks/deep-field",
+                                         attributes: [.font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+                                                      .foregroundColor: NSColor.secondaryLabelColor]),
+        ])
+    }
+
+    @objc private func checkForUpdates() { Updater.checkForUpdates() }
 
     private let pauseItem = NSMenuItem(title: "Pause Animation", action: #selector(togglePause), keyEquivalent: "")
     private let lockScreenItem = NSMenuItem(title: "Use Scene on Lock Screen", action: #selector(toggleLockScreen), keyEquivalent: "")

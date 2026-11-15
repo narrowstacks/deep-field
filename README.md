@@ -94,17 +94,24 @@ window has a **Show Me** button next to each one.
 
 ## Install
 
-There is no prebuilt release yet; build it from source. You need macOS 14 or later and the Swift
-toolchain from Xcode or the Command Line Tools (`xcode-select --install`).
+Download **DeepField.dmg** from the [latest release](https://github.com/narrowstacks/deep-field/releases/latest),
+open it, and drag Deep Field to Applications. It needs macOS 14 or later and runs on Apple
+silicon and Intel Macs. The app is signed and notarized, and it updates itself: it checks
+once a day, or choose **Check for Updates…** in its menu.
+
+To start it with your Mac, use **Launch at Login** in its menu.
+
+### Build from source
+
+You need the Swift toolchain from Xcode or the Command Line Tools (`xcode-select --install`).
 
 ```bash
 git clone https://github.com/narrowstacks/deep-field.git && cd deep-field
 ./build.sh && open build/DeepField.app
 ```
 
-`build.sh` builds a release binary and wraps it into `build/DeepField.app` (ad-hoc signed).
-Copy it to `/Applications` if you want to keep it. To start it with your Mac, use **Launch at
-Login** in its menu.
+`build.sh` builds a release binary for this Mac and wraps it into `build/DeepField.app`
+(ad-hoc signed). `UNIVERSAL=1` adds Intel, and `SIGNING_IDENTITY` signs it for distribution.
 
 ## Using it
 
@@ -295,7 +302,7 @@ hidden from the scene list for now; see `SceneKind.isListed`.
 build/DeepField.app/Contents/MacOS/DeepField --customize   # open the Customize window at launch
 build/DeepField.app/Contents/MacOS/DeepField --check-picker outdir -captureTab 0   # drive the color wells, check the preview follows
 build/DeepField.app/Contents/MacOS/DeepField --capture-ui out.png -captureTab N -captureScene name [--defaults]   # image of the window (N: 0 Scene, 1 Sky, 2 Image, 3 System, 4 Phone)
-defaults write local.deepfield.wallpaper debug -bool true     # log bake times, fps, pause/resume
+defaults write com.narrowstacks.DeepField debug -bool true     # log bake times, fps, pause/resume
 ```
 
 `--defaults` starts from the default settings instead of your saved ones (for `--capture-ui`
@@ -314,6 +321,25 @@ starting at t = 300 s (`--time`), from `MTLCommandBuffer` GPU timestamps. It als
 time spent encoding each frame. `--config` and `--preset` apply as for snapshots.
 
 </details>
+
+### Releasing
+
+The version lives in `VERSION`, and each release has a section in `CHANGELOG.md`. To ship:
+
+1. Set `VERSION` (for example `0.2.0`), move the `Unreleased` notes into a `## [0.2.0]` section, and commit.
+2. Tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
+
+The [Release workflow](.github/workflows/release.yml) then builds a universal app on the
+self-hosted Mac runner, signs it with the Developer ID certificate, packages and notarizes the
+DMG, signs a Sparkle appcast, and publishes both to a GitHub release. Installed copies pick up
+the new version from `releases/latest/download/appcast.xml`. A tag with a suffix (`v0.2.0-beta.1`)
+becomes a prerelease, which the update feed skips. [CI](.github/workflows/ci.yml) builds every
+push and pull request on GitHub-hosted runners.
+
+Secrets the release needs: `APPLE_DEVELOPER_ID_P12_B64` and `APPLE_DEVELOPER_ID_P12_PASSWORD`
+(the Developer ID Application certificate), `APPLE_NOTARY_API_KEY_B64`, `APPLE_NOTARY_API_KEY_ID`
+and `APPLE_NOTARY_API_ISSUER_ID` (an App Store Connect API key for notarization), and
+`SPARKLE_ED_PRIVATE_KEY` (the update signing key; its public half is `SUPublicEDKey` in `build.sh`).
 
 ### App icon, logo and media
 

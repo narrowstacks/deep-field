@@ -1,5 +1,7 @@
 import AppKit
 
+DefaultsMigration.run()   // settings saved under the old bundle identifier
+
 LockScreenStillTest.runIfRequested()   // dev: --lockscreen-still-test
 PickerCheck.runIfRequested()   // dev: --check-picker
 DevCommands.runIfRequested()   // dev CLI (--snapshot, --benchmark, ...) exits before the app starts

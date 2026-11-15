@@ -1,6 +1,6 @@
 import Foundation
 
-/// Runtime flags from UserDefaults (`defaults write local.deepfield.wallpaper <key> -bool true`).
+/// Runtime flags from UserDefaults (`defaults write com.narrowstacks.DeepField <key> -bool true`).
 enum Settings {
     private static let d = UserDefaults.standard
     static var debug: Bool { d.bool(forKey: "debug") }
