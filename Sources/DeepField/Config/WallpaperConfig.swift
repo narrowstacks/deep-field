@@ -14,6 +14,8 @@ struct WallpaperConfig: Codable, Equatable {
 
     /// Set a still of the scene as the desktop picture, so the lock and login screens match.
     var lockScreenStill = false
+    /// Render that still in smooth full color instead of the wallpaper's dithered pixel look.
+    var lockScreenSmooth = false
 
     // Camera
     var tilt = 6.3                 // degrees above the disk / orbital plane

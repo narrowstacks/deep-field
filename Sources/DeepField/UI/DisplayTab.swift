@@ -33,6 +33,11 @@ struct DisplayTab: View {
             Section {
                 Toggle("Use a still of this scene for the lock screen", isOn: $store.config.lockScreenStill)
                 if store.config.lockScreenStill {
+                    Picker("Style", selection: $store.config.lockScreenSmooth) {
+                        Text("Dithered, like the wallpaper").tag(false)
+                        Text("Smooth full color").tag(true)
+                    }
+                    .pickerStyle(.segmented)
                     LabeledContent {
                         Button("Set now") { lockScreen.setNow() }.disabled(lockScreen.busy)
                     } label: {

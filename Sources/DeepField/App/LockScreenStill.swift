@@ -94,8 +94,8 @@ final class LockScreenStill: ObservableObject {
 
     // MARK: rendering
 
-    /// What the still depends on: the config minus settings that don't change it (frame rate,
-    /// and the pixel look, since the still is rendered in full color).
+    /// What the still depends on: the config minus settings that don't change it (frame rate;
+    /// in smooth mode also the pixel look, which stillConfig overrides).
     private static func look(_ c: WallpaperConfig) -> WallpaperConfig {
         var c = stillConfig(c)
         c.fps = 24
@@ -103,10 +103,10 @@ final class LockScreenStill: ObservableObject {
         return c
     }
 
-    /// Full color: no coarse pixels, 256 levels (the fine Bayer dither then only breaks up
-    /// banding in smooth gradients). A static picture is seen up close on the lock screen,
-    /// where chunky dither cells read as low resolution rather than as a style.
+    /// Dithered (default): exactly the wallpaper's pixel size, color levels and dither pattern.
+    /// Smooth: no coarse pixels and 256 levels (the fine Bayer dither then only breaks up banding).
     static func stillConfig(_ c: WallpaperConfig) -> WallpaperConfig {
+        guard c.lockScreenSmooth else { return c }
         var c = c
         c.pixelSize = 1
         c.levels = 256
@@ -167,14 +167,18 @@ final class LockScreenStill: ObservableObject {
             if applied > 0 || skipped > 0 { status = s }
             return
         }
-        let factor = max(1, Int((Double(t.width * t.height) / Self.maxShadedPixels).squareRoot().rounded(.up)))
+        // dithered: shade one pixel per wallpaper cell and blow it up with crisp edges, like the
+        // live wallpaper; smooth: shade at (up to) native resolution
+        let dithered = !c.lockScreenSmooth
+        let factor = dithered ? max(1, c.pixelSize)
+            : max(1, Int((Double(t.width * t.height) / Self.maxShadedPixels).squareRoot().rounded(.up)))
         let w = (t.width + factor - 1) / factor, h = (t.height + factor - 1) / factor
         let url = Self.folder.appendingPathComponent("\(t.key)-\(Int(Date().timeIntervalSince1970 * 1000)).png")
         let t0 = CFAbsoluteTimeGetCurrent()
         FrameCapture.render(config: c, width: w, height: h, time: time, eventsEnabled: false) { frame in
             DispatchQueue.global(qos: .utility).async {
                 var error: String?
-                if let frame, let image = FrameCapture.upscaled(frame, factor: factor, width: t.width, height: t.height, nearest: false) {
+                if let frame, let image = FrameCapture.upscaled(frame, factor: factor, width: t.width, height: t.height, nearest: dithered) {
                     do {
                         try FileManager.default.createDirectory(at: Self.folder, withIntermediateDirectories: true)
                         try FrameCapture.writePNG(image, to: url)
