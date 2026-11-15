@@ -62,6 +62,9 @@ stars. Dwarf irregulars turn almost like a solid body, matching their rising rot
   pass measures how much sky each pixel covers and filters detail to match, so heavily lensed
   regions don't shimmer. Each frame only reads those lookups and animates on top of them, and
   lensing of planets, supernovae and comets comes for free.
+- **Only the lookups a scene needs.** Each scene allocates just the bake textures it reads, in
+  the smallest formats that hold its precision, and reuses them across re-bakes: about 8 MB per
+  screen for flat-space scenes, up to about 44 MB for the black hole with planets.
 - **Low resolution on purpose.** It renders at 1/3 of screen resolution by default and the
   compositor scales it up with nearest-neighbor filtering, so the GPU shades about 1/9 of the
   pixels.

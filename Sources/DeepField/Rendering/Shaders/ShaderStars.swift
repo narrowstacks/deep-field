@@ -16,9 +16,7 @@ static float3 shadeStar(Star st, float3 N, float3 rd, float time) {
 fragment float4 systemFragment(FRAME_INPUTS)
 {
     uint2 p = uint2(in.pos.xy);
-    float4 sky = skyTex.read(p);
-    float4 X = extraTex.read(p);
-    float3 rd = octDecode(X.xy);
+    float3 rd = octDecode(dirTex.read(p).xy);
     float3 ro = F.camPos.xyz;
     int starCount = int(F.starCount);
     int planetCount = int(F.planetCount);
@@ -57,7 +55,7 @@ fragment float4 systemFragment(FRAME_INPUTS)
         float3 P = ro + rd * tBest;
         col = shadePlanetSurface(pl, normalize(P - pl.center.xyz), rd, P, lights, lightCount);
     } else {
-        col = skyColor(sky, X, false, F, E, Pal);
+        col = SKY(p, rd, false);
     }
 
     // coronas, hidden by anything solid in front of the star
@@ -71,9 +69,10 @@ fragment float4 systemFragment(FRAME_INPUTS)
         float dperp = length(w);
         float R = st.pos.w;
         float scale = R * 0.9 * st.color.w;
+        float x = max(dperp - R, 0.0);
+        if (x > scale * 14.0) continue;            // glow below e^-14
         float ang = atan2(dot(w, F.camUp.xyz), dot(w, F.camRight.xyz));
         float rays = 0.7 + 0.45 * noise3(float3(cos(ang) * 3.0, sin(ang) * 3.0, F.time * 0.08 + st.misc.y));
-        float x = max(dperp - R, 0.0);
         float glow = (0.55 * exp(-x / (scale * 0.3)) + 0.12 * exp(-x / scale)) * rays;
         col += st.color.rgb * glow;
     }
@@ -109,9 +108,7 @@ static float granules(float2 x, float time) {
 fragment float4 stellarFragment(FRAME_INPUTS)
 {
     uint2 p = uint2(in.pos.xy);
-    float4 sky = skyTex.read(p);
-    float4 X = extraTex.read(p);
-    float3 col = skyColor(sky, X, false, F, E, Pal) * 0.6;
+    float3 col;
     float W = F.camRight.w, H = F.camUp.w;
     float2 q = float2((float(p.x) + 0.5 - W * 0.5) / (H * 0.5), -(float(p.y) + 0.5 - H * 0.5) / (H * 0.5));
     float2 C = S.a.xy;
@@ -148,6 +145,8 @@ fragment float4 stellarFragment(FRAME_INPUTS)
             float2 dd = surf - sc;
             dd.x -= 6.2831853 * floor(dd.x / 6.2831853 + 0.5);
             float sd = length(dd);
+            if (sd >= size * 3.0) continue;              // beyond the facula: nothing to add
+            if (sd >= size) { facula += smoothstep(size * 3.0, size, sd) * 0.25; continue; }
             float fil = 0.7 + 0.3 * sin(atan2(dd.y, dd.x) * 40.0 + fbm(float3(dd * 60.0, fi)) * 4.0);
             float umbra = smoothstep(size * 0.45, size * 0.3, sd);
             float pen = smoothstep(size, size * 0.6, sd);
@@ -163,18 +162,25 @@ fragment float4 stellarFragment(FRAME_INPUTS)
             col += float3(1.0, 0.97, 0.9) * S.c.z * (ribbon * 1.5 + exp(-fd / (S.c.w * 0.8)) * 0.6);
         }
     } else {
+        col = SKY(p, octDecode(dirTex.read(p).xy), false) * 0.6;
         float h = (dist - R) / R;
+        // Terms that fall off with height are skipped once they are below about e^-12.
         // chromosphere and spicules
         float chromo = exp(-h / 0.006);
-        float spic = fbm(float3(ang * 260.0, h * 90.0 - F.time * 0.35, 1.0));
-        float spicules = smoothstep(0.45, 0.8, spic) * exp(-h / 0.02);
         float3 hAlpha = float3(1.0, 0.25, 0.3);
-        col += hAlpha * (chromo * 1.4 + spicules * 0.7);
-        // corona with streamers
-        float stream = fbm(float3(cos(ang) * 5.0, sin(ang) * 5.0, F.time * 0.004));
-        col += mix(starCol, float3(1.0), 0.5) * exp(-h / (0.06 + 0.12 * stream)) * (0.05 + 0.12 * stream);
+        col += hAlpha * chromo * 1.4;
+        if (h < 0.24) {
+            float spic = fbm(float3(ang * 260.0, h * 90.0 - F.time * 0.35, 1.0));
+            col += hAlpha * smoothstep(0.45, 0.8, spic) * exp(-h / 0.02) * 0.7;
+        }
+        // corona with streamers (its scale height is at most 0.18)
+        if (h < 2.2) {
+            float stream = fbm(float3(cos(ang) * 5.0, sin(ang) * 5.0, F.time * 0.004));
+            col += mix(starCol, float3(1.0), 0.5) * exp(-h / (0.06 + 0.12 * stream)) * (0.05 + 0.12 * stream);
+        }
         // coronal loops: arches rooted on the limb, with plasma streaming along them
-        for (int i = 0; i < 5; i++) {
+        // (loops are at most 0.16 high and their tubes ~0.004 thick, so nothing reaches h = 0.2)
+        for (int i = 0; i < 5 && h < 0.2; i++) {
             float fi = float(i);
             float life = 300.0 + 200.0 * hash13(float3(fi, 8.0, 1.0));
             float cyc = F.time / life + hash13(float3(fi, 9.0, 1.0));
@@ -193,9 +199,11 @@ fragment float4 stellarFragment(FRAME_INPUTS)
             col += mix(hAlpha, starCol, 0.5) * tube * flow * vis * 0.9 * boost;
         }
         // prominences: clouds of cooler plasma hanging above the limb
-        float prom = smoothstep(0.58, 0.82, fbm(float3(ang * 7.0, h * 14.0 - F.time * 0.01, 4.0)))
-                   * exp(-h / 0.07) * smoothstep(0.5, 0.7, fbm(float3(ang * 2.0, 1.0, 7.0)));
-        col += hAlpha * prom * 1.1;
+        if (h < 0.84) {
+            float prom = smoothstep(0.58, 0.82, fbm(float3(ang * 7.0, h * 14.0 - F.time * 0.01, 4.0)));
+            if (prom > 0.0) prom *= exp(-h / 0.07) * smoothstep(0.5, 0.7, fbm(float3(ang * 2.0, 1.0, 7.0)));
+            col += hAlpha * prom * 1.1;
+        }
         if (S.d.z > 0.0) {
             // coronal mass ejection: a bright expanding loop leaving the star
             float2 base = C + float2(cos(S.d.x), sin(S.d.x)) * R;

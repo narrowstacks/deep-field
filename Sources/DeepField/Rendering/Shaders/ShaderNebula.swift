@@ -151,7 +151,7 @@ static float4 nebulaLayers(float3 camPos, float3 d, int type, float seed, float 
 }
 
 // Bake: march each pixel's ray through the nebula volume twice (two slices of its slow flow).
-// hitA / hitB = (Ha, OIII, SII, transmittance); shell0P.x = central star glow.
+// hitA / hitB = (Ha, OIII, SII, transmittance).
 kernel void bakeNebula(BAKE_OUTPUTS)
 {
     if (gid.x >= uint(P.width) || gid.y >= uint(P.height)) return;
@@ -186,29 +186,28 @@ kernel void bakeNebula(BAKE_OUTPUTS)
     }
     hitA.write(outs[0], gid);
     hitB.write(outs[1], gid);
-    float star = type == 1 ? exp(-dmin / 0.18) : 0.0;
-    shell0P.write(float4(star, 0.0, 0.0, 0.0), gid);
-    shell0D.write(float4(0.0), gid);
-    shell1P.write(float4(-1.0), gid);
-    shell1D.write(float4(0.0), gid);
-    extraTex.write(float4(octEncode(d), 0.0, 1000.0), gid);
+    dirTex.write(float4(octEncode(d), 0.0, 0.0), gid);
 }
 
 // S.a.x = flow period (s); S.b/c/d = colors for Ha, OIII, SII
 fragment float4 nebulaFragment(FRAME_INPUTS)
 {
     uint2 p = uint2(in.pos.xy);
-    float4 sky = skyTex.read(p);
-    float4 X = extraTex.read(p);
+    float3 rd = octDecode(dirTex.read(p).xy);
     float4 A = hitA.read(p), B = hitB.read(p);
     // each region morphs between the two baked slices on its own phase, so the gas seems to drift
     float phase = fbm(float3(float2(p) * 0.004, 2.0)) * 6.2831853;
     float w = 0.5 + 0.5 * sin(F.time * 6.2831853 / S.a.x + phase * 2.0);
     float4 v = mix(A, B, w);
     float shimmer = 0.9 + 0.1 * sin(F.time * 0.3 + phase * 3.0);
-    float3 col = skyColor(sky, X, false, F, E, Pal) * v.w;
+    float3 col = SKY(p, rd, false) * v.w;
     col += (S.b.rgb * v.x + S.c.rgb * v.y + S.d.rgb * v.z) * shimmer;
-    col += float3(0.85, 0.92, 1.0) * shell0P.read(p).x * 2.5;     // the central white dwarf
+    if (int(F.nebulaType) == 1) {
+        // the planetary nebula's central white dwarf
+        float3 ro = F.camPos.xyz;
+        float dmin = length(ro - rd * dot(ro, rd));
+        col += float3(0.85, 0.92, 1.0) * exp(-dmin / 0.18) * 2.5;
+    }
     return finalize(col, p, F);
 }
 """

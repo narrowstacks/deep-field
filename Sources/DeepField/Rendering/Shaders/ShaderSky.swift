@@ -91,56 +91,65 @@ static float4 farSkyScalars(float3 d, float fp, float3 galaxyDir, constant BakeP
     return s;
 }
 
-// black hole scenes (0, 5) have a shadow with no sky in it
-static bool hasSky(float info, float scene) { return (scene > 0.5 && abs(scene - 5.0) > 0.5) || info >= 1.0; }
+// Whether a pixel shows sky at all: black holes have a shadow with none in it.
+static bool hasSky(float info, constant BakeParams& P) { return P.lensing < 0.5 || P.lensing > 1.5 || info >= 1.0; }
 static bool sameSide(float a, float b) { return (a < 0.0) == (b < 0.0); }
 
+// Where a pixel looks on the sky: straight from the camera without lensing (exact, no need
+// to read it back), else the ray bake's outgoing direction.
+static float3 skyDir(texture2d<float, access::read> dirTex, constant BakeParams& P, uint2 g) {
+    if (P.lensing < 0.5) { float3 camPos; return cameraRay(P, g, camPos); }
+    return octDecode(dirTex.read(g).xy);
+}
+
 // Runs after the ray bake. Works out each pixel's sky footprint from its neighbours' ray
-// directions, then evaluates the sky with matching detail. Star id is packed into .y:
-// y = 4 * idQuantized + tint, so tint (0..2) and id (1/4096 steps) share one channel.
-kernel void skyPass(texture2d<float, access::read> extraTex [[texture(0)]],
-                    texture2d<float, access::write> skyTex  [[texture(1)]],
+// directions, then evaluates the sky with matching detail. The star id goes to its own
+// texture, quantized to 1/4096 steps (0 = none).
+kernel void skyPass(texture2d<float, access::read> dirTex  [[texture(0)]],
+                    texture2d<float, access::read> infoTex [[texture(1)]],
+                    texture2d<float, access::write> skyTex [[texture(2)]],
+                    texture2d<uint, access::write> idTex   [[texture(3)]],
                     constant BakeParams& P [[buffer(0)]],
                     uint2 gid [[thread_position_in_grid]])
 {
     uint W = uint(P.width), H = uint(P.height);
     if (gid.x >= W || gid.y >= H) return;
-    float4 X = extraTex.read(gid);
-    if (!hasSky(X.w, P.scene)) { skyTex.write(float4(0.0), gid); return; }
-    float3 d = octDecode(X.xy);
+    bool lensed = P.lensing > 0.5;
+    float info = lensed ? infoTex.read(gid).x : 1000.0;
+    if (!hasSky(info, P)) { skyTex.write(float4(0.0), gid); idTex.write(uint4(0), gid); return; }
+    float3 d = skyDir(dirTex, P, gid);
 
     float pixelAngle = 2.0 * P.tanHalfFov / P.height;
     float fp = pixelAngle;
     uint2 nb[4] = { uint2(min(gid.x + 1, W - 1), gid.y), uint2(gid.x > 0 ? gid.x - 1 : 0, gid.y),
                     uint2(gid.x, min(gid.y + 1, H - 1)), uint2(gid.x, gid.y > 0 ? gid.y - 1 : 0) };
     for (int i = 0; i < 4; i++) {
-        float4 Y = extraTex.read(nb[i]);
-        if (!hasSky(Y.w, P.scene) || !sameSide(X.w, Y.w)) continue;
-        fp = max(fp, length(octDecode(Y.xy) - d));
+        float infoN = lensed ? infoTex.read(nb[i]).x : 1000.0;
+        if (!hasSky(infoN, P) || !sameSide(info, infoN)) continue;
+        fp = max(fp, length(skyDir(dirTex, P, nb[i]) - d));
     }
 
     float id = 0.0;
     float4 sky;
-    if (P.scene > 0.5 && P.scene < 1.5 && X.w < 0.0) {
+    if (P.lensing > 1.5 && info < 0.0) {
         float ce = cos(P.camElev), se = sin(P.camElev);
         float3 e1 = float3(0.0, se, -ce);
         sky = farSkyScalars(d, fp, normalize(e1 + float3(0.06, 0.08, 0.0)), P, id);
     } else {
         sky = skyScalars(d, fp, P, 0.0, id);
     }
-    float idq = id > 0.0 ? 1.0 + floor(id * 4094.0) : 0.0;
-    sky.y = idq * 4.0 + sky.y;
     skyTex.write(sky, gid);
+    idTex.write(uint4(id > 0.0 ? 1u + uint(floor(id * 4094.0)) : 0u), gid);
 }
 
 // ---------- per-frame: sky color ----------
 
-// Background sky with its occasional phenomena. `far` = the wormhole's other universe.
-static float3 skyColor(float4 sky, float4 X, bool far, constant FrameParams& F,
+// Background sky with its occasional phenomena, for sky scalars `sky`, quantized star id
+// `idq` and sky direction `dir`. `far` = the wormhole's other universe.
+static float3 skyColor(float4 sky, uint idq, float3 dir, bool far, constant FrameParams& F,
                        constant Events& E, constant Palette& Pal) {
     float3 col = float3(0.0);
-    float idq = floor(sky.y / 4.0);
-    float bright = sky.x, tint = sky.y - idq * 4.0, id = idq / 4096.0;
+    float bright = sky.x, tint = sky.y, id = float(idq) / 4096.0;
     if (bright > 0.0) {
         if (tint > 1.0) {
             col = mix(Pal.galaxy.rgb, Pal.starCool.rgb, 0.5 * (tint - 1.0)) * bright;
@@ -164,7 +173,7 @@ static float3 skyColor(float4 sky, float4 X, bool far, constant FrameParams& F,
     if (far) {
         col += (Pal.farA.rgb * pow(sky.z, 1.5) * 0.55 + Pal.farB.rgb * pow(sky.w, 1.5) * 0.5) * F.skyBrightness;
         if (E.farSn.w > 0.0) {
-            float c = length(octDecode(X.xy) - E.farSn.xyz);
+            float c = length(dir - E.farSn.xyz);
             float3 hot = mix(float3(0.75, 0.88, 1.0), float3(1.0, 0.5, 0.25), E.farSnParams.y);
             col += hot * (E.farSn.w * exp(-pow(c / 0.05, 2.0)) + E.farSnParams.x * exp(-c / 0.15));
         }
@@ -173,7 +182,6 @@ static float3 skyColor(float4 sky, float4 X, bool far, constant FrameParams& F,
     col += (Pal.nebulaA.rgb * sky.z * 0.02 + Pal.nebulaB.rgb * sky.w * 0.012) * F.skyBrightness;
 
     // sky events live in sky-direction space, so lensing applies to them like everything else
-    float3 dir = octDecode(X.xy);
     float pa = F.pixelAngle;
     if (E.snDir.w > 0.0) {
         float c = length(dir - E.snDir.xyz);
@@ -195,5 +203,8 @@ static float3 skyColor(float4 sky, float4 X, bool far, constant FrameParams& F,
     }
     return col;
 }
+
+// The sky color at pixel p, seen along dir (inside a fragment shader with FRAME_INPUTS).
+#define SKY(p, dir, far) skyColor(skyTex.read(p), idTex.read(p).r, dir, far, F, E, Pal)
 """
 }

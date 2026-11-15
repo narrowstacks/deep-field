@@ -18,22 +18,33 @@ static float3 cameraRay(constant BakeParams& P, uint2 gid, thread float3& camPos
 }
 
 struct ShellRec {
-    float4 pos = float4(-1.0);
+    float4 pos = float4(0.0);
     float4 dir = float4(0.0);
     int n = 0;
 };
 
 // Up to two crossings of a sphere of radius R: where (theta, phi) and which way the ray was
-// heading. Theta is offset by 4*eventIndex so the frame shader knows what is in front of what.
+// heading. Stored as unorm16 (see decodeShell): theta offset by 4 * eventIndex (so the frame
+// shader knows what is in front of what) and mapped to (0, 1], with 0 = no crossing; phi to [0, 1].
 static void recordShell(thread ShellRec& s, float3 hp, float3 hv, float R, int ev) {
     if (s.n >= 2) return;
     float3 nrm = hp / R;
-    float theta = acos(clamp(nrm.y, -1.0, 1.0)) + 4.0 * float(ev);
-    float phi = atan2(nrm.z, nrm.x);
+    float theta = (acos(clamp(nrm.y, -1.0, 1.0)) + 4.0 * float(min(ev, 5)) + 0.5) / 25.0;
+    float phi = atan2(nrm.z, nrm.x) / 6.2831853 + 0.5;
     float2 d = octEncode(normalize(hv));
     if (s.n == 0) { s.pos.xy = float2(theta, phi); s.dir.xy = d; }
     else          { s.pos.zw = float2(theta, phi); s.dir.zw = d; }
     s.n++;
+}
+
+static void writeShells(constant BakeParams& P, ShellRec s0, ShellRec s1,
+                        texture2d<float, access::write> shell0P, texture2d<float, access::write> shell0D,
+                        texture2d<float, access::write> shell1P, texture2d<float, access::write> shell1D, uint2 gid) {
+    if (P.shells < 0.5) return;
+    shell0P.write(s0.pos, gid);
+    shell0D.write(s0.dir, gid);
+    shell1P.write(s1.pos, gid);
+    shell1D.write(s1.dir, gid);
 }
 
 // ---------- bake: black hole ----------
@@ -45,7 +56,7 @@ static float3 accel(float3 p, float h2) {
     return -1.5 * h2 * p / (r2 * r2 * sqrt(r2));
 }
 
-// extra.w = closest approach radius (0 = fell into the hole)
+// info = closest approach radius (0 = fell into the hole)
 kernel void bakeBlackHole(BAKE_OUTPUTS)
 {
     if (gid.x >= uint(P.width) || gid.y >= uint(P.height)) return;
@@ -63,6 +74,7 @@ kernel void bakeBlackHole(BAKE_OUTPUTS)
     float minR = 1e9;
     bool captured = false;
     float gCam = sqrt(1.0 - 1.0 / P.camDist);
+    bool shells = P.shells > 0.5;
 
     for (int i = 0; i < 1500; i++) {
         float r = length(pos);
@@ -77,11 +89,11 @@ kernel void bakeBlackHole(BAKE_OUTPUTS)
         float3 nv = vel + 0.5 * (a0 + a1) * dt;
         float nr = length(np);
 
-        if ((r - P.shellR0) * (nr - P.shellR0) < 0.0) {
+        if (shells && (r - P.shellR0) * (nr - P.shellR0) < 0.0) {
             float t = (r - P.shellR0) / (r - nr);
             recordShell(s0, mix(pos, np, t), mix(vel, nv, t), P.shellR0, ev++);
         }
-        if ((r - P.shellR1) * (nr - P.shellR1) < 0.0) {
+        if (shells && (r - P.shellR1) * (nr - P.shellR1) < 0.0) {
             float t = (r - P.shellR1) / (r - nr);
             recordShell(s1, mix(pos, np, t), mix(vel, nv, t), P.shellR1, ev++);
         }
@@ -108,14 +120,11 @@ kernel void bakeBlackHole(BAKE_OUTPUTS)
         vel = nv;
     }
 
-    float3 outDir = normalize(vel);
     hitA.write(A, gid);
     hitB.write(B, gid);
-    shell0P.write(s0.pos, gid);
-    shell0D.write(s0.dir, gid);
-    shell1P.write(s1.pos, gid);
-    shell1D.write(s1.dir, gid);
-    extraTex.write(float4(octEncode(outDir), 0.0, captured ? 0.0 : minR), gid);
+    writeShells(P, s0, s1, shell0P, shell0D, shell1P, shell1D, gid);
+    dirTex.write(float4(octEncode(normalize(vel)), 0.0, 0.0), gid);
+    infoTex.write(float4(captured ? 0.0 : minR), gid);
 }
 
 // ---------- bake: wormhole ----------
@@ -124,7 +133,7 @@ kernel void bakeBlackHole(BAKE_OUTPUTS)
 // through the camera and the throat, so we integrate (l, phi) in that plane with the
 // conserved impact parameter B:  dl/ds = p,  dp/ds = B^2 l / r^4,  dphi/ds = B / r^2.
 // Rays with B < b0 pass through the throat into the other universe (l < 0).
-// extra.w = side (+1 ours, -1 the other universe) * (impact parameter B / b0 + 0.001);
+// info = side (+1 ours, -1 the other universe) * (impact parameter B / b0 + 0.001);
 // B / b0 = 1 marks rays that just graze the throat.
 kernel void bakeWormhole(BAKE_OUTPUTS)
 {
@@ -157,7 +166,7 @@ kernel void bakeWormhole(BAKE_OUTPUTS)
         float np = p + 0.5 * (a0 + a1) * ds;
         float nphi = phi + 0.5 * (B / (r * r) + B / (nr * nr)) * ds;
 
-        if (l > 0.0 && nl > 0.0) {
+        if (P.shells > 0.5 && l > 0.0 && nl > 0.0) {
             for (int k = 0; k < 2; k++) {
                 float R = k == 0 ? P.shellR0 : P.shellR1;
                 if ((r - R) * (nr - R) < 0.0) {
@@ -179,30 +188,20 @@ kernel void bakeWormhole(BAKE_OUTPUTS)
     float3 tang = -sin(phi) * e1 + cos(phi) * e2;
     float3 outDir = normalize((l / r) * p * radial + (B / r) * tang);
     bool far = l < 0.0;
-    hitA.write(float4(0.0), gid);
-    hitB.write(float4(0.0), gid);
-    shell0P.write(s0.pos, gid);
-    shell0D.write(s0.dir, gid);
-    shell1P.write(s1.pos, gid);
-    shell1D.write(s1.dir, gid);
-    extraTex.write(float4(octEncode(outDir), 0.0, (far ? -1.0 : 1.0) * (B / b0 + 0.001)), gid);
+    writeShells(P, s0, s1, shell0P, shell0D, shell1P, shell1D, gid);
+    dirTex.write(float4(octEncode(outDir), 0.0, 0.0), gid);
+    infoTex.write(float4((far ? -1.0 : 1.0) * (B / b0 + 0.001)), gid);
 }
 
 // ---------- bake: flat space (every scene without lensing) ----------
 
-// extra.w = 1000 (no lensing features); extra.xy doubles as the camera ray direction.
+// Only the camera ray direction; no lensing features.
 kernel void bakeFlat(BAKE_OUTPUTS)
 {
     if (gid.x >= uint(P.width) || gid.y >= uint(P.height)) return;
     float3 camPos;
     float3 d = cameraRay(P, gid, camPos);
-    hitA.write(float4(0.0), gid);
-    hitB.write(float4(0.0), gid);
-    shell0P.write(float4(-1.0), gid);
-    shell0D.write(float4(0.0), gid);
-    shell1P.write(float4(-1.0), gid);
-    shell1D.write(float4(0.0), gid);
-    extraTex.write(float4(octEncode(d), 0.0, 1000.0), gid);
+    dirTex.write(float4(octEncode(d), 0.0, 0.0), gid);
 }
 """
 }

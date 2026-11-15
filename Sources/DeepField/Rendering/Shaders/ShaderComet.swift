@@ -8,9 +8,7 @@ extension ShaderSource {
 fragment float4 cometFragment(FRAME_INPUTS)
 {
     uint2 p = uint2(in.pos.xy);
-    float4 sky = skyTex.read(p);
-    float4 X = extraTex.read(p);
-    float3 col = skyColor(sky, X, false, F, E, Pal);
+    float3 col = SKY(p, octDecode(dirTex.read(p).xy), false);
     float W = F.camRight.w, H = F.camUp.w;
     float2 q = float2((float(p.x) + 0.5 - W * 0.5) / (H * 0.5), -(float(p.y) + 0.5 - H * 0.5) / (H * 0.5));
     float2 v = q - S.a.xy;
@@ -21,12 +19,12 @@ fragment float4 cometFragment(FRAME_INPUTS)
     // ion tail: straight, narrow, blue, combed into streamers by the solar wind
     float a = dot(v, u), b = dot(v, n);
     float ion = 0.0;
-    if (a > -0.03) {
-        float width = 0.012 + 0.05 * max(a, 0.0);
+    float width = 0.012 + 0.05 * max(a, 0.0);
+    float kink = sin(a * 6.0 - F.time * 0.5) * 0.008 * a;
+    float bb = (b - kink) / width;
+    if (a > -0.03 && bb * bb < 14.0) {          // (beyond that the tail is below e^-14)
         float streak = fbm(float3(a * 3.0 - F.time * 0.22, b / width * 2.2, F.time * 0.03));
         float rays = pow(streak, 3.0) * 3.0;
-        float kink = sin(a * 6.0 - F.time * 0.5) * 0.008 * a;
-        float bb = (b - kink) / width;
         ion = exp(-bb * bb) * exp(-max(a, 0.0) / (1.4 * L)) * (0.35 + rays) * smoothstep(-0.03, 0.04, a);
         if (S.c.w > 0.0) {
             // a disconnection event: the tail snaps and the loose piece drifts away
@@ -40,9 +38,10 @@ fragment float4 cometFragment(FRAME_INPUTS)
     float2 ud = normalize(u + n * 0.45), nd = float2(-ud.y, ud.x);
     float ad = dot(v, ud), bd = dot(v, nd) + S.b.z * ad * ad;
     float dustT = 0.0;
-    if (ad > -0.03) {
-        float width = 0.02 + 0.16 * max(ad, 0.0);
-        float bb = bd / width;
+    float widthD = 0.02 + 0.16 * max(ad, 0.0);
+    float bbD = bd / widthD;
+    if (ad > -0.03 && bbD * bbD < 16.0) {
+        float bb = bbD;
         float striae = 0.75 + 0.25 * sin(bd * 40.0 + ad * 8.0 - F.time * 0.05) * fbm(float3(ad * 2.0 - F.time * 0.04, bb, 9.0));
         dustT = exp(-bb * bb * 0.8) * exp(-max(ad, 0.0) / (1.1 * L)) * striae * smoothstep(-0.03, 0.06, ad);
     }

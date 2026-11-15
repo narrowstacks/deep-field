@@ -27,6 +27,24 @@ static float3 shadePlanetSurface(Planet pl, float3 N, float3 v, float3 P,
     return col;
 }
 
+// Whether any planet on this shell could be hit by a ray crossing it at X, whatever its
+// direction: the planet lies inside the shell (radius R), and a straight ray stays within
+// depth d of the shell for at most sqrt(2 R d) either side of X, so a hit needs
+// |X - C| < rp + sqrt(2 R d) with d = R - (|C| - rp). Lets most crossings skip the direction
+// read and the intersection tests.
+static bool planetsNearShellPoint(float3 X, float R, int shell, constant Planet* planets, int count) {
+    for (int i = 0; i < count; i++) {
+        Planet pl = planets[i];
+        if (int(pl.center.w) != shell) continue;
+        float3 C = pl.center.xyz;
+        float rp = pl.colorA.w;
+        float d = max(R - length(C) + rp, 0.0);
+        float reach = rp + sqrt(2.0 * R * d) + 0.05;
+        if (length_squared(X - C) < reach * reach) return true;
+    }
+    return false;
+}
+
 // A ray crossing a planet's orbit shell at X heading v; treat it as straight near the planet
 // and intersect each planet's sphere. Only the half-chord on this side of the shell counts.
 static float4 shadePlanetsOnShell(float3 X, float3 v, int shell, constant Planet* planets, int count,
