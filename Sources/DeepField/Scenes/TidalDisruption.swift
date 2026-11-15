@@ -81,15 +81,15 @@ extension SceneParams {
         let star = c.tdeStar.color
         p.a = SIMD4(star.r, star.g, star.b, Float(c.tdeStar.activity))
         p.b = SIMD4(Float(c.tdeStreamBrightness), c.tdeJets ? 1 : 0, 0, 0)
-        p.c = SIMD4(c.tdeJetColor.r, c.tdeJetColor.g, c.tdeJetColor.b, Float(TDEGeometry.diskOuter))
-        let (rec, app, core): (RGB, RGB, RGB) = switch c.tdeDiskColors {
-        case .palette: (c.palette.receding, c.palette.approaching, c.palette.core)
-        case .fiery: (RGB(1.0, 0.22, 0.03), RGB(1.0, 0.55, 0.12), RGB(1.0, 0.85, 0.5))
-        case .blueWhite: (RGB(0.35, 0.5, 1.0), RGB(0.7, 0.85, 1.0), RGB(0.95, 0.97, 1.0))
+        p.c = SIMD4(c.tdeJetColor.light3(PickedColor.Level.tdeJet), Float(TDEGeometry.diskOuter))
+        let (rec, app, core): (SIMD4<Float>, SIMD4<Float>, SIMD4<Float>) = switch c.tdeDiskColors {
+        case .palette: { let g = PaletteGPU(c.palette); return (g.receding, g.approaching, g.core) }()
+        case .fiery: (RGB(1.0, 0.22, 0.03).simd, RGB(1.0, 0.55, 0.12).simd, RGB(1.0, 0.85, 0.5).simd)
+        case .blueWhite: (RGB(0.35, 0.5, 1.0).simd, RGB(0.7, 0.85, 1.0).simd, RGB(0.95, 0.97, 1.0).simd)
         }
-        p.d = rec.simd
-        p.e = app.simd
-        p.f = core.simd
+        p.d = rec
+        p.e = app
+        p.f = core
         return p
     }
 }

@@ -9,8 +9,18 @@ struct WallpaperConfig: Codable, Equatable {
     var dither: DitherPattern = .bayer8
     var fps = 24
     var saturation = 1.35
-    var brightness = 1.15
+    var brightness = 1.15          // the exposure: scales the scene's light before tone mapping
     var palette = PaletteConfig.gargantua
+
+    // Image, applied to the scene's light before tone mapping and dithering. The defaults are
+    // neutral: they leave the picture exactly as it was before these existed.
+    var contrast = 1.0
+    var blackPoint = 0.0
+    var highlights = 0.0           // highlight rolloff: compresses the brightest light
+    var vignette = 0.0
+    var bloom = 0.0                // glow amount; 0 skips the bloom passes entirely
+    var bloomRadius = 0.03         // fraction of the frame's shorter side
+    var bloomThreshold = 0.5       // tone-mapped brightness where the glow starts
 
     /// Set a still of the scene as the desktop picture, so the lock and login screens match.
     var lockScreenStill = false
@@ -55,22 +65,22 @@ struct WallpaperConfig: Codable, Equatable {
     var tdeStreamBrightness = 1.0
     var tdeDiskColors: TDEDiskColors = .palette
     var tdeJets = true
-    var tdeJetColor = RGB(0.6, 0.5, 1.0)
+    var tdeJetColor = Tuned.tdeJet.color
 
     // Pulsar
     var pulsarPeriod = 3.0             // seconds per rotation
     var pulsarInclination = 52.0       // magnetic axis vs spin axis, degrees
     var pulsarAxisTilt = 25.0          // spin axis leaning toward you, degrees
     var pulsarBeamWidth = 7.0          // degrees
-    var pulsarBeamColor = RGB(0.55, 0.75, 1.0)
-    var pulsarNebulaColor = RGB(0.7, 0.4, 1.0)
+    var pulsarBeamColor = Tuned.pulsarBeam.color
+    var pulsarNebulaColor = Tuned.pulsarNebula.color
     var pulsarNebula = true
     var pulsarFieldLines = true            // the magnetic field on/off, drawn in pulsarFieldStyle
     var pulsarBeams: PulsarBeams = .both
     var pulsarFieldStyle: PulsarFieldStyle = .lines
     var pulsarRing = false                 // dust ring in the spin plane
-    var pulsarFieldColor = RGB(0.45, 0.68, 1.0)
-    var pulsarRingColor = RGB(1.0, 0.6, 0.36)
+    var pulsarFieldColor = Tuned.pulsarField.color
+    var pulsarRingColor = Tuned.pulsarRing.color
     var pulsarBeamIntensity = 1.0
     var pulsarFieldIntensity = 1.0
     var pulsarRingIntensity = 1.0
@@ -88,8 +98,8 @@ struct WallpaperConfig: Codable, Equatable {
     // Comet
     var cometTailLength = 1.0
     var cometActivity = 1.0
-    var cometIonColor = RGB(0.3, 0.6, 1.0)
-    var cometDustColor = RGB(1.0, 0.85, 0.6)
+    var cometIonColor = Tuned.cometIon.color
+    var cometDustColor = Tuned.cometDust.color
     var cometEvents: Frequency = .normal
 
     // Star close-up
@@ -158,9 +168,10 @@ struct WallpaperConfig: Codable, Equatable {
     /// does any single key that no longer decodes (say, an enum case this build doesn't know),
     /// instead of the whole config resetting.
     static func decode(_ data: Data) -> WallpaperConfig? {
-        guard let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        guard var saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let defaultsData = try? JSONEncoder().encode(WallpaperConfig()),
               let defaults = try? JSONSerialization.jsonObject(with: defaultsData) as? [String: Any] else { return nil }
+        migrateTunedColors(&saved)
         // merge one level deep too, so palettes saved before new colors were added still load
         func merging(_ key: String, _ value: Any, into dict: inout [String: Any]) {
             if let nested = value as? [String: Any], var base = dict[key] as? [String: Any] {
@@ -213,6 +224,28 @@ struct WallpaperConfig: Codable, Equatable {
         clamp(\.starZoom, Self.starZoomRange)
         clamp(\.starCenterX, -1...1)
         clamp(\.starLimbY, -0.9...1)
+        for (kp, range) in Self.imageRanges { clamp(kp, range) }
         return c
+    }
+}
+
+extension WallpaperConfig {
+    static let exposureRange = 0.3...3.0
+    static let contrastRange = 0.5...2.0
+    static let blackPointRange = 0.0...0.3
+    static let bloomRange = 0.0...3.0
+    static let bloomRadiusRange = 0.005...0.12
+
+    static let imageRanges: [(WritableKeyPath<WallpaperConfig, Double>, ClosedRange<Double>)] = [
+        (\.brightness, exposureRange), (\.contrast, contrastRange), (\.blackPoint, blackPointRange),
+        (\.highlights, 0...1), (\.vignette, 0...1), (\.bloom, bloomRange),
+        (\.bloomRadius, bloomRadiusRange), (\.bloomThreshold, 0...1),
+    ]
+
+    /// Puts the image controls back to their neutral defaults.
+    mutating func resetImage() {
+        let d = WallpaperConfig()
+        for (kp, _) in Self.imageRanges { self[keyPath: kp] = d[keyPath: kp] }
+        saturation = d.saturation
     }
 }

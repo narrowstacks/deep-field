@@ -21,6 +21,8 @@ struct FrameParams {
     float pixelAngle; float starCount; float lightCount; float ringStrength;   // pixelAngle: radians per drawable pixel
     float nebulaType; float screenScale;   // screenScale: screen-space scenes' units per half height
     float4 camPos; float4 camRight; float4 camUp;   // camRight.w / camUp.w = drawable width / height
+    float4 image;    // contrast, black point, highlight rolloff, vignette
+    float4 bloom;    // amount, threshold, 1 = the scene pass writes linear light for the bloom passes, radius
 };
 
 struct Palette {
@@ -196,8 +198,27 @@ static float bayer4(uint2 p) {
     return (float(v) + 0.5) / 16.0;
 }
 
-static float4 finalize(float3 col, uint2 p, constant FrameParams& F) {
-    col = 1.0 - exp(-max(col, 0.0) * F.exposure);
+// The image controls, on light already scaled by the exposure: contrast around a mid gray,
+// highlight rolloff and vignette, then the tone map and black point. Each is skipped at its
+// neutral value, so the defaults leave the output exactly as it was.
+static float3 toneMapped(float3 x, uint2 p, constant FrameParams& F) {
+    float4 im = F.image;
+    if (im.x != 1.0) x = 0.18 * pow(x / 0.18, im.x);
+    if (im.z > 0.0) x = x / (1.0 + im.z * x);
+    if (im.w > 0.0) {
+        float2 uv = (float2(p) + 0.5) / float2(F.camRight.w, F.camUp.w) * 2.0 - 1.0;
+        x *= 1.0 - im.w * smoothstep(0.2, 1.6, dot(uv, uv));
+    }
+    float3 col = 1.0 - exp(-x);
+    if (im.y > 0.0) {
+        float b = pow(im.y, 2.2);      // the black point is set in display (gamma) terms
+        col = max(col - b, 0.0) / (1.0 - b);
+    }
+    return col;
+}
+
+// Saturate, gamma encode, and posterize with the ordered dither.
+static float4 quantized(float3 col, uint2 p, constant FrameParams& F) {
     float luma = dot(col, float3(0.2126, 0.7152, 0.0722));
     col = max(mix(float3(luma), col, F.saturation), 0.0);
     col = pow(col, float3(1.0 / 2.2));
@@ -205,6 +226,69 @@ static float4 finalize(float3 col, uint2 p, constant FrameParams& F) {
     float d = F.dither < 0.5 ? bayer8(p) : (F.dither < 1.5 ? bayer4(p) : 0.5);
     col = floor(col * L + d) / L;
     return float4(saturate(col), 1.0);
+}
+
+// Every scene ends here. With bloom on, the scene pass instead writes its linear light to a
+// float target, and imageFragment finishes it (with the glow added) after the bloom passes.
+static float4 finalize(float3 col, uint2 p, constant FrameParams& F) {
+    if (F.bloom.z > 0.5) return float4(col, 1.0);
+    return quantized(toneMapped(max(col, 0.0) * F.exposure, p, F), p, F);
+}
+
+// ---------- bloom: bright pass at quarter size, separable blur, composite ----------
+
+// Linear light above the threshold (on the tone-mapped luminance), soft-kneed, in exposed units.
+static float3 brightPart(float3 col, constant FrameParams& F) {
+    float3 x = min(max(col, 0.0) * F.exposure, 16.0);
+    float lum = 1.0 - exp(-dot(x, float3(0.2126, 0.7152, 0.0722)));
+    return x * smoothstep(F.bloom.y, F.bloom.y + 0.3, lum);
+}
+
+// Each output texel covers 4x4 scene pixels: four bilinear taps, each the mean of a 2x2 block.
+kernel void bloomBright(texture2d<float> hdr [[texture(0)]],
+                        texture2d<float, access::write> dst [[texture(1)]],
+                        constant FrameParams& F [[buffer(0)]],
+                        uint2 gid [[thread_position_in_grid]]) {
+    if (gid.x >= dst.get_width() || gid.y >= dst.get_height()) return;
+    constexpr sampler s(filter::linear, address::clamp_to_edge, coord::pixel);
+    float2 c = float2(gid) * 4.0;
+    float3 sum = brightPart(hdr.sample(s, c + float2(1.0, 1.0)).rgb, F)
+               + brightPart(hdr.sample(s, c + float2(3.0, 1.0)).rgb, F)
+               + brightPart(hdr.sample(s, c + float2(1.0, 3.0)).rgb, F)
+               + brightPart(hdr.sample(s, c + float2(3.0, 3.0)).rgb, F);
+    dst.write(float4(sum * 0.25, 1.0), gid);
+}
+
+// A 17-tap Gaussian along `dir`, sigma in texels; taps spread to cover about 2.7 sigma.
+kernel void bloomBlur(texture2d<float> src [[texture(0)]],
+                      texture2d<float, access::write> dst [[texture(1)]],
+                      constant float4& B [[buffer(0)]],      // direction xy, sigma
+                      uint2 gid [[thread_position_in_grid]]) {
+    if (gid.x >= dst.get_width() || gid.y >= dst.get_height()) return;
+    constexpr sampler s(filter::linear, address::clamp_to_edge, coord::pixel);
+    float sigma = max(B.z, 0.5);
+    float step_ = sigma / 3.0;
+    float2 c = float2(gid) + 0.5;
+    float3 sum = float3(0.0);
+    float wsum = 0.0;
+    for (int i = -8; i <= 8; i++) {
+        float o = float(i) * step_;
+        float w = exp(-0.5 * o * o / (sigma * sigma));
+        sum += src.sample(s, c + B.xy * o).rgb * w;
+        wsum += w;
+    }
+    dst.write(float4(sum / wsum, 1.0), gid);
+}
+
+fragment float4 imageFragment(VOut in [[stage_in]],
+                              texture2d<float> hdr [[texture(0)]],
+                              texture2d<float> glow [[texture(1)]],
+                              constant FrameParams& F [[buffer(0)]]) {
+    uint2 p = uint2(in.pos.xy);
+    constexpr sampler s(filter::linear, address::clamp_to_edge);
+    float2 uv = (float2(p) + 0.5) / float2(hdr.get_width(), hdr.get_height());
+    float3 x = max(hdr.read(p).rgb, 0.0) * F.exposure + glow.sample(s, uv).rgb * F.bloom.x;
+    return quantized(toneMapped(x, p, F), p, F);
 }
 """
 }

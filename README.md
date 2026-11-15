@@ -40,6 +40,17 @@ where you can change the scene, colors (presets plus color pickers), star densit
 frequency (with "Show me" buttons that trigger an event right away), planets, pixel size, color
 levels, dither pattern and frame rate. Settings save automatically.
 
+The Colors tab's **Image** section (exposure, contrast, saturation, highlight rolloff, black point,
+vignette and bloom) works on the scene's light before it's tone mapped and dithered, so the result
+always stays dithered, and it applies to the wallpaper, the lock screen still and phone exports
+alike. Bloom is a bright pass and blur at a quarter of the shaded size; at 0 those passes don't
+run at all.
+
+A picked color is what that part shows where it's typically lit: `Config/PickedColor.swift`
+runs the tone map, saturation and gamma backwards from the pick, at each element's measured
+typical brightness, and darker shades are built around it rather than by squaring it. The
+background sky's colors and the galaxy's dust stay tints.
+
 ## Phone wallpapers
 
 The **Phone** tab of the Customize window turns the current scene into an iPhone wallpaper. Pick
@@ -113,6 +124,7 @@ stars. Dwarf irregulars turn almost like a solid body, matching their rising rot
     [--phone-pixel 4] [--zoom 1.2] [--shift 0.05] [--speed 2] [--scene comet] [--defaults]
 .build/release/DeepField --check-live still.HEIC movie.MOV   # pairing metadata, loads as a Live Photo?
 build/DeepField.app/Contents/MacOS/DeepField --customize   # open the Customize window at launch
+build/DeepField.app/Contents/MacOS/DeepField --check-picker outdir -captureTab 1   # drive the color wells, check the preview follows
 defaults write local.deepfield.wallpaper debug -bool true     # log bake times, fps, pause/resume
 ```
 
