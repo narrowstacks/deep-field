@@ -129,6 +129,18 @@ struct SceneTab: View {
                     SliderRow(title: "Axis tilt", value: $store.config.gasTilt, range: -40...40) { String(format: "%.0f°", $0) }
                     Toggle("Moon", isOn: $store.config.gasMoon)
                     FrequencyRow(title: "Lightning", value: $store.config.gasLightning)
+                case .neutronMerger:
+                    SliderRow(title: "Cycle length", value: $store.config.mergerCycleMinutes, range: 1...15) { String(format: "%.1f min", $0) }
+                        .help("From a fresh wide pair through the merger and the fading kilonova. The orbit speeds up toward the end of each cycle")
+                    SliderRow(title: "Star brightness", value: $store.config.mergerBrightness, range: 0.3...2.5)
+                    SliderRow(title: "Glow", value: $store.config.mergerGlow, range: 0.4...2.5)
+                        .help("How far each star's halo spreads")
+                    SliderRow(title: "Wave ripple", value: $store.config.mergerWaves, range: 0...3)
+                        .help("How strongly the gravitational waves bend the starlight behind them")
+                    SliderRow(title: "Viewing angle", value: $store.config.mergerView, range: 0...85) { String(format: "%.0f°", $0) }
+                        .help("0° looks straight down onto the orbit")
+                    Toggle("Jet", isOn: $store.config.mergerJet)
+                        .help("A short jet punching out along the orbit's axis just after the merger")
                 case .comet:
                     SliderRow(title: "Tail length", value: $store.config.cometTailLength, range: 0.3...2)
                     SliderRow(title: "Activity", value: $store.config.cometActivity, range: 0.2...2.5)
@@ -247,6 +259,14 @@ struct SceneTab: View {
                 DemoGrid(store: store, demos: [("Comet Impact", EventSchedule.cometImpact)])
             } header: {
                 GroupHeader(title: "Events")
+            }
+        case .neutronMerger:
+            Section {
+                DemoGrid(store: store, demos: [("Merger", EventSchedule.neutronMerger)])
+            } header: {
+                GroupHeader(title: "Events")
+            } footer: {
+                GroupFooter("The merger ends every cycle; set how often with Cycle length.")
             }
         case .auroraOrbit:
             Section {

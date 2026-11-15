@@ -47,6 +47,9 @@ struct EventSchedule {
     static let substorm        = Kind(id: 15, slot: 600, chance: 0.65, duration: 240)
     // gas giant storms scene (16 is the parked supernova remnant's flare)
     static let cometImpact     = Kind(id: 17, slot: 900, chance: 0.6, duration: 360)
+    // neutron star merger scene: the merger closes every cycle on its own (SceneParams.mergerClock),
+    // so this kind never fires from the schedule; it is here for --demo and Show me
+    static let neutronMerger   = Kind(id: 19, slot: 600, chance: 0, duration: 80)
 
     /// If an event of this kind is running at time t: its age in seconds and a generator for its parameters.
     func active(_ k: Kind, rate: Double, at t: Double, demo: [UInt64: Double] = [:]) -> (age: Double, rng: Rng)? {
@@ -70,7 +73,7 @@ struct EventSchedule {
     static func skyDirection(_ u: Double, _ v: Double, camera cam: Camera, config c: WallpaperConfig) -> SIMD3<Double>? {
         let d = cam.ray(u, v)
         switch c.scene {
-        case .binary, .trinary, .galaxy, .pulsar, .nebula, .planetaryNebula, .ringedPlanet, .auroraOrbit, .gasGiant, .comet, .stellarSurface:
+        case .binary, .trinary, .galaxy, .pulsar, .nebula, .planetaryNebula, .ringedPlanet, .auroraOrbit, .gasGiant, .neutronMerger, .comet, .stellarSurface:
             return d
         case .wormhole:
             // lensing is mild away from the throat; just keep events clear of it

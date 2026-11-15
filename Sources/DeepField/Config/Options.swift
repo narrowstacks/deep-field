@@ -115,3 +115,23 @@ struct RingedPlanetPreset {
         c.ringedRingColor = ring
     }
 }
+
+/// Color looks for the neutron star merger: the stars' glow and the kilonova as it cools (as picks).
+struct MergerPreset {
+    let name: String
+    let star: RGB, hot: RGB, cool: RGB
+
+    static let all: [MergerPreset] = [
+        MergerPreset(name: "Kilonova", star: WallpaperConfig.Tuned.mergerStar.color,
+                     hot: WallpaperConfig.Tuned.mergerHot.color, cool: WallpaperConfig.Tuned.mergerCool.color),
+        MergerPreset(name: "Gold", star: RGB(1.0, 0.9, 0.7), hot: RGB(1.0, 0.86, 0.45), cool: RGB(0.85, 0.2, 0.08)),
+        MergerPreset(name: "Violet", star: RGB(0.78, 0.74, 1.0), hot: RGB(0.62, 0.55, 1.0), cool: RGB(0.95, 0.15, 0.55)),
+        MergerPreset(name: "Teal", star: RGB(0.7, 1.0, 0.95), hot: RGB(0.35, 0.95, 0.9), cool: RGB(0.95, 0.42, 0.2)),
+    ]
+
+    func apply(to c: inout WallpaperConfig) {
+        c.mergerStarColor = star
+        c.mergerHot = hot
+        c.mergerCool = cool
+    }
+}

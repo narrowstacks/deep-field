@@ -30,6 +30,7 @@ final class Renderer {
         .binary: "systemFragment", .trinary: "systemFragment", .galaxy: "galaxyFragment",
         .pulsar: "pulsarFragment", .nebula: "nebulaFragment", .comet: "cometFragment",
         .stellarSurface: "stellarFragment", .planetaryNebula: "planetaryFragment", .ringedPlanet: "ringedFragment", .auroraOrbit: "auroraFragment", .gasGiant: "gasGiantFragment",
+        .neutronMerger: "neutronMergerFragment",
     ]
     /// Bloom: the scene passes writing linear light to a float target (built on first use), the
     /// bright pass, the blur, the composite, and the intermediate textures per target size.
@@ -71,7 +72,7 @@ final class Renderer {
             let flat = try compute("bakeFlat"), blackHole = try compute("bakeBlackHole")
             bakePipelines = [.blackHole: blackHole, .tidalDisruption: blackHole, .wormhole: try compute("bakeWormhole"),
                              .binary: flat, .trinary: flat, .galaxy: flat, .pulsar: flat, .comet: flat,
-                             .stellarSurface: flat, .planetaryNebula: flat, .ringedPlanet: flat, .auroraOrbit: flat, .gasGiant: flat, .nebula: try compute("bakeNebula")]
+                             .stellarSurface: flat, .planetaryNebula: flat, .ringedPlanet: flat, .auroraOrbit: flat, .gasGiant: flat, .neutronMerger: flat, .nebula: try compute("bakeNebula")]
             skyPipeline = try compute("skyPass")
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: 1, height: 1, mipmapped: false)
             d.usage = [.shaderRead, .shaderWrite]

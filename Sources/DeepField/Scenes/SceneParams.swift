@@ -18,6 +18,7 @@ enum SceneParams {
         case .ringedPlanet: return ringedPlanet(c, t, cam, events, demo)
         case .auroraOrbit: return auroraOrbit(c, t, cam, events, demo)
         case .gasGiant: return gasGiant(c, t, cam, events, demo)
+        case .neutronMerger: return neutronMerger(c, t, cam, demo)
         case .comet: return comet(c, t, cam, events, demo)
         case .stellarSurface: return stellarSurface(c, t, cam, events, demo)
         default: return SceneParamsGPU()
@@ -236,6 +237,73 @@ enum SceneParams {
             let site = axis * sl + (e1 * cos(lon) + e2 * sin(lon)) * cl
             p.h = SIMD4(SIMD3<Float>(site), Float(max(age / EventSchedule.cometImpact.duration, 0.0005)))
         }
+        return p
+    }
+
+    // MARK: Neutron star merger
+
+    /// Seconds before the merger that a demo (the merger event) starts from.
+    static let mergerLead = 12.0
+
+    /// Where the merger cycle stands at time t: seconds into it, its length, how long the
+    /// kilonova lasts (the merger comes at cycle - post), and which cycle this is. A demo jumps
+    /// the cycle to a few seconds before the merger and carries on from there.
+    static func mergerClock(_ c: WallpaperConfig, _ t: Double,
+                            demo: [UInt64: Double]) -> (u: Double, cycle: Double, post: Double, index: Double) {
+        let cycle = max(c.mergerCycleMinutes * 60, 60)
+        let post = min(70, cycle * 0.35)
+        var u = t
+        if let s = demo[EventSchedule.neutronMerger.id], t >= s {
+            u = cycle - post - mergerLead + (t - s)
+        }
+        let index = floor(u / cycle)
+        return (u - index * cycle, cycle, post, index)
+    }
+
+    private static func neutronMerger(_ c: WallpaperConfig, _ t: Double, _ cam: Camera,
+                                      _ demo: [UInt64: Double]) -> SceneParamsGPU {
+        var p = SceneParamsGPU()
+        let (u, cycle, post, index) = mergerClock(c, t, demo: demo)
+        let tau = cycle - post - u                       // time left before the merger
+        // the orbit axis leans away from our line of sight, up and a little to the side
+        let view = c.mergerView / 180 * .pi
+        let toCam = simd_normalize(cam.pos)
+        let lean = simd_normalize(cos(0.25) * cam.up + sin(0.25) * cam.right)
+        let n = simd_normalize(cos(view) * toCam + sin(view) * lean)
+        let e1 = simd_normalize(cam.right - n * simd_dot(cam.right, n))
+        let e2 = simd_cross(n, e1)
+        // The quadrupole chirp: phase phi0 - K tau^(5/8), separation shrinking as tau^(1/4)
+        // (Kepler: a^3 omega^2 stays fixed). Each cycle starts the orbit at a new angle.
+        let K = 4.5
+        let phi0 = index * 2.4
+        let te = max(tau, 0)
+        let phi = phi0 - K * pow(te, 0.625)
+        let a = 1.55 * pow(te, 0.25)
+        let R = 0.2
+        let cA = (cos(phi) * e1 + sin(phi) * e2) * a / 2
+        // tides stretch each star toward the other in the last moments
+        let stretch = 1 + 0.9 * pow(min(2.6 * R / max(a, 1e-3), 1), 3)
+        // each star's magnetic axis turns with its spin
+        func magnetic(_ incl: Double, _ period: Double, _ offset: Double) -> SIMD3<Double> {
+            let w = 2 * .pi * t / period + offset
+            return cos(incl) * n + sin(incl) * (cos(w) * e1 + sin(w) * e2)
+        }
+        let fadeIn = smoothstep(0, 8, u) * (1 - smoothstep(cycle - 6, cycle, u))
+        let age = tau <= 0 ? -tau : -1
+        let kfade = age >= 0 ? 1 - smoothstep(post * 0.55, post - 1, age) : 0
+        let flash = age >= 0 ? exp(-age / 0.3) : 0
+        typealias L = PickedColor.Level
+        p.a = SIMD4(SIMD3<Float>(cA), Float(R))
+        p.b = SIMD4(SIMD3<Float>(-cA), Float(stretch))
+        p.c = SIMD4(SIMD3<Float>(n), Float(c.mergerWaves))
+        p.d = SIMD4(SIMD3<Float>(e1), Float(tau))
+        p.e = SIMD4(c.mergerStarColor.light3(L.mergerStar) * Float(c.mergerBrightness), Float(fadeIn))
+        p.f = SIMD4(c.mergerHot.light3(L.mergerKilonova), Float(age))
+        p.g = SIMD4(c.mergerCool.light3(L.mergerKilonova), Float(kfade))
+        p.h = SIMD4(SIMD3<Float>(magnetic(0.6, 1.7, 0)), c.mergerJet ? 1 : 0)
+        p.i = SIMD4(SIMD3<Float>(magnetic(0.85, 2.6, 2)), Float(c.mergerGlow))
+        // phi0 wrapped so the shader's float phase keeps its precision
+        p.j = SIMD4(Float(K), Float(phi0.truncatingRemainder(dividingBy: 2 * .pi)), 0.6, Float(flash))
         return p
     }
 
