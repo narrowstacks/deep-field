@@ -17,11 +17,17 @@
 //     systemFragment, galaxyFragment, pulsarFragment, cometFragment, stellarFragment,
 //     nebulaFragment.
 //
-// Texture slots, shared by every scene:
-//   0 hitA, 1 hitB  disk crossings (radius, angle, redshift, event index + 1)
-//   2 sky           star brightness, star tint (>1 = distant galaxy), nebula A, nebula B
-//   3,4 / 5,6       planet shell 0 / 1 crossings (position, direction)
-//   7 extra         octahedral sky direction (xy), star id, info (see bake kernels)
+// Texture slots (Renderer.Slot). A scene allocates only the ones it uses (Renderer.formats);
+// the rest are bound to a 1x1 placeholder and never read or written.
+//   0 hitA, 1 hitB  black hole: disk crossings (radius, angle, redshift, event index + 1), float32
+//                   nebula: two baked slices (Ha, OIII, SII, transmittance), half
+//   2 sky           star brightness, star tint (>1 = distant galaxy), nebula A, nebula B; half
+//   3,4 / 5,6       planet shell 0 / 1 crossings (position, direction), lensed scenes with
+//                   planets only; unorm16 / snorm16 (see recordShell)
+//   7 dir           octahedral sky direction (the camera ray in flat scenes), snorm16
+//   8 info          lensed scenes: closest approach (black hole) or side and impact parameter
+//                   (wormhole), see the bake kernels; float32
+//   9 starId        star id for twinkles and pulsars, 1..4095 (0 = none), uint16
 
 enum ShaderSource {
     static var full: String {
