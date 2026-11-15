@@ -96,19 +96,30 @@ enum SceneParams {
         p.a = SIMD4(Float(center.x), Float(center.y), Float(radius), Float(rotation))
         p.b = SIMD4(col.r, col.g, col.b, Float(c.starSpots * c.closeStar.activity.clampedActivity))
 
+        // Slots: see the star close-up section of ShaderStars.swift. Progress is age / duration.
         let rate = c.starFlares.rate
         if case (let age, var rng)? = events.active(EventSchedule.stellarFlare, rate: rate, at: t, demo: demo) {
             let ang = rng.range(0.6, 2.5)
-            let depth = rng.range(0.03, 0.14)
-            let pos = center + SIMD2(cos(ang), sin(ang)) * radius * (1 - depth)
-            let bright = smoothstep(0, 1.5, age) * exp(-age / 9)
-            p.c = SIMD4(Float(pos.x), Float(pos.y), Float(bright * 3), Float(rng.range(0.03, 0.06)))
-            p.f = SIMD4(Float(ang), Float(bright), 0, 0)
+            let depth = rng.range(0.0, 0.025)   // close to the limb, so its loop arcade stands clear of it
+            let bright = smoothstep(0, 1.5, age) * exp(-age / 12)
+            p.c = SIMD4(Float(ang), Float(depth), Float(bright * 3), Float(rng.range(0.07, 0.11)))
+            p.f.x = Float(age / EventSchedule.stellarFlare.duration)
+        }
+        if case (let age, var rng)? = events.active(EventSchedule.surge, rate: rate, at: t, demo: demo) {
+            let f = age / EventSchedule.surge.duration
+            p.f.y = Float(rng.range(0.5, 2.6))
+            p.f.z = Float(f)
+            p.f.w = Float(1.4 * smoothstep(0, 0.04, f) * (1 - smoothstep(0.85, 1, f)))
         }
         if case (let age, var rng)? = events.active(EventSchedule.coronalEjection, rate: rate, at: t, demo: demo) {
             let f = age / EventSchedule.coronalEjection.duration
             let ang = rng.range(0.7, 2.4)
-            p.d = SIMD4(Float(ang), Float(0.03 + 1.2 * pow(f, 0.8)), Float(smoothstep(0, 0.05, f) * (1 - smoothstep(0.6, 1, f))), Float(0.04 + 0.12 * f))
+            p.d = SIMD4(Float(ang), Float(f), Float(smoothstep(0, 0.04, f) * (1 - smoothstep(0.65, 1, f))), Float(rng.range(0, 50)))
+        }
+        if case (let age, var rng)? = events.active(EventSchedule.prominenceEruption, rate: rate, at: t, demo: demo) {
+            let f = age / EventSchedule.prominenceEruption.duration
+            let ang = rng.range(0.6, 2.5)
+            p.e = SIMD4(Float(ang), Float(f), Float(smoothstep(0, 0.06, f) * (1 - smoothstep(0.85, 1, f))), Float(rng.range(0, 50)))
         }
         return p
     }
