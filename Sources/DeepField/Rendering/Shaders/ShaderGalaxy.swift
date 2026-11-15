@@ -169,11 +169,18 @@ fragment float4 galaxyFragment(FRAME_INPUTS)
                             + smoothDisk * smoothstep(0.55, 0.8, fine) * 0.12;      // flocculent inter-arm dust
                 if (type == 1) {
                     float bx = r * cos(a), by = r * sin(a);
-                    bar = exp(-pow(abs(bx) / G.shape.w, 4.0)) * exp(-pow(by / 0.05, 2.0));
-                    // dust lanes along the bar's leading edges
-                    dustOpacity += exp(-pow(abs(bx) / (G.shape.w * 1.1), 6.0)) * exp(-pow((abs(by) - 0.045) / 0.012, 2.0)) * 0.5;
+                    // A soft, cigar-shaped bar: brightest in the middle, fading along its length and
+                    // tapering toward the ends, with faint knots (ansae) where the orbits pile up.
+                    float u = bx / G.shape.w;
+                    float w = 0.08 * (1.0 - 0.45 * min(u * u, 1.6));
+                    float v = by / w;
+                    float lumpy = 0.85 + 0.3 * fine;
+                    bar = (exp(-u * u * 1.4) + 0.3 * exp(-pow((abs(u) - 0.9) / 0.16, 2.0))) * exp(-v * v) * lumpy;
+                    // curved dust lanes on the bar's leading edges, offset to opposite sides
+                    float side = by * sign(bx) - w * (0.75 + 0.25 * u * u);
+                    dustOpacity += exp(-u * u * 0.9) * exp(-pow(side / (w * 0.35), 2.0)) * 0.45 * (0.6 + 0.6 * clumps);
                     // star formation where the bar's gas flows pile up at its ends
-                    knotsBand += exp(-pow((abs(bx) - G.shape.w * 0.95) / 0.05, 2.0)) * exp(-pow(by / 0.06, 2.0)) * 0.8;
+                    knotsBand += exp(-pow((abs(u) - 0.95) / 0.12, 2.0)) * exp(-v * v * 0.8) * 0.7;
                 }
             } else if (type == 4) {
                 ring = exp(-pow((r - 0.62) / 0.07, 2.0)) * (0.6 + 0.6 * fine);
