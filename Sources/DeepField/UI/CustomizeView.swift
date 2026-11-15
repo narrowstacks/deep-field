@@ -37,6 +37,7 @@ struct CustomizeView: View {
         .background(Theme.background)
         .tint(Theme.accent)
         .preferredColorScheme(.dark)
+        .onChange(of: section) { if section == .phone { actualPixels = false } }
         .onAppear { thumbnails.start() }
         .onDisappear { thumbnails.stop() }
     }

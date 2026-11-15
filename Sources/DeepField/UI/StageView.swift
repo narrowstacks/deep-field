@@ -4,8 +4,9 @@ import SwiftUI
 /// The live wallpaper renderer, embedded. Renders at the main screen's resolution and scales down.
 private struct LivePreview: NSViewRepresentable {
     let reference: CGSize
+    let actualPixels: Bool
     func makeNSView(context: Context) -> WallpaperView { WallpaperView(frame: .zero, previewOf: reference) }
-    func updateNSView(_ nsView: WallpaperView, context: Context) {}
+    func updateNSView(_ nsView: WallpaperView, context: Context) { nsView.actualPixels = actualPixels }
 }
 
 /// The window's left column: the preview (or the phone preview), a telemetry line and the scene
@@ -57,7 +58,7 @@ struct StageView: View {
                 .onAppear { renderCaptureStill() }
                 .onChange(of: store.config) { renderCaptureStill() }
             } else {
-                LivePreview(reference: reference)
+                LivePreview(reference: reference, actualPixels: actualPixels)
             }
         }
         .frame(width: fitted.width, height: fitted.height)
@@ -95,6 +96,15 @@ struct StageView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: 8)
+            Picker("Preview scale", selection: $actualPixels) {
+                Text("FIT").tag(false)
+                Text("1:1").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.small)
+            .frame(width: 96)
+            .help("1:1 shows the middle of the screen at true pixel size")
         }
         .frame(height: 30)
     }

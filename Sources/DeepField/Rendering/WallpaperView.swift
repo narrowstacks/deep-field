@@ -24,6 +24,10 @@ final class WallpaperView: NSView {
 
     var externallyPaused = false { didSet { updateRunning() } }
 
+    /// Preview only: show the drawable at the wallpaper's real cell size, centered and cropped,
+    /// instead of scaled to fit, so pixel size, levels and dither can be judged.
+    var actualPixels = false { didSet { if actualPixels != oldValue { layoutDrawable() } } }
+
     /// Dev only (`--check-picker`): called with the config each preview frame was drawn with.
     static var debugRenderHook: ((WallpaperConfig) -> Void)?
 
@@ -35,6 +39,7 @@ final class WallpaperView: NSView {
         layer = CALayer()
         wantsLayer = true
         layer?.backgroundColor = NSColor.black.cgColor
+        if previewOf != nil { layer?.masksToBounds = true }
 
         metalLayer.device = Renderer.shared.device
         metalLayer.pixelFormat = .bgra8Unorm
@@ -120,7 +125,12 @@ final class WallpaperView: NSView {
             w = Int((ref.width / px).rounded(.up))
             h = Int((ref.height / px).rounded(.up))
             metalLayer.contentsScale = scale
-            metalLayer.frame = bounds
+            if actualPixels {
+                let fw = CGFloat(w) * px / scale, fh = CGFloat(h) * px / scale
+                metalLayer.frame = CGRect(x: (bounds.width - fw) / 2, y: (bounds.height - fh) / 2, width: fw, height: fh)
+            } else {
+                metalLayer.frame = bounds
+            }
         } else {
             // Round up and let the layer overhang the window edge, so every dither cell is
             // exactly px*px device pixels (no uneven columns from rescaling).
