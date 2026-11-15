@@ -109,7 +109,7 @@ static float fbmLOD(float3 p, float fp) {
     float s = 0.0, a = 0.5, f = 1.0;
     for (int i = 0; i < 4; i++) {
         float keep = 1.0 - smoothstep(0.25, 0.6, fp * f);
-        s += a * mix(0.5, noise3(p), keep);
+        s += a * (keep > 0.0 ? mix(0.5, noise3(p), keep) : 0.5);   // fully faded octaves cost nothing
         p = p * 2.03 + 17.1;
         f *= 2.03;
         a *= 0.5;
