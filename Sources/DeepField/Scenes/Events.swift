@@ -35,8 +35,10 @@ struct EventSchedule {
     static let cometOutburst  = Kind(id: 7, slot: 360, chance: 0.6, duration: 90)
     static let tailDisconnect = Kind(id: 8, slot: 420, chance: 0.6, duration: 80)
     // star close-up scene
-    static let stellarFlare    = Kind(id: 9, slot: 150, chance: 0.75, duration: 40)
+    static let stellarFlare    = Kind(id: 9, slot: 150, chance: 0.75, duration: 60)
     static let coronalEjection = Kind(id: 10, slot: 420, chance: 0.6, duration: 120)
+    static let prominenceEruption = Kind(id: 11, slot: 600, chance: 0.6, duration: 150)
+    static let surge           = Kind(id: 12, slot: 240, chance: 0.7, duration: 36)
 
     /// If an event of this kind is running at time t: its age in seconds and a generator for its parameters.
     func active(_ k: Kind, rate: Double, at t: Double, demo: [UInt64: Double] = [:]) -> (age: Double, rng: Rng)? {

@@ -108,10 +108,13 @@ struct ColorsTab: View {
                 }
             }
         case .pulsar:
-            Section("Pulsar") {
-                HStack {
-                    picker("Beams", \.pulsarBeamColor)
-                    picker("Nebula", \.pulsarNebulaColor)
+            let c = store.config
+            if c.pulsarBeams != .none || c.pulsarFieldLines || c.pulsarRing || c.pulsarNebula {
+                Section("Pulsar") {
+                    if c.pulsarBeams != .none { picker("Beams", \.pulsarBeamColor) }
+                    if c.pulsarFieldLines { picker("Magnetic field", \.pulsarFieldColor) }
+                    if c.pulsarRing { picker("Dust ring", \.pulsarRingColor) }
+                    if c.pulsarNebula { picker("Wind nebula", \.pulsarNebulaColor) }
                 }
             }
         case .comet:

@@ -44,9 +44,29 @@ struct SceneTab: View {
                     SliderRow(title: "Rotation period", value: $store.config.pulsarPeriod, range: 0.5...12) { String(format: "%.1f s", $0) }
                     SliderRow(title: "Magnetic angle", value: $store.config.pulsarInclination, range: 0...90) { String(format: "%.0f°", $0) }
                     SliderRow(title: "Spin axis tilt", value: $store.config.pulsarAxisTilt, range: -60...60) { String(format: "%.0f°", $0) }
-                    SliderRow(title: "Beam width", value: $store.config.pulsarBeamWidth, range: 2...20) { String(format: "%.0f°", $0) }
-                    Toggle("Magnetic field lines", isOn: $store.config.pulsarFieldLines)
+                    Picker("Beams", selection: $store.config.pulsarBeams) {
+                        ForEach(PulsarBeams.allCases) { Text($0.title).tag($0) }
+                    }
+                    if store.config.pulsarBeams != .none {
+                        SliderRow(title: "Beam width", value: $store.config.pulsarBeamWidth, range: 2...20) { String(format: "%.0f°", $0) }
+                        SliderRow(title: "Beam brightness", value: $store.config.pulsarBeamIntensity, range: 0.2...3)
+                        SliderRow(title: "Beam trail", value: $store.config.pulsarBeamTrail, range: 0...3)
+                    }
+                    Toggle("Magnetic field", isOn: $store.config.pulsarFieldLines)
+                    if store.config.pulsarFieldLines {
+                        Picker("Field style", selection: $store.config.pulsarFieldStyle) {
+                            ForEach(PulsarFieldStyle.allCases) { Text($0.title).tag($0) }
+                        }
+                        SliderRow(title: "Field brightness", value: $store.config.pulsarFieldIntensity, range: 0.2...3)
+                    }
+                    Toggle("Dust ring", isOn: $store.config.pulsarRing)
+                    if store.config.pulsarRing {
+                        SliderRow(title: "Ring brightness", value: $store.config.pulsarRingIntensity, range: 0.2...3)
+                    }
                     Toggle("Wind nebula (torus and jets)", isOn: $store.config.pulsarNebula)
+                    if store.config.pulsarNebula {
+                        SliderRow(title: "Nebula brightness", value: $store.config.pulsarNebulaIntensity, range: 0.2...3)
+                    }
                     Text("Real pulsars spin up to hundreds of times a second; this one is slowed way down so the beams don't strobe.")
                         .font(.callout).foregroundStyle(.secondary)
                 case .nebula:
@@ -74,11 +94,17 @@ struct SceneTab: View {
                     StarPicker(title: "Star", star: $store.config.closeStar)
                     SliderRow(title: "Sunspots", value: $store.config.starSpots, range: 0...1.5)
                     SliderRow(title: "Rotation", value: $store.config.starRotation, range: 0...4)
-                    FrequencyRow(title: "Flares and ejections", value: $store.config.starFlares)
+                    FrequencyRow(title: "Flares and eruptions", value: $store.config.starFlares)
                     LabeledContent("Show me") {
-                        HStack {
-                            Button("Flare") { store.demo(EventSchedule.stellarFlare) }
-                            Button("Coronal mass ejection") { store.demo(EventSchedule.coronalEjection) }
+                        VStack(alignment: .trailing) {
+                            HStack {
+                                Button("Flare") { store.demo(EventSchedule.stellarFlare) }
+                                Button("Surge") { store.demo(EventSchedule.surge) }
+                            }
+                            HStack {
+                                Button("Prominence eruption") { store.demo(EventSchedule.prominenceEruption) }
+                                Button("Coronal mass ejection") { store.demo(EventSchedule.coronalEjection) }
+                            }
                         }
                     }
                 case .galaxy:

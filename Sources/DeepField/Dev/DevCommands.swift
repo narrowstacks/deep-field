@@ -92,7 +92,8 @@ extension EventSchedule {
                                 ("farSupernova", Self.farSupernova, w), ("throatFlare", Self.throatFlare, w),
                                 ("infall", Self.infall, w), ("emergence", Self.emergence, w),
                                 ("cometOutburst", Self.cometOutburst, cm), ("tailDisconnect", Self.tailDisconnect, cm),
-                                ("stellarFlare", Self.stellarFlare, st), ("coronalEjection", Self.coronalEjection, st)] {
+                                ("stellarFlare", Self.stellarFlare, st), ("coronalEjection", Self.coronalEjection, st),
+                                ("prominenceEruption", Self.prominenceEruption, st), ("surge", Self.surge, st)] {
             var t = 0.0
             var starts: [Int] = []
             while t < minutes * 60 {
