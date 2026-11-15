@@ -5,3 +5,4 @@ screenshots/
 .DS_Store
 .swiftpm/
 Design/Icons/output/
+.claude/
