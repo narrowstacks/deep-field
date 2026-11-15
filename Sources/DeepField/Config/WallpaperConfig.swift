@@ -163,6 +163,20 @@ struct WallpaperConfig: Codable, Equatable {
     var gasStorm = Tuned.gasStorm.color
     var gasEvents: Frequency = .normal
 
+    // Rogue planet
+    var rogueSize = 1.0                // planet radius, relative to the default framing
+    var rogueCenterX = 0.3             // where the planet's center sits, in screen half-widths
+    var rogueCenterY = -0.12           // and half-heights
+    var rogueSpin = 1.0                // how fast it turns
+    var rogueAurora = 1.0
+    var rogueAuroraLow = Tuned.rogueAuroraLow.color
+    var rogueAuroraHigh = Tuned.rogueAuroraHigh.color
+    var rogueRift = 1.0                // geothermal glow in the rifts
+    var rogueRiftColor = Tuned.rogueRift.color
+    var rogueMilkyWay = 1.0
+    var rogueMoon = true
+    var rogueEvents: Frequency = .normal
+
     // Comet
     var cometTailLength = 1.0
     var cometActivity = 1.0

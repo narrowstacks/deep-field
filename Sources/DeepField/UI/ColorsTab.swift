@@ -89,6 +89,10 @@ struct SceneColors: View {
             ColorRow("Light zones", store.color(\.gasZone))
             ColorRow("Dark belts", store.color(\.gasBelt))
             ColorRow("Great spot", store.color(\.gasStorm))
+        case .roguePlanet:
+            ColorRow("Aurora (low)", store.color(\.rogueAuroraLow))
+            ColorRow("Aurora tops", store.color(\.rogueAuroraHigh))
+            ColorRow("Rift glow", store.color(\.rogueRiftColor))
         case .auroraOrbit:
             ColorRow("Aurora (oxygen, low)", store.color(\.auroraGreen))
             ColorRow("Aurora tops (oxygen, high)", store.color(\.auroraRed))

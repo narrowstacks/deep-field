@@ -11,6 +11,7 @@ extension SceneKind {
         case .pulsar: "A spinning neutron star with lighthouse beams and a wind nebula."
         case .nebula: "Glowing gas and dark dust."
         case .gasGiant: "A giant planet close up, its bands flowing and its storms spinning."
+        case .roguePlanet: "A planet adrift between the stars with no sun, seen by the starlight it blocks, its aurorae glowing."
         case .auroraOrbit: "Aurora curtains over the night side of Earth, seen from orbit, with city lights and storms below."
         case .ringedPlanet: "A banded gas giant and its rings, each shadowing the other, with small moons in orbit."
         case .planetaryNebula: "A dying star's shed shell, lit from inside by the white dwarf left behind."
