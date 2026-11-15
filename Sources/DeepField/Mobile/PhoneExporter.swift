@@ -1,7 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// Drives the Phone tab: keeps a preview of the phone wallpaper up to date with the current
+/// Drives the Phone section: keeps a preview of the phone wallpaper up to date with the current
 /// scene and the tab's options, and runs the exports one at a time off the main thread.
 final class PhoneExporter: ObservableObject {
     static let shared = PhoneExporter()

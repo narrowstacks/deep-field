@@ -12,7 +12,7 @@ import AppKit
 final class LockScreenStill: ObservableObject {
     static let shared = LockScreenStill()
 
-    /// One line for the Display tab: what was last done, or what went wrong.
+    /// One line for the System section: what was last done, or what went wrong.
     @Published private(set) var status = ""
     /// A render is in flight.
     @Published private(set) var busy = false
