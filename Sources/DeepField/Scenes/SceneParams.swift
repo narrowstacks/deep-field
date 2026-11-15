@@ -122,6 +122,21 @@ enum SceneParams {
         let arc = visibleLimb(center: center, radius: radius, halfWidth: cam.aspect * s, halfHeight: s)
         p.g = SIMD4(Float(arc.mid), Float(arc.half), 0, 0)
         func limbAngle(_ rng: inout Rng) -> Double { arc.mid + arc.half * rng.range(-0.85, 0.85) }
+        // Eruptions and CMEs reach several radii out, so of a few candidate angles they take the
+        // one with the most screen left beyond the limb (sideways, when the whole disk shows).
+        let halfW = cam.aspect * s, halfH = s
+        func roomyAngle(_ rng: inout Rng) -> Double {
+            var best = limbAngle(&rng), bestRoom = -Double.infinity
+            for i in 0..<4 {
+                let a = i == 0 ? best : limbAngle(&rng)
+                let dir = SIMD2(cos(a), sin(a)), pt = center + radius * dir
+                let tx = dir.x == 0 ? .infinity : ((dir.x > 0 ? halfW : -halfW) - pt.x) / dir.x
+                let ty = dir.y == 0 ? .infinity : ((dir.y > 0 ? halfH : -halfH) - pt.y) / dir.y
+                let room = min(tx, ty)
+                if room > bestRoom { (best, bestRoom) = (a, room) }
+            }
+            return best
+        }
 
         // Slots: see the star close-up section of ShaderStars.swift. Progress is age / duration.
         let rate = c.starFlares.rate
@@ -140,12 +155,12 @@ enum SceneParams {
         }
         if case (let age, var rng)? = events.active(EventSchedule.coronalEjection, rate: rate, at: t, demo: demo) {
             let f = age / EventSchedule.coronalEjection.duration
-            let ang = limbAngle(&rng)
+            let ang = roomyAngle(&rng)
             p.d = SIMD4(Float(ang), Float(f), Float(smoothstep(0, 0.04, f) * (1 - smoothstep(0.7, 1, f))), Float(rng.range(0, 50)))
         }
         if case (let age, var rng)? = events.active(EventSchedule.prominenceEruption, rate: rate, at: t, demo: demo) {
             let f = age / EventSchedule.prominenceEruption.duration
-            let ang = limbAngle(&rng)
+            let ang = roomyAngle(&rng)
             p.e = SIMD4(Float(ang), Float(f), Float(smoothstep(0, 0.06, f) * (1 - smoothstep(0.85, 1, f))), Float(rng.range(0, 50)))
         }
         return p
