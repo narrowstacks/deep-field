@@ -7,8 +7,8 @@ struct BakeParams {
     var width: Float, height: Float, camDist: Float, camElev: Float
     var tanHalfFov: Float, diskIn: Float, diskOut: Float, roll: Float
     var shellR0: Float, shellR1: Float, throat: Float, starDensity: Float
-    var scene: Float, galaxies: Float, lookX: Float, lookY: Float
-    var milkyWay: Float, nebulaType: Float, nebulaSeed: Float
+    var lensing: Float, galaxies: Float, lookX: Float, lookY: Float   // lensing: 0 none, 1 black hole, 2 wormhole
+    var milkyWay: Float, nebulaType: Float, nebulaSeed: Float, shells: Float
 }
 
 struct FrameParams {
@@ -17,6 +17,7 @@ struct FrameParams {
     var shellR0: Float, shellR1: Float, saturation: Float, scene: Float
     var dither: Float, twinkle: Float, pulsars: Float, skyBrightness: Float
     var pixelAngle: Float, starCount: Float, lightCount: Float, ringStrength: Float
+    var nebulaType: Float
     var camPos: SIMD4<Float>
     var camRight: SIMD4<Float>   // w = drawable width
     var camUp: SIMD4<Float>      // w = drawable height

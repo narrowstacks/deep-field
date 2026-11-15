@@ -90,7 +90,7 @@ final class WallpaperView: NSView {
 
     private func configChanged() {
         updateRunning()
-        if let baked, baked.key != config.bakeKey {
+        if let baked, !baked.matches(config) {
             // debounce, so dragging a slider doesn't re-trace every intermediate value
             rebakeWork?.cancel()
             let work = DispatchWorkItem { [weak self] in
@@ -128,12 +128,13 @@ final class WallpaperView: NSView {
         metalLayer.drawableSize = CGSize(width: w, height: h)
         CATransaction.commit()
 
-        if bakedSize != (w, h) || baked?.key != config.bakeKey {
+        if bakedSize != (w, h) || !(baked?.matches(config) ?? false) {
             let t0 = CACurrentMediaTime()
-            baked = Renderer.shared.bake(width: w, height: h, config: config, wait: Settings.debug)
+            baked = Renderer.shared.bake(width: w, height: h, config: config, wait: Settings.debug, reusing: baked)
             bakedSize = (w, h)
             if Settings.debug {
-                NSLog("DeepField: baked %@ %dx%d in %.1f ms", config.scene.rawValue, w, h, (CACurrentMediaTime() - t0) * 1000)
+                NSLog("DeepField: baked %@ %dx%d in %.1f ms, %.1f MB", config.scene.rawValue, w, h,
+                      (CACurrentMediaTime() - t0) * 1000, Double(baked?.bytes ?? 0) / 1_048_576)
             }
         }
         render()

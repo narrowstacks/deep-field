@@ -9,8 +9,8 @@ struct BakeParams {
     float width; float height; float camDist; float camElev;
     float tanHalfFov; float diskIn; float diskOut; float roll;
     float shellR0; float shellR1; float throat; float starDensity;
-    float scene; float galaxies; float lookX; float lookY;
-    float milkyWay; float nebulaType; float nebulaSeed;
+    float lensing; float galaxies; float lookX; float lookY;   // lensing: 0 none, 1 black hole, 2 wormhole
+    float milkyWay; float nebulaType; float nebulaSeed; float shells;   // shells: 1 = record planet shell crossings
 };
 
 struct FrameParams {
@@ -19,6 +19,7 @@ struct FrameParams {
     float shellR0; float shellR1; float saturation; float scene;
     float dither; float twinkle; float pulsars; float skyBrightness;
     float pixelAngle; float starCount; float lightCount; float ringStrength;   // pixelAngle: radians per drawable pixel
+    float nebulaType;
     float4 camPos; float4 camRight; float4 camUp;   // camRight.w / camUp.w = drawable width / height
 };
 
@@ -134,15 +135,17 @@ static float3 octDecode(float2 e) {
 
 // ---------- entry point signatures ----------
 
+// Slots a scene doesn't use are bound to a 1x1 placeholder, so kernels only write the slots
+// their scene allocates (see Renderer.Slot).
 #define BAKE_OUTPUTS \\
     texture2d<float, access::write> hitA     [[texture(0)]], \\
     texture2d<float, access::write> hitB     [[texture(1)]], \\
-    texture2d<float, access::write> skyTex   [[texture(2)]], \\
     texture2d<float, access::write> shell0P  [[texture(3)]], \\
     texture2d<float, access::write> shell0D  [[texture(4)]], \\
     texture2d<float, access::write> shell1P  [[texture(5)]], \\
     texture2d<float, access::write> shell1D  [[texture(6)]], \\
-    texture2d<float, access::write> extraTex [[texture(7)]], \\
+    texture2d<float, access::write> dirTex   [[texture(7)]], \\
+    texture2d<float, access::write> infoTex  [[texture(8)]], \\
     constant BakeParams& P [[buffer(0)]], \\
     uint2 gid [[thread_position_in_grid]]
 
@@ -164,7 +167,9 @@ vertex VOut fullscreenVertex(uint vid [[vertex_id]]) {
     texture2d<float> shell0D  [[texture(4)]], \\
     texture2d<float> shell1P  [[texture(5)]], \\
     texture2d<float> shell1D  [[texture(6)]], \\
-    texture2d<float> extraTex [[texture(7)]], \\
+    texture2d<float> dirTex   [[texture(7)]], \\
+    texture2d<float> infoTex  [[texture(8)]], \\
+    texture2d<uint>  idTex    [[texture(9)]], \\
     constant FrameParams& F   [[buffer(0)]], \\
     constant Planet* planets  [[buffer(1)]], \\
     constant Events& E        [[buffer(2)]], \\

@@ -26,11 +26,9 @@ static float2 spanUnion(float2 a, float2 b) {
 fragment float4 pulsarFragment(FRAME_INPUTS)
 {
     uint2 p = uint2(in.pos.xy);
-    float4 sky = skyTex.read(p);
-    float4 X = extraTex.read(p);
-    float3 rd = octDecode(X.xy);
+    float3 rd = octDecode(dirTex.read(p).xy);
     float3 ro = F.camPos.xyz;
-    float3 col = skyColor(sky, X, false, F, E, Pal);
+    float3 col = SKY(p, rd, false);
 
     float3 m = S.a.xyz, spin = S.b.xyz, b1 = S.e.xyz, b2 = cross(m, b1);
     float w = S.a.w;

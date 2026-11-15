@@ -16,9 +16,7 @@ static float3 shadeStar(Star st, float3 N, float3 rd, float time) {
 fragment float4 systemFragment(FRAME_INPUTS)
 {
     uint2 p = uint2(in.pos.xy);
-    float4 sky = skyTex.read(p);
-    float4 X = extraTex.read(p);
-    float3 rd = octDecode(X.xy);
+    float3 rd = octDecode(dirTex.read(p).xy);
     float3 ro = F.camPos.xyz;
     int starCount = int(F.starCount);
     int planetCount = int(F.planetCount);
@@ -57,7 +55,7 @@ fragment float4 systemFragment(FRAME_INPUTS)
         float3 P = ro + rd * tBest;
         col = shadePlanetSurface(pl, normalize(P - pl.center.xyz), rd, P, lights, lightCount);
     } else {
-        col = skyColor(sky, X, false, F, E, Pal);
+        col = SKY(p, rd, false);
     }
 
     // coronas, hidden by anything solid in front of the star
@@ -163,7 +161,7 @@ fragment float4 stellarFragment(FRAME_INPUTS)
             col += float3(1.0, 0.97, 0.9) * S.c.z * (ribbon * 1.5 + exp(-fd / (S.c.w * 0.8)) * 0.6);
         }
     } else {
-        col = skyColor(skyTex.read(p), extraTex.read(p), false, F, E, Pal) * 0.6;
+        col = SKY(p, octDecode(dirTex.read(p).xy), false) * 0.6;
         float h = (dist - R) / R;
         // Terms that fall off with height are skipped once they are below about e^-12.
         // chromosphere and spicules

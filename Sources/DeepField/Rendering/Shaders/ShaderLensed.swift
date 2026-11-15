@@ -87,49 +87,61 @@ static float4 shadeTDE(float4 h, constant FrameParams& F, constant Palette& Pal,
 fragment float4 lensedFragment(FRAME_INPUTS)
 {
     uint2 p = uint2(in.pos.xy);
-    float4 sky = skyTex.read(p);
-    float4 X = extraTex.read(p);
     bool wormhole = F.scene > 0.5 && F.scene < 1.5;
     bool tde = F.scene > 4.5;
     int lightCount = int(F.lightCount);
 
     // Layers indexed by event order along the ray (0 = nearest), composited back to front.
+    // Nothing behind the nearest opaque layer shows, so it isn't shaded (or even read).
     float4 layers[6] = { float4(0.0), float4(0.0), float4(0.0), float4(0.0), float4(0.0), float4(0.0) };
+    int opaque = 6;
     if (!wormhole) {
         float4 A = hitA.read(p);
-        float4 B = hitB.read(p);
-        if (A.w > 0.0) layers[min(int(A.w) - 1, 5)] = tde ? shadeTDE(A, F, Pal, S) : shadeDisk(A, F, Pal);
-        if (B.w > 0.0) layers[min(int(B.w) - 1, 5)] = tde ? shadeTDE(B, F, Pal, S) : shadeDisk(B, F, Pal);
+        if (A.w > 0.0) {
+            int ia = min(int(A.w) - 1, 5);
+            layers[ia] = tde ? shadeTDE(A, F, Pal, S) : shadeDisk(A, F, Pal);
+            if (layers[ia].a >= 1.0) opaque = ia;
+            float4 B = hitB.read(p);              // a second crossing only exists after a first
+            int ib = min(int(B.w) - 1, 5);
+            if (B.w > 0.0 && ib < opaque) {
+                layers[ib] = tde ? shadeTDE(B, F, Pal, S) : shadeDisk(B, F, Pal);
+                if (layers[ib].a >= 1.0) opaque = min(opaque, ib);
+            }
+        }
     }
     int count = int(F.planetCount);
     if (count > 0) {
         float4 sp[2] = { shell0P.read(p), shell1P.read(p) };
-        float4 sd[2] = { shell0D.read(p), shell1D.read(p) };
+        float4 sd[2] = { sp[0].x >= 0.0 ? shell0D.read(p) : float4(0.0), sp[1].x >= 0.0 ? shell1D.read(p) : float4(0.0) };
         float radii[2] = { F.shellR0, F.shellR1 };
         for (int s = 0; s < 2; s++) {
             for (int k = 0; k < 2; k++) {
                 float2 tp = k == 0 ? sp[s].xy : sp[s].zw;
                 if (tp.x < 0.0) continue;
                 float ev = floor(tp.x / 4.0);
+                int il = min(int(ev), 5);
+                if (il >= opaque) continue;
                 float theta = tp.x - ev * 4.0;
                 float3 Xs = radii[s] * float3(sin(theta) * cos(tp.y), cos(theta), sin(theta) * sin(tp.y));
                 float3 v = octDecode(k == 0 ? sd[s].xy : sd[s].zw);
                 float4 pc = shadePlanetsOnShell(Xs, v, s, planets, count, lights, lightCount);
-                if (pc.a > 0.0) layers[min(int(ev), 5)] = pc;
+                if (pc.a > 0.0) { layers[il] = pc; opaque = il; }
             }
         }
     }
 
     float3 col = float3(0.0);
-    float info = X.w;
-    if (!wormhole) {
+    float info = infoTex.read(p).x;
+    if (opaque < 6) {
+        // fully covered: the sky, ring and rim would be multiplied by zero
+    } else if (!wormhole) {
         if (info >= 1.0) {
-            col = skyColor(sky, X, false, F, E, Pal);
+            col = SKY(p, octDecode(dirTex.read(p).xy), false);
             col += Pal.ring.rgb * exp(-(info - 1.5) * 40.0) * 1.2 * F.ringStrength;  // photon ring
         }
     } else {
         bool far = info < 0.0;
-        col = skyColor(sky, X, far, F, E, Pal);
+        col = SKY(p, octDecode(dirTex.read(p).xy), far);
         // thin rim where rays graze the throat, pulsing slowly, with occasional flares running along it
         float graze = abs(abs(info) - 1.0);
         float pulse = 0.8 + 0.2 * sin(F.time * 0.5);

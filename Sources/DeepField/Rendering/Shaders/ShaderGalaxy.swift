@@ -25,11 +25,9 @@ static float flowingDisk(float r, float phi, float omega, float time, float T, f
 fragment float4 galaxyFragment(FRAME_INPUTS)
 {
     uint2 p = uint2(in.pos.xy);
-    float4 sky = skyTex.read(p);
-    float4 X = extraTex.read(p);
-    float3 rd = octDecode(X.xy);
+    float3 rd = octDecode(dirTex.read(p).xy);
     float3 ro = F.camPos.xyz;
-    float3 col = skyColor(sky, X, false, F, E, Pal);
+    float3 col = SKY(p, rd, false);
 
     int type = int(G.shape.x);
     float R = G.misc.x;
