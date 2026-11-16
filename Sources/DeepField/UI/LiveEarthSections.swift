@@ -67,6 +67,8 @@ struct LiveEarthSections: View {
             Toggle("Aurora forecast", isOn: $store.config.earthAurora)
             if store.config.earthAurora {
                 SliderRow(title: "Aurora brightness", value: $store.config.earthAuroraBrightness, range: 0...3)
+                SliderRow(title: "Aurora speed", value: $store.config.earthAuroraSpeed, range: 0.1...2)
+                    .help("How fast the curtains ripple and drift")
             }
         } header: {
             GroupHeader(title: "Live data")
