@@ -150,3 +150,10 @@ git clone https://github.com/narrowstacks/deep-field.git && cd deep-field
 
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) covers the code layout, how the rendering works, the
 command line tools for snapshots and benchmarks, and how releases are made.
+
+## License
+
+Deep Field is free software under the [GNU General Public License v3.0](LICENSE). You can use,
+change and share it, and anything you distribute that's built from it must be under the same
+license, with its source. The license doesn't cover the name Deep Field, so please give forks
+their own name.
