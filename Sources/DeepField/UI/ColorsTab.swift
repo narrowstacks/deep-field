@@ -118,6 +118,10 @@ struct SceneColors: View {
             ColorRow("Panels", store.color(\.dysonPanelA))
             ColorRow("Panels, second finish", store.color(\.dysonPanelB))
             ColorRow("Waste heat", store.color(\.dysonHeat))
+        case .roguePlanet:
+            ColorRow("Aurora (low)", store.color(\.rogueAuroraLow))
+            ColorRow("Aurora tops", store.color(\.rogueAuroraHigh))
+            ColorRow("Rift glow", store.color(\.rogueRiftColor))
         case .auroraOrbit:
             ColorRow("Aurora (oxygen, low)", store.color(\.auroraGreen))
             ColorRow("Aurora tops (oxygen, high)", store.color(\.auroraRed))

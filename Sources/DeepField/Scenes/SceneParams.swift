@@ -21,6 +21,7 @@ enum SceneParams {
         case .protoplanetaryDisk: return protoplanetaryDisk(c, t, cam, events, demo)
         case .neutronMerger: return neutronMerger(c, t, cam, demo)
         case .dysonSwarm: return dysonSwarm(c, t, cam, events, demo)
+        case .roguePlanet: return roguePlanet(c, t, cam, events, demo)
         case .comet: return comet(c, t, cam, events, demo)
         case .stellarSurface: return stellarSurface(c, t, cam, events, demo)
         default: return SceneParamsGPU()
@@ -438,6 +439,63 @@ enum SceneParams {
             // a wave of panels on three neighboring rings in the outer half turns to face us
             let ring = min(Double(rings / 2) + floor(rng.next() * Double(rings / 2)), Double(rings - 3))
             p.g = SIMD4(Float(ring), Float(age), 26, 1)
+        }
+        return p
+    }
+
+    // MARK: Rogue planet
+
+    private static func roguePlanet(_ c: WallpaperConfig, _ t: Double, _ cam: Camera,
+                                    _ events: EventSchedule, _ demo: [UInt64: Double]) -> SceneParamsGPU {
+        var p = SceneParamsGPU()
+        // the scene's own frame: camera at the origin, looking down +z; the planet has radius 1
+        let th = cam.tanHalf
+        // it drifts slowly against the stars, covering and uncovering them as it goes
+        let dx = 0.05 * sin(2 * .pi * t / 1300) + 0.02 * sin(2 * .pi * t / 530 + 1.3)
+        let dy = 0.03 * sin(2 * .pi * t / 1900 + 0.7)
+        let aim = simd_normalize(SIMD3(c.rogueCenterX * cam.aspect * th + dx * th, (c.rogueCenterY + dy) * th, 1))
+        let alpha = atan(0.55 * c.rogueSize * th)          // angular radius
+        let center = aim / sin(alpha)
+        let axis = simd_normalize(SIMD3(-0.32, 0.88, -0.3))
+        let spin = 2 * Double.pi * t / 1000 * c.rogueSpin
+        // the magnetic axis leans off the spin axis and turns with the planet, so the aurorae wobble
+        let towardUs = SIMD3<Double>(0, 0, -1)
+        let e1 = simd_normalize(towardUs - axis * simd_dot(towardUs, axis)), e2 = simd_cross(axis, e1)
+        let tilt = 14.0 / 180 * .pi
+        let mag = cos(tilt) * axis + sin(tilt) * (cos(spin + 0.6) * e1 + sin(spin + 0.6) * e2)
+        typealias L = PickedColor.Level
+        p.a = SIMD4(SIMD3<Float>(center), 1)
+        p.b = SIMD4(SIMD3<Float>(axis), Float(spin))
+        p.c = SIMD4(SIMD3<Float>(mag), Float(c.rogueAurora))
+        p.d = SIMD4(c.rogueAuroraLow.light3(L.rogueAurora), Float(c.rogueRift))
+        p.e = SIMD4(c.rogueAuroraHigh.light3(L.rogueAurora), Float(c.rogueMilkyWay))
+        p.f = SIMD4(c.rogueRiftColor.light3(L.rogueRift), 5.3)
+        // the Milky Way: a great circle from lower left to upper right, its bright center just
+        // beside the planet so the planet's thin air scatters its light into a rim
+        func dir(_ u: Double, _ v: Double) -> SIMD3<Double> { simd_normalize(SIMD3(u * cam.aspect * th, v * th, 1)) }
+        let gc = dir(0.62, 0.2)
+        let band = simd_normalize(simd_cross(dir(-1.1, -0.75), gc))
+        p.i = SIMD4(SIMD3<Float>(band), 0)
+        p.j = SIMD4(SIMD3<Float>(gc), Float(tan(alpha)))
+        if c.rogueMoon {
+            // a small moon on a tipped orbit that carries it in front of and behind the planet
+            let a = 2.2 + 2 * .pi * t / (17 * 60)
+            let tip = 0.32
+            let ax = simd_normalize(SIMD3(0.15, 1, 0.1))
+            let u = simd_normalize(simd_cross(ax, SIMD3(0, 0, 1))), w = simd_cross(u, ax)
+            let pos = center + 3.4 * (cos(a) * u + sin(a) * (cos(tip) * w + sin(tip) * ax))
+            p.g = SIMD4(SIMD3<Float>(pos), 0.2)
+        }
+        if case (let age, var rng)? = events.active(EventSchedule.starGlint, rate: c.rogueEvents.rate, at: t, demo: demo) {
+            // a bright background star passes behind the planet (in planet radii from its center,
+            // on the sky): first a glint on one limb, a ring of light all round when it lines up,
+            // then a glint on the far limb
+            let u = age / EventSchedule.starGlint.duration
+            let ang = rng.range(0, 2 * .pi), miss = rng.range(-0.3, 0.3)
+            let along = SIMD2(cos(ang), sin(ang)), across = SIMD2(-sin(ang), cos(ang))
+            let pos = across * miss + along * (1.6 - 3.2 * u)
+            let fade = min(u / 0.06, 1) * min((1 - u) / 0.06, 1)
+            p.h = SIMD4(Float(pos.x), Float(pos.y), Float(fade), Float(rng.range(0, 1)))
         }
         return p
     }

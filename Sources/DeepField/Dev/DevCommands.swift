@@ -130,7 +130,8 @@ extension EventSchedule {
                                 ("substorm", Self.substorm, c.auroraEvents.rate),
                                 ("cometImpact", Self.cometImpact, c.gasEvents.rate),
                                 ("accretionOutburst", Self.accretionOutburst, c.protoEvents.rate),
-                                ("swarmWave", Self.swarmWave, c.dysonEvents.rate)] {
+                                ("swarmWave", Self.swarmWave, c.dysonEvents.rate),
+                                ("starGlint", Self.starGlint, c.rogueEvents.rate)] {
             var t = 0.0
             var starts: [Int] = []
             while t < minutes * 60 {

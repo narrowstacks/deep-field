@@ -166,6 +166,18 @@ struct SceneTab: View {
                     SliderRow(title: "Orbit speed", value: $store.config.dysonOrbitSpeed, range: 0...4)
                     SliderRow(title: "Panel glints", value: $store.config.dysonGlint, range: 0...2.5)
                         .help("How brightly panels flash as their mirrors swing through the line between the star and you")
+                case .roguePlanet:
+                    SliderRow(title: "Size", value: $store.config.rogueSize, range: 0.5...1.8)
+                    SliderRow(title: "Position X", value: $store.config.rogueCenterX, range: -0.8...0.8)
+                    SliderRow(title: "Position Y", value: $store.config.rogueCenterY, range: -0.8...0.8)
+                    SliderRow(title: "Spin", value: $store.config.rogueSpin, range: 0...3)
+                        .help("How fast the planet turns")
+                    SliderRow(title: "Aurora", value: $store.config.rogueAurora, range: 0...2.5)
+                        .help("The glow round both magnetic poles, powered by the planet's own magnetic field")
+                    SliderRow(title: "Rift glow", value: $store.config.rogueRift, range: 0...2.5)
+                        .help("Heat from inside the planet glowing through cracks in its ice")
+                    SliderRow(title: "Milky Way", value: $store.config.rogueMilkyWay, range: 0...2)
+                    Toggle("Moon", isOn: $store.config.rogueMoon)
                 case .comet:
                     SliderRow(title: "Tail length", value: $store.config.cometTailLength, range: 0.3...2)
                     SliderRow(title: "Activity", value: $store.config.cometActivity, range: 0.2...2.5)
@@ -304,6 +316,14 @@ struct SceneTab: View {
             Section {
                 FrequencyRow(title: "Reorientation waves", value: $store.config.dysonEvents)
                 DemoGrid(store: store, demos: [("Reorientation Wave", EventSchedule.swarmWave)])
+            } header: {
+                GroupHeader(title: "Events")
+            }
+        case .roguePlanet:
+            Section {
+                FrequencyRow(title: "Star glints", value: $store.config.rogueEvents)
+                    .help("A bright star passing behind the planet, its light bent round the limb by the thin atmosphere")
+                DemoGrid(store: store, demos: [("Star Glint", EventSchedule.starGlint)])
             } header: {
                 GroupHeader(title: "Events")
             }

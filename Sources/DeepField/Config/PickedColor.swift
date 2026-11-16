@@ -73,6 +73,8 @@ enum PickedColor {
         static let mergerKilonova: Float = 0.6
         static let dysonPanel: Float = 0.3
         static let dysonHeat: Float = 0.1
+        static let rogueAurora: Float = 0.5
+        static let rogueRift: Float = 0.5
     }
 }
 
@@ -97,6 +99,7 @@ extension WallpaperConfig {
         case protoDust = "protoDustColor", protoGas = "protoGasColor", protoStar = "protoStarColor", protoJet = "protoJetColor"
         case mergerStar = "mergerStarColor", mergerHot, mergerCool
         case dysonPanelA, dysonPanelB, dysonHeat
+        case rogueAuroraLow, rogueAuroraHigh, rogueRift = "rogueRiftColor"
 
         var light: RGB {
             switch self {
@@ -130,6 +133,9 @@ extension WallpaperConfig {
             case .dysonPanelA: RGB(1.0, 0.62, 0.18)
             case .dysonPanelB: RGB(0.3, 0.38, 1.0)
             case .dysonHeat: RGB(1.0, 0.16, 0.1)
+            case .rogueAuroraLow: RGB(0.1, 1.0, 0.55)
+            case .rogueAuroraHigh: RGB(0.75, 0.15, 1.0)
+            case .rogueRift: RGB(1.0, 0.32, 0.06)
             }
         }
 
@@ -159,6 +165,8 @@ extension WallpaperConfig {
             case .mergerHot, .mergerCool: L.mergerKilonova
             case .dysonPanelA, .dysonPanelB: L.dysonPanel
             case .dysonHeat: L.dysonHeat
+            case .rogueAuroraLow, .rogueAuroraHigh: L.rogueAurora
+            case .rogueRift: L.rogueRift
             }
         }
 
