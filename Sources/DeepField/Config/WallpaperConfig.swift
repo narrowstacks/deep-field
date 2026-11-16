@@ -190,6 +190,26 @@ struct WallpaperConfig: Codable, Equatable {
     var mergerHot = Tuned.mergerHot.color
     var mergerCool = Tuned.mergerCool.color
 
+    // Black hole merger (the defaults are GW150914; see BlackHoleDetection)
+    var bbhModel: BlackHoleMergerModel = .stellar
+    var bbhMassRatio = 0.86            // lighter over heavier
+    var bbhSpin = 0.69                 // the remnant's spin, 0 to 1
+    var bbhPrecession = 0.15           // how far tilted spins make the orbit wobble
+    var bbhView = 30.0                 // angle between the orbit axis and our line of sight, degrees
+    var bbhCycleMinutes = 4.0
+    var bbhSpeed = 1.0                 // the scene's own speed, the cycle included
+    var bbhRingdown = 3.0              // how many times slower the last moments and ringdown play
+    var bbhWaves = 1.0                 // how strongly the gravitational waves ripple the sky
+    var bbhLensing = 1.0               // how strongly each hole bends the light behind it
+    var bbhGalaxy = true               // a galaxy far behind the pair, lensed into a ring
+    var bbhEccentric = false           // plunge on an eccentric orbit instead of rounding out
+    var bbhKick = 1.0                  // scales the remnant's recoil
+    var bbhChain = false               // each remnant becomes the heavy partner of the next merger
+    var bbhTrace = false               // the strain signal drawn along the bottom
+    var bbhRingColor = Tuned.bbhRing.color
+    var bbhHot = Tuned.bbhHot.color
+    var bbhCool = Tuned.bbhCool.color
+
     // Dyson swarm
     var dysonStar: StarType = .orangeDwarf
     var dysonDensity = 0.45            // 0 a few sparse rings, 1 nearly closed
@@ -368,7 +388,7 @@ struct WallpaperConfig: Codable, Equatable {
         c.protoGaps = min(max(c.protoGaps, 1), 7)
         for kp in [\WallpaperConfig.starOrbitMinutes, \.planetOrbitMinutes, \.galaxyRotationMinutes,
                    \.tdeCycleMinutes, \.pulsarPeriod, \.nebulaFlow, \.planetSize, \.galaxySize,
-                   \.ringedRingWidth, \.ringedBands, \.ringedMoonSpeed, \.mergerCycleMinutes] {
+                   \.ringedRingWidth, \.ringedBands, \.ringedMoonSpeed, \.mergerCycleMinutes, \.bbhCycleMinutes] {
             positive(kp, min: 0.05)
         }
         if c.binaryStars.count < 2 { c.binaryStars += d.binaryStars.dropFirst(c.binaryStars.count) }

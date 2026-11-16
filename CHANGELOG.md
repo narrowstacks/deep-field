@@ -2,6 +2,17 @@
 
 All notable changes to Deep Field. Versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+- New scene: Black Hole Merger. Two black holes spiral together, bending the starlight behind them into arcs and rings, and merge into one larger hole that rings down in a last burst of gravitational waves.
+- Load a real detection (GW150914, GW170814, GW190412, GW190521, GW190814, GW231123 or GW250114) to use its masses, spins and viewing angle, or set mass ratio, spin and precession yourself.
+- Choose the black holes' size: stellar pairs in empty space or inside a quasar's gas disk (where the remnant sets off a flare), intermediate ones inside a dense star cluster, or supermassive ones in a gas disk, with streams feeding each hole and jets that change direction after the merger.
+- A distant galaxy behind the pair is bent into a ring that breaks into arcs as the holes move.
+- Options for an eccentric orbit that dives in and whirls round with a burst of waves at each pass, a recoil kick that sends the remnant drifting off, and a hierarchical chain where each remnant takes on the next companion.
+- Turn on Strain trace to see the waves drawn along the bottom as a detector records them: the rising chirp, the merger and the ringdown.
+- New EHT color look, after the Event Horizon Telescope's images.
+- The shadows stretch toward each other and join through a neck, and the new hole starts as a spinning peanut that rounds out. Ringdown slow motion slows the merger so you can watch it, and Speed sets how fast the whole scene runs.
+
 ## [0.3.0] - 2026-11-15
 
 - Every scene with its own colors now has one-click color presets, shown as swatches like the black hole's. Choosing a black hole palette no longer changes the galaxy scene's colors.

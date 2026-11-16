@@ -122,6 +122,15 @@ extension ColorPreset {
                 ("Jade", [RGB(0.62, 1.0, 0.82), RGB(0.08, 0.42, 0.36), RGB(0.86, 0.96, 0.88)]),
                 ("Rose", [RGB(1.0, 0.75, 0.8), RGB(0.55, 0.15, 0.3), RGB(1.0, 0.88, 0.9)]),
             ], defaultName: "Golden")
+        case .blackHoleMerger:
+            list([\.bbhRingColor, \.bbhHot, \.bbhCool], [
+                ("Gold", [RGB(1.0, 0.85, 0.55), RGB(1.0, 0.9, 0.6), RGB(1.0, 0.4, 0.12)]),
+                ("Violet", [RGB(0.78, 0.62, 1.0), RGB(0.6, 0.55, 1.0), RGB(1.0, 0.25, 0.6)]),
+                ("Teal", [RGB(0.45, 1.0, 0.9), RGB(0.4, 0.95, 1.0), RGB(1.0, 0.5, 0.3)]),
+                ("Ember", [RGB(1.0, 0.55, 0.35), RGB(1.0, 0.75, 0.45), RGB(0.8, 0.12, 0.1)]),
+                // the Event Horizon Telescope's false-color images of M87* and Sgr A*
+                ("EHT", [RGB(1.0, 0.62, 0.2), RGB(1.0, 0.8, 0.35), RGB(0.78, 0.15, 0.04)]),
+            ], defaultName: "Ice")
         case .neutronMerger:
             list([\.mergerStarColor, \.mergerHot, \.mergerCool], [
                 ("Gold", [RGB(1.0, 0.9, 0.7), RGB(1.0, 0.86, 0.45), RGB(0.85, 0.2, 0.08)]),

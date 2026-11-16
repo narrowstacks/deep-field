@@ -224,3 +224,76 @@ struct EclipseAirPreset {
     }
 }
 
+
+/// How big the black holes in the black hole merger are, which sets what surrounds them. Stellar
+/// pairs (tens of suns, what LIGO hears) merge in empty space, or inside a quasar's gas disk where
+/// the kicked remnant can set off a flare; intermediate ones sit in the crowded core of a star
+/// cluster; supermassive pairs, brought together by a galaxy merger, are fed by a gas disk whose
+/// middle the binary clears.
+enum BlackHoleMergerModel: String, Codable, CaseIterable, Identifiable {
+    case stellar, agnDisk, intermediate, supermassive
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .stellar: "Stellar"
+        case .agnDisk: "Stellar, in a quasar's disk"
+        case .intermediate: "Intermediate, in a cluster"
+        case .supermassive: "Supermassive, with a gas disk"
+        }
+    }
+    var shaderIndex: Float {
+        switch self {
+        case .stellar: 0
+        case .intermediate: 1
+        case .supermassive: 2
+        case .agnDisk: 3
+        }
+    }
+}
+
+/// A binary black hole merger heard by LIGO, Virgo and KAGRA, as published (median values,
+/// rounded). Applying one sets the black hole merger's mass ratio, remnant spin, precession,
+/// viewing angle and size class.
+struct BlackHoleDetection {
+    let name: String
+    let m1: Double, m2: Double, remnant: Double   // solar masses
+    let spin: Double          // the remnant's dimensionless spin
+    let precession: Double    // 0 for spins along the orbit's axis, 1 for strongly tilted ones
+    let view: Double          // angle between the orbit's axis and our line of sight, degrees
+    let model: BlackHoleMergerModel
+    var eccentric = false
+    let note: String
+
+    var ratio: Double { ((m2 / m1) * 100).rounded() / 100 }
+
+    static let all: [BlackHoleDetection] = [
+        BlackHoleDetection(name: "GW150914", m1: 36, m2: 31, remnant: 63, spin: 0.69, precession: 0.15, view: 30, model: .stellar,
+                           note: "The first gravitational waves ever detected, on 14 September 2015."),
+        BlackHoleDetection(name: "GW170814", m1: 31, m2: 25, remnant: 53, spin: 0.72, precession: 0.2, view: 50, model: .stellar,
+                           note: "The first heard by three detectors, which pinned down the waves' polarization."),
+        BlackHoleDetection(name: "GW190412", m1: 30, m2: 8, remnant: 37, spin: 0.67, precession: 0.3, view: 45, model: .stellar,
+                           note: "The first clearly unequal pair. Its waves carry a higher harmonic, a third arm in the ripples."),
+        BlackHoleDetection(name: "GW190521", m1: 85, m2: 66, remnant: 142, spin: 0.72, precession: 0.7, view: 50, model: .agnDisk, eccentric: true,
+                           note: "The first intermediate-mass black hole, from holes too heavy for single stars. It may have merged on an eccentric orbit inside a quasar's disk, where a flare was seen a month later."),
+        BlackHoleDetection(name: "GW190814", m1: 23, m2: 2.6, remnant: 26, spin: 0.28, precession: 0.05, view: 45, model: .stellar,
+                           note: "A 9 to 1 pair. The light partner is the lightest black hole or the heaviest neutron star known."),
+        BlackHoleDetection(name: "GW231123", m1: 137, m2: 103, remnant: 225, spin: 0.85, precession: 0.8, view: 40, model: .intermediate,
+                           note: "The most massive merger yet, of two black holes spinning close to the limit."),
+        BlackHoleDetection(name: "GW250114", m1: 34, m2: 32, remnant: 63, spin: 0.68, precession: 0.1, view: 30, model: .stellar,
+                           note: "The clearest signal yet. Its ringdown confirmed Hawking's area theorem."),
+    ]
+
+    func matches(_ c: WallpaperConfig) -> Bool {
+        c.bbhMassRatio == ratio && c.bbhSpin == spin && c.bbhPrecession == precession && c.bbhView == view && c.bbhModel == model
+            && c.bbhEccentric == eccentric
+    }
+
+    func apply(to c: inout WallpaperConfig) {
+        c.bbhMassRatio = ratio
+        c.bbhSpin = spin
+        c.bbhPrecession = precession
+        c.bbhView = view
+        c.bbhModel = model
+        c.bbhEccentric = eccentric
+    }
+}

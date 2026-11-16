@@ -40,6 +40,7 @@ struct PhoneFraming: Codable, Equatable {
         case .gasGiant: (0.3, -0.1, 0)
         case .protoplanetaryDisk: (0.42, -0.1, 0)
         case .neutronMerger: (0.3, -0.12, 0)
+        case .blackHoleMerger: (0.32, -0.1, 0)
         case .dysonSwarm: (0.3, -0.1, 0)
         case .roguePlanet: (0.3, -0.12, 0)
         case .eclipse: (0.62, 0.0, 0)

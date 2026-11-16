@@ -52,7 +52,7 @@ enum StarSystem {
             let p = c.palette
             let col = SIMD3<Float>(p.farA.r, p.farA.g, p.farA.b) * 0.5 + 0.25
             return [LightGPU(pos: SIMD4(0, 0, 0, 0.7), color: SIMD4(col, 1))]
-        case .galaxy, .tidalDisruption, .pulsar, .nebula, .planetaryNebula, .ringedPlanet, .auroraOrbit, .gasGiant, .protoplanetaryDisk, .neutronMerger, .dysonSwarm, .roguePlanet, .eclipse, .comet, .stellarSurface, .quasar:
+        case .galaxy, .tidalDisruption, .pulsar, .nebula, .planetaryNebula, .ringedPlanet, .auroraOrbit, .gasGiant, .protoplanetaryDisk, .neutronMerger, .blackHoleMerger, .dysonSwarm, .roguePlanet, .eclipse, .comet, .stellarSurface, .quasar:
             return []
         case .binary, .trinary:
             return stars.map { LightGPU(pos: SIMD4($0.pos.x, $0.pos.y, $0.pos.z, 0.9), color: SIMD4($0.color.x, $0.color.y, $0.color.z, 1)) }
