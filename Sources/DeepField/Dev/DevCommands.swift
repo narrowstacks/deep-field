@@ -101,7 +101,10 @@ struct Arguments {
     func config() -> WallpaperConfig {
         var config = has("--defaults") ? WallpaperConfig() : ConfigStore.shared.config
         if let s = value("--scene"), let kind = SceneKind(rawValue: s) { config.scene = kind }
-        if let p = value("--preset"), let preset = PaletteConfig.presets.first(where: { $0.0 == p }) { config.palette = preset.1 }
+        if let p = value("--preset") {
+            if let preset = PaletteConfig.presets.first(where: { $0.0 == p }) { config.palette = preset.1 }
+            ColorPreset.all(for: config.scene).first { $0.name == p }?.apply(to: &config)
+        }
         if let json = value("--config"), let patch = json.data(using: .utf8),
            let patchDict = try? JSONSerialization.jsonObject(with: patch) as? [String: Any],
            let base = try? JSONEncoder().encode(config),

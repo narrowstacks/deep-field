@@ -96,6 +96,8 @@ since, and puts your original pictures back when you turn the option off.
 .build/release/DeepField --snapshot out.png --time 444 [--size 3440x1440] [--scene wormhole] \
     [--preset Synthwave] [--config '{"galaxyType": "barred", "darkMatter": false}'] [--no-events] \
     [--demo 1:440]                                            # force event kind 1 to start at t=440 s
+# --preset takes a palette preset (Synthwave) or a color preset of the chosen scene
+# (--scene gasGiant --preset Neptune); see ColorPreset.all(for:) in Config/ColorPresets.swift.
 .build/release/DeepField --benchmark [--scene galaxy] [--size 3440x1440] [--frames 120]
 .build/release/DeepField --list-events 60 --scene wormhole   # when events fire (seed 1)
 .build/release/DeepField --mobile-export outdir [--device 17-pro-max|1179x2556] [--live] [--smooth] \
