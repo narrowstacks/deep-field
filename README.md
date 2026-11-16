@@ -85,6 +85,10 @@ its events and the camera. The other sections cover the background sky, the imag
 contrast, bloom and so on) and the pixel look (pixel size, number of colors, dither pattern).
 Settings save as you go.
 
+Found a look you like? Save it as a preset from the **Presets** menu in Customize, then switch
+between your presets from the menu bar icon. Presets export as small `.deepfield` files you can
+share, and anyone with Deep Field can import them.
+
 <p align="center">
   <img src="docs/media/ui-scene.png" alt="The Customize window, Scene section, with the galaxy selected" width="100%">
 </p>

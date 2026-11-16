@@ -116,6 +116,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let customize = NSMenuItem(title: "Customize…", action: #selector(showCustomize), keyEquivalent: ",")
         customize.target = self
         menu.addItem(customize)
+        presetsItem.submenu = NSMenu()
+        menu.addItem(presetsItem)
         menu.addItem(.separator())
         lockScreenItem.target = self
         menu.addItem(lockScreenItem)
@@ -149,6 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func checkForUpdates() { Updater.checkForUpdates() }
 
+    private let presetsItem = NSMenuItem(title: "Presets", action: nil, keyEquivalent: "")
     private let wallpaperItem = NSMenuItem(title: "Show on Desktop", action: #selector(toggleWallpaper), keyEquivalent: "")
     private let pauseItem = NSMenuItem(title: "Pause Animation", action: #selector(togglePause), keyEquivalent: "")
     private let lockScreenItem = NSMenuItem(title: "Use Scene on Lock Screen", action: #selector(toggleLockScreen), keyEquivalent: "")
@@ -156,6 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Refreshed on every open, since the login item can also be changed in System Settings.
     func menuNeedsUpdate(_ menu: NSMenu) {
+        rebuildPresetsMenu()
         wallpaperItem.state = Settings.wallpaperEnabled ? .on : .off
         pauseItem.title = userPaused ? "Resume Animation" : "Pause Animation"
         pauseItem.isHidden = !Settings.wallpaperEnabled
@@ -166,6 +170,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         default: loginItem.state = .off
         }
     }
+
+    // MARK: presets
+
+    private func rebuildPresetsMenu() {
+        guard let sub = presetsItem.submenu else { return }
+        sub.removeAllItems()
+        let store = PresetStore.shared
+        let current = store.current
+        if store.presets.isEmpty {
+            let empty = NSMenuItem(title: "No saved presets yet", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            sub.addItem(empty)
+        }
+        for preset in store.presets {
+            let item = NSMenuItem(title: preset.name, action: #selector(applyPreset(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = preset.id
+            item.state = preset.id == current?.id ? .on : .off
+            sub.addItem(item)
+        }
+        sub.addItem(.separator())
+        for (title, action) in [("Save Current Settings as Preset…", #selector(savePreset)),
+                                ("Import Preset…", #selector(importPreset)),
+                                ("Export Current Settings…", #selector(exportPreset))] {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self
+            sub.addItem(item)
+        }
+    }
+
+    @objc private func applyPreset(_ item: NSMenuItem) {
+        guard let id = item.representedObject as? UUID,
+              let preset = PresetStore.shared.presets.first(where: { $0.id == id }) else { return }
+        PresetStore.shared.apply(preset)
+    }
+    @objc private func savePreset() { PresetStore.shared.promptToSave() }
+    @objc private func importPreset() { PresetStore.shared.promptToImport() }
+    @objc private func exportPreset() { PresetStore.shared.promptToExport(nil) }
 
     @objc private func togglePause() { userPaused.toggle(); applyPause() }
     @objc private func showCustomize() { CustomizeWindowController.shared.show() }

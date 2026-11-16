@@ -105,7 +105,15 @@ build/DeepField.app/Contents/MacOS/DeepField --customize   # open the Customize 
 build/DeepField.app/Contents/MacOS/DeepField --check-picker outdir -captureTab 0   # drive the color wells, check the preview follows
 build/DeepField.app/Contents/MacOS/DeepField --capture-ui out.png -captureTab N -captureScene name [--defaults]   # image of the window (N: 0 Scene, 1 Sky, 2 Image, 3 System, 4 Phone)
 defaults write com.narrowstacks.DeepField debug -bool true     # log bake times, fps, pause/resume
+.build/release/DeepField --preset-roundtrip out.deepfield [--scene ...] [--config ...]   # write a preset file, read it back, compare
+.build/release/DeepField --preset-check file.deepfield         # load a preset file the way Import does
+build/DeepField.app/Contents/MacOS/DeepField --welcome          # show the first-launch guide
+build/DeepField.app/Contents/MacOS/DeepField --capture-welcome out.png -welcomeStep N [--defaults]   # image of guide step N (0 to 3)
 ```
+
+A `.deepfield` preset is JSON: `{"format": "deep-field-preset", "version": 1, "name": ..., "config": {...}}`,
+where `config` holds the same keys as the saved settings. It's read with the same lenient decoder,
+so missing or unknown keys fall back to defaults.
 
 `--defaults` starts from the default settings instead of your saved ones (for `--capture-ui`
 too, which never saves or touches desktop pictures). `--mobile-export` always writes the

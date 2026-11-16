@@ -27,11 +27,14 @@ struct CustomizeView: View {
                 .background(Theme.stageBackground)
             Divider()
             VStack(spacing: 0) {
-                Picker("Section", selection: $section) {
-                    ForEach(CustomizeSection.allCases) { Text($0.title).tag($0) }
+                HStack(spacing: 12) {
+                    Picker("Section", selection: $section) {
+                        ForEach(CustomizeSection.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    PresetsMenu()
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
                 .padding(.bottom, 4)

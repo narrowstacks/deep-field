@@ -25,6 +25,24 @@ enum DevCommands {
                 }
             }
         }
+        if let path = args.value("--preset-roundtrip") {
+            // dev: write the given config as a .deepfield file, read it back, and check it matches
+            let preset = UserPreset(name: "Round Trip", config: args.config())
+            guard let data = PresetStore.fileData(for: preset) else { exit(1) }
+            try? data.write(to: URL(fileURLWithPath: path))
+            let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+            let back = PresetStore.preset(from: dict)
+            print(back?.config == preset.config ? "round trip OK" : "round trip MISMATCH")
+            exit(back?.config == preset.config ? 0 : 1)
+        }
+        if let path = args.value("--preset-check") {
+            // dev: load a .deepfield file the way Import does and print what it holds
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                  let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                  let p = PresetStore.preset(from: dict) else { print("not a preset"); exit(1) }
+            print("\(p.name): scene \(p.config.scene.rawValue), bloom \(p.config.bloom), levels \(p.config.levels)")
+            exit(0)
+        }
         guard args.has("--list-events") || args.has("--snapshot") || args.has("--benchmark")
                 || args.has("--mobile-export") || args.has("--check-live") else { return }
 
