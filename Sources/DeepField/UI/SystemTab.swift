@@ -4,6 +4,7 @@ struct SystemTab: View {
     @ObservedObject var store: ConfigStore
     @ObservedObject private var lockScreen = LockScreenStill.shared
     @State private var confirmReset = false
+    @AppStorage(Settings.dockWhileCustomizingKey) private var dockWhileCustomizing = false
 
     var body: some View {
         Form {
@@ -39,6 +40,14 @@ struct SystemTab: View {
                 GroupHeader(title: "Lock Screen")
             } footer: {
                 GroupFooter("The lock and login screens show the desktop picture, not the animation. Turning this off puts your own picture back.")
+            }
+            Section {
+                Toggle("Show in the Dock while customizing", isOn: $dockWhileCustomizing)
+                    .onChange(of: dockWhileCustomizing) { _, _ in CustomizeWindowController.shared.updateDockIcon() }
+            } header: {
+                GroupHeader(title: "Dock")
+            } footer: {
+                GroupFooter("Deep Field lives in the menu bar. With this on, it also shows in the Dock and the app switcher, with its own menus, while this window is open.")
             }
             Section {
                 Button("Reset All Settings…", role: .destructive) { confirmReset = true }

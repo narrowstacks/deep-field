@@ -31,8 +31,34 @@ final class CustomizeWindowController {
                 forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in self?.closed() }
             window = w
         }
+        updateDockIcon()
+        NSApp.unhide(nil)
         NSApp.activate(ignoringOtherApps: true)
+        if window?.isMiniaturized == true { window?.deminiaturize(nil) }
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// In the Dock while this window is open, if the setting is on; a menu bar app otherwise.
+    func updateDockIcon() {
+        guard !Settings.capturingUI else { return }
+        let policy: NSApplication.ActivationPolicy = window != nil && Settings.dockWhileCustomizing ? .regular : .accessory
+        guard NSApp.activationPolicy() != policy else { return }
+        let wasActive = NSApp.isActive
+        NSApp.setActivationPolicy(policy)
+        if policy == .regular {
+            guard wasActive else { NSApp.activate(ignoringOtherApps: true); return }
+            // an app that's already frontmost keeps the menu bar it had until it's activated
+            // again, so hand focus to the Dock for a moment and take it back
+            NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first?.activate()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                NSApp.activate(ignoringOtherApps: true)
+                self?.window?.makeKeyAndOrderFront(nil)
+            }
+        } else if !NSApp.windows.contains(where: { $0.isVisible && $0.styleMask.contains(.titled) }) {
+            // with no window left, give focus back to the app below instead of keeping an
+            // invisible app frontmost (the wallpaper windows can't hide)
+            NSApp.hide(nil)
+        }
     }
 
     private func closed() {
@@ -42,6 +68,9 @@ final class CustomizeWindowController {
         // (which invalidates its display link) and is freed along with its bake
         let w = window
         window = nil
-        DispatchQueue.main.async { w?.contentViewController = nil }
+        DispatchQueue.main.async { [weak self] in
+            w?.contentViewController = nil
+            self?.updateDockIcon()   // once the window is off screen
+        }
     }
 }
