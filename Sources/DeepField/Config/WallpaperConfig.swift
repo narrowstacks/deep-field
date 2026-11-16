@@ -254,6 +254,17 @@ struct WallpaperConfig: Codable, Equatable {
     var starCenterX = -0.15            // disk center, fraction of the half screen width
     var starLimbY = 0.12               // top of the disk, fraction of the half screen height
 
+    // Quasar
+    var quasarView = 66.0              // angle between the jet axis and our line of sight, degrees
+    var quasarJetAngle = 12.0          // the jets' direction on screen, degrees above horizontal
+    var quasarJetLength = 1.0
+    var quasarJetBrightness = 1.0
+    var quasarKnotSpeed = 1.0
+    var quasarGalaxy = 1.0             // host galaxy brightness; 0 hides it
+    var quasarJetColor = Tuned.quasarJet.color
+    var quasarLobeColor = Tuned.quasarLobe.color
+    var quasarEvents: Frequency = .normal
+
     // Sky
     var starDensity = 1.0
     var nebula = 1.0

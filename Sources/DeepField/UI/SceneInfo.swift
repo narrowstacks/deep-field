@@ -21,6 +21,7 @@ extension SceneKind {
         case .planetaryNebula: "A dying star's shed shell, lit from inside by the white dwarf left behind."
         case .comet: "A coma with jets, a blue ion tail and a curved dust tail."
         case .stellarSurface: "The limb of a star: granulation, spots, loops and eruptions."
+        case .quasar: "An active galaxy whose central black hole fires two jets far out into space."
         }
     }
 
@@ -29,6 +30,7 @@ extension SceneKind {
         switch self {
         case .tidalDisruption: "A star strays too close and overflows toward the hole. Tides stretch it into an egg, and a stream of its gas peels off the tip, spirals in, and feeds the accretion disk. The star, stream and jets are all bent by the hole's gravity."
         case .neutronMerger: "Gravitational waves carry off the pair's orbital energy, so they close in and orbit faster and faster: the chirp. Tides stretch them just before they touch. The merger throws out neutron-rich debris that glows from radioactive heavy elements, hot blue at first, then redder as it spreads and cools."
+        case .quasar: "Gas falling into the galaxy's central black hole heats up and outshines the whole galaxy, behind a ring of dust that hides part of it. Magnetic fields fling two jets out along the spin axis at nearly the speed of light. The jet coming toward us is boosted far brighter than the one heading away, and its knots can even appear to move faster than light. Where the jets slam into intergalactic gas they puff up into huge radio lobes."
         default: nil
         }
     }

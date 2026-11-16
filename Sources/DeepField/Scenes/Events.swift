@@ -58,6 +58,8 @@ struct EventSchedule {
     static let starGlint       = Kind(id: 22, slot: 900, chance: 0.6, duration: 240)
     // eclipse scene: the window is long enough to wait for the next totality (see SceneParams.eclipse)
     static let eclipseEruption = Kind(id: 23, slot: 900, chance: 0.6, duration: 800)
+    // quasar scene
+    static let quasarFlare     = Kind(id: 20, slot: 900, chance: 0.6, duration: 130)
 
     /// If an event of this kind is running at time t: its age in seconds and a generator for its parameters.
     func active(_ k: Kind, rate: Double, at t: Double, demo: [UInt64: Double] = [:]) -> (age: Double, rng: Rng)? {
@@ -81,7 +83,7 @@ struct EventSchedule {
     static func skyDirection(_ u: Double, _ v: Double, camera cam: Camera, config c: WallpaperConfig) -> SIMD3<Double>? {
         let d = cam.ray(u, v)
         switch c.scene {
-        case .binary, .trinary, .galaxy, .pulsar, .nebula, .planetaryNebula, .ringedPlanet, .auroraOrbit, .gasGiant, .protoplanetaryDisk, .neutronMerger, .dysonSwarm, .roguePlanet, .eclipse, .comet, .stellarSurface:
+        case .binary, .trinary, .galaxy, .pulsar, .nebula, .planetaryNebula, .ringedPlanet, .auroraOrbit, .gasGiant, .protoplanetaryDisk, .neutronMerger, .dysonSwarm, .roguePlanet, .eclipse, .comet, .stellarSurface, .quasar:
             return d
         case .wormhole:
             // lensing is mild away from the throat; just keep events clear of it

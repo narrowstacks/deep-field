@@ -198,6 +198,15 @@ struct SceneTab: View {
                     StarPicker(title: "Star", star: $store.config.closeStar)
                     SliderRow(title: "Sunspots", value: $store.config.starSpots, range: 0...1.5)
                     SliderRow(title: "Rotation", value: $store.config.starRotation, range: 0...4)
+                case .quasar:
+                    SliderRow(title: "Jet length", value: $store.config.quasarJetLength, range: 0.5...1.3)
+                    SliderRow(title: "Jet brightness", value: $store.config.quasarJetBrightness, range: 0.2...2.5)
+                    SliderRow(title: "Jet direction", value: $store.config.quasarJetAngle, range: -60...60) { String(format: "%.0f°", $0) }
+                        .help("Which way the jets point across the screen")
+                    SliderRow(title: "Knot speed", value: $store.config.quasarKnotSpeed, range: 0...3)
+                        .help("How fast the bright knots travel out along the jets")
+                    SliderRow(title: "Galaxy", value: $store.config.quasarGalaxy, range: 0...2)
+                        .help("The host galaxy's brightness. All the way down hides it, leaving the nucleus and jets")
                 case .galaxy:
                     Picker("Type", selection: $store.config.galaxyType) {
                         ForEach(GalaxyType.allCases) { Text($0.title).tag($0) }
@@ -276,6 +285,9 @@ struct SceneTab: View {
         switch scene {
         case .galaxy:
             SliderRow(title: "Viewing angle", value: $store.config.galaxyView, range: 5...85) { String(format: "%.0f°", $0) }
+        case .quasar:
+            SliderRow(title: "Viewing angle", value: $store.config.quasarView, range: 20...90) { String(format: "%.0f°", $0) }
+                .help("The angle between the jets and our line of sight. Smaller angles boost the approaching jet and hide the receding one; near 90° the dust ring hides the core")
         case .tidalDisruption:
             SliderRow(title: "Viewing angle", value: $store.config.tdeView, range: 4...35) { String(format: "%.0f°", $0) }
         default:
@@ -370,6 +382,13 @@ struct SceneTab: View {
             Section {
                 FrequencyRow(title: "Shell ejections", value: $store.config.planetaryEvents)
                 DemoGrid(store: store, demos: [("Shell Ejection", EventSchedule.shellEjection)])
+            } header: {
+                GroupHeader(title: "Events")
+            }
+        case .quasar:
+            Section {
+                FrequencyRow(title: "Flares", value: $store.config.quasarEvents)
+                DemoGrid(store: store, demos: [("Flare", EventSchedule.quasarFlare)])
             } header: {
                 GroupHeader(title: "Events")
             }
