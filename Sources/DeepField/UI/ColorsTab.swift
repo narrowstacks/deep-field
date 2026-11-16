@@ -89,6 +89,19 @@ struct SceneColors: View {
             ColorRow("Light zones", store.color(\.gasZone))
             ColorRow("Dark belts", store.color(\.gasBelt))
             ColorRow("Great spot", store.color(\.gasStorm))
+        case .protoplanetaryDisk:
+            ColorRow("Dust rings", store.color(\.protoDustColor))
+            ColorRow("Lit surface", store.color(\.protoGasColor))
+            ColorRow("Star", store.color(\.protoStarColor))
+            if store.config.protoJets { ColorRow("Jets", store.color(\.protoJetColor)) }
+            LabeledContent("Presets") {
+                Menu("Apply") {
+                    ForEach(ProtoDiskPreset.all, id: \.name) { preset in
+                        Button(preset.name) { preset.apply(to: &store.config) }
+                    }
+                }
+                .fixedSize()
+            }
         case .auroraOrbit:
             ColorRow("Aurora (oxygen, low)", store.color(\.auroraGreen))
             ColorRow("Aurora tops (oxygen, high)", store.color(\.auroraRed))

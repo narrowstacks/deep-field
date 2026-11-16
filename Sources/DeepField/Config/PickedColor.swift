@@ -65,6 +65,10 @@ enum PickedColor {
         static let aurora: Float = 0.6
         static let auroraCity: Float = 0.5
         static let gasCloud: Float = 0.75
+        static let protoDust: Float = 0.6
+        static let protoGas: Float = 0.5
+        static let protoStar: Float = 1.0
+        static let protoJet: Float = 0.5
     }
 }
 
@@ -86,6 +90,7 @@ extension WallpaperConfig {
         case ringedBandLight = "ringedBandLight", ringedBandDark = "ringedBandDark", ringedRing = "ringedRingColor"
         case auroraGreen, auroraRed, auroraFringe, auroraCity = "auroraCityColor"
         case gasZone, gasBelt, gasStorm
+        case protoDust = "protoDustColor", protoGas = "protoGasColor", protoStar = "protoStarColor", protoJet = "protoJetColor"
 
         var light: RGB {
             switch self {
@@ -109,6 +114,10 @@ extension WallpaperConfig {
             case .gasZone: RGB(1.0, 0.82, 0.58)
             case .gasBelt: RGB(0.62, 0.24, 0.08)
             case .gasStorm: RGB(0.9, 0.24, 0.08)
+            case .protoDust: RGB(1.0, 0.45, 0.12)
+            case .protoGas: RGB(0.55, 0.62, 1.0)
+            case .protoStar: RGB(1.0, 0.85, 0.65)
+            case .protoJet: RGB(1.0, 0.25, 0.45)
             }
         }
 
@@ -130,6 +139,10 @@ extension WallpaperConfig {
             case .auroraGreen, .auroraRed, .auroraFringe: L.aurora
             case .auroraCity: L.auroraCity
             case .gasZone, .gasBelt, .gasStorm: L.gasCloud
+            case .protoDust: L.protoDust
+            case .protoGas: L.protoGas
+            case .protoStar: L.protoStar
+            case .protoJet: L.protoJet
             }
         }
 

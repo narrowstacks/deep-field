@@ -18,6 +18,7 @@ enum SceneParams {
         case .ringedPlanet: return ringedPlanet(c, t, cam, events, demo)
         case .auroraOrbit: return auroraOrbit(c, t, cam, events, demo)
         case .gasGiant: return gasGiant(c, t, cam, events, demo)
+        case .protoplanetaryDisk: return protoplanetaryDisk(c, t, cam, events, demo)
         case .comet: return comet(c, t, cam, events, demo)
         case .stellarSurface: return stellarSurface(c, t, cam, events, demo)
         default: return SceneParamsGPU()
@@ -236,6 +237,47 @@ enum SceneParams {
             let site = axis * sl + (e1 * cos(lon) + e2 * sin(lon)) * cl
             p.h = SIMD4(SIMD3<Float>(site), Float(max(age / EventSchedule.cometImpact.duration, 0.0005)))
         }
+        return p
+    }
+
+    // MARK: Protoplanetary disk
+
+    /// An accretion outburst's light curve, `a` seconds after it starts: a soft-edged flash, then a
+    /// long faint glow. Mirrors pdOutburst in the shader, which uses it for the light echo.
+    static func protoOutburst(_ a: Double) -> Double {
+        a <= 0 ? 0 : exp(-(a - 9) * (a - 9) / 25) + 0.12 * smoothstep(0, 12, a) * exp(-a / 45)
+    }
+
+    private static func protoplanetaryDisk(_ c: WallpaperConfig, _ t: Double, _ cam: Camera,
+                                           _ events: EventSchedule, _ demo: [UInt64: Double]) -> SceneParamsGPU {
+        var p = SceneParamsGPU()
+        // the disk's axis: tipped from our line of sight toward screen up (so the far side shows
+        // above the star), then slanted
+        let toCam = -cam.center
+        let incl = c.protoView / 180 * .pi, slant = c.protoSlant / 180 * .pi
+        let side = cos(slant) * cam.up + sin(slant) * cam.right
+        let axis = simd_normalize(cos(incl) * toCam + sin(incl) * side)
+        let e1 = simd_normalize(simd_cross(side, toCam) - axis * simd_dot(simd_cross(side, toCam), axis))
+        let R = 8.5 * c.protoSize
+        let w = c.protoLook.weights
+        typealias L = PickedColor.Level
+        p.a = SIMD4(SIMD3<Float>(axis), Float(R))
+        p.b = SIMD4(SIMD3<Float>(e1), Float(0.05 + 0.065 * c.protoFlaring))
+        p.c = SIMD4(c.protoDustColor.light3(L.protoDust), Float(c.protoGapWidth))
+        p.d = SIMD4(c.protoGasColor.light3(L.protoGas), w.x)
+        p.f = SIMD4(c.protoJetColor.light3(L.protoJet), c.protoJets ? 1 : 0)
+        // the outer edge orbits in 10 minutes at speed 1; the inner rings far faster (Kepler)
+        p.g = SIMD4(Float(c.protoGaps), 2.3, Float(2 * .pi / 600 * c.protoOrbitSpeed), 90)
+        p.h = SIMD4(-1, Float(R / 35), 6, 0)
+        p.i = SIMD4(w.y, w.z, 0, 0)
+        var star = 1.0
+        if case (let age, _)? = events.active(EventSchedule.accretionOutburst, rate: c.protoEvents.rate, at: t, demo: demo) {
+            // FU Orionis style: the inner disk dumps onto the star, which flares; the flash then
+            // travels out across the disk as a light echo (the shader delays it by path length)
+            p.h.x = Float(age)
+            star += Double(p.h.z) * protoOutburst(age)
+        }
+        p.e = SIMD4(c.protoStarColor.light3(L.protoStar), Float(star))
         return p
     }
 

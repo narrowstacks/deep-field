@@ -163,6 +163,22 @@ struct WallpaperConfig: Codable, Equatable {
     var gasStorm = Tuned.gasStorm.color
     var gasEvents: Frequency = .normal
 
+    // Protoplanetary disk
+    var protoView = 52.0               // angle between the disk's axis and our line of sight, degrees
+    var protoSlant = -22.0             // the disk's long axis slant across the screen, degrees
+    var protoSize = 1.0
+    var protoGaps = 5                  // gaps carved by forming planets, one planet in each
+    var protoGapWidth = 1.0
+    var protoFlaring = 1.0             // how fast the disk thickens outward
+    var protoOrbitSpeed = 1.0
+    var protoJets = true
+    var protoLook: ProtoDiskLook = .blend
+    var protoDustColor = Tuned.protoDust.color
+    var protoGasColor = Tuned.protoGas.color
+    var protoStarColor = Tuned.protoStar.color
+    var protoJetColor = Tuned.protoJet.color
+    var protoEvents: Frequency = .normal
+
     // Comet
     var cometTailLength = 1.0
     var cometActivity = 1.0
@@ -279,6 +295,7 @@ struct WallpaperConfig: Codable, Equatable {
         c.fps = min(max(c.fps, 1), 120)
         c.planetCount = min(max(c.planetCount, 0), 6)
         c.ringedMoonCount = min(max(c.ringedMoonCount, 0), 3)
+        c.protoGaps = min(max(c.protoGaps, 1), 7)
         for kp in [\WallpaperConfig.starOrbitMinutes, \.planetOrbitMinutes, \.galaxyRotationMinutes,
                    \.tdeCycleMinutes, \.pulsarPeriod, \.nebulaFlow, \.planetSize, \.galaxySize,
                    \.ringedRingWidth, \.ringedBands, \.ringedMoonSpeed] {

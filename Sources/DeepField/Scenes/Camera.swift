@@ -38,6 +38,7 @@ struct PhoneFraming: Codable, Equatable {
         case .ringedPlanet: (0.32, -0.15, 0)
         case .auroraOrbit: (0.35, -0.1, 0)
         case .gasGiant: (0.3, -0.1, 0)
+        case .protoplanetaryDisk: (0.42, -0.1, 0)
         case .comet: (0.8, -0.45, 0)
         case .stellarSurface: (1.3, -0.5, 0)
         }

@@ -129,6 +129,23 @@ struct SceneTab: View {
                     SliderRow(title: "Axis tilt", value: $store.config.gasTilt, range: -40...40) { String(format: "%.0f°", $0) }
                     Toggle("Moon", isOn: $store.config.gasMoon)
                     FrequencyRow(title: "Lightning", value: $store.config.gasLightning)
+                case .protoplanetaryDisk:
+                    Picker("Look", selection: $store.config.protoLook) {
+                        ForEach(ProtoDiskLook.allCases) { Text($0.title).tag($0) }
+                    }
+                    .help("Scattered light shows the disk's surface lit by the star; the ALMA glow shows the dust's own warmth at millimeter wavelengths, rings and gaps seen right through")
+                    SliderRow(title: "Viewing angle", value: $store.config.protoView, range: 0...88) { String(format: "%.0f°", $0) }
+                        .help("0° looks straight down on the disk; near 90° it's edge-on, a dark dust lane between two lit surfaces")
+                    SliderRow(title: "Slant", value: $store.config.protoSlant, range: -60...60) { String(format: "%.0f°", $0) }
+                    SliderRow(title: "Size", value: $store.config.protoSize, range: 0.6...1.4)
+                    Stepper("Gaps: \(store.config.protoGaps)", value: $store.config.protoGaps, in: 1...7)
+                        .help("Each gap is cleared by a forming planet orbiting inside it")
+                    SliderRow(title: "Gap width", value: $store.config.protoGapWidth, range: 0.4...2)
+                    SliderRow(title: "Flaring", value: $store.config.protoFlaring, range: 0...2)
+                        .help("How fast the disk thickens outward. More flaring catches more starlight on its surface")
+                    SliderRow(title: "Orbit speed", value: $store.config.protoOrbitSpeed, range: 0...4)
+                    Toggle("Jets", isOn: $store.config.protoJets)
+                        .help("Thin jets from the star's poles, with knots of shocked gas moving outward")
                 case .comet:
                     SliderRow(title: "Tail length", value: $store.config.cometTailLength, range: 0.3...2)
                     SliderRow(title: "Activity", value: $store.config.cometActivity, range: 0.2...2.5)
@@ -245,6 +262,13 @@ struct SceneTab: View {
             Section {
                 FrequencyRow(title: "Comet impacts", value: $store.config.gasEvents)
                 DemoGrid(store: store, demos: [("Comet Impact", EventSchedule.cometImpact)])
+            } header: {
+                GroupHeader(title: "Events")
+            }
+        case .protoplanetaryDisk:
+            Section {
+                FrequencyRow(title: "Accretion outbursts", value: $store.config.protoEvents)
+                DemoGrid(store: store, demos: [("Outburst", EventSchedule.accretionOutburst)])
             } header: {
                 GroupHeader(title: "Events")
             }
