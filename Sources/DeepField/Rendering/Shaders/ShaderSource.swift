@@ -36,6 +36,8 @@
 //   10 to 19        live Earth: city lights, night ground, January and July surface, open water,
 //                   the Moon (EarthMaps), the cloud map and the aurora forecast (LiveEarthFeeds),
 //                   the star catalog and the Milky Way (EarthMaps.skyTextures)
+//   20 to 22        live Earth, a past moment: the cloud cover frames either side of it and the
+//                   motion between them (HistoricalClouds)
 //
 // Fragment buffer 8 (beyond FRAME_INPUTS): the real planets (SkyPlanetGPU), for scenes that draw
 // the real sky; Live Earth binds it.

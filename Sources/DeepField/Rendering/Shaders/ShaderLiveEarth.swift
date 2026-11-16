@@ -18,6 +18,7 @@ extension ShaderSource {
 // S.j = atmosphere, the Moon's true radius, star maps bound (0/1), a solar eclipse is on (0/1)
 // S.k, S.l, S.m = rows of the turn from Earth-fixed directions to the star catalog's (J2000)
 // S.n = star brightness, Milky Way brightness
+// S.p = real past clouds bound (0/1), how far the moment is between their two frames (0..1)
 // S.o = planets bound (count, buffer 8), their size (times true); their labels are a later pass
 //
 // Textures: 10 city lights, 11 night ground, 12 and 13 the January and July surface,
@@ -208,6 +209,9 @@ fragment float4 liveEarthFragment(FRAME_INPUTS,
                                   texture2d<float> auroraTex [[texture(17)]],
                                   texture2d<float> starTex [[texture(18)]],
                                   texture2d<float> milkyTex [[texture(19)]],
+                                  texture2d<float> pastA [[texture(20)]],
+                                  texture2d<float> pastB [[texture(21)]],
+                                  texture2d<float> pastFlow [[texture(22)]],
                                   constant SkyPlanet* skyP [[buffer(8)]])
 {
     constexpr sampler sm(filter::linear, mip_filter::linear, s_address::repeat, t_address::clamp_to_edge);
@@ -257,7 +261,21 @@ fragment float4 liveEarthFragment(FRAME_INPUTS,
             gr = land * 0.1;
         }
         float cloud = 0.0;
-        if (S.h.x > 0.5 && S.g.x > 0.0) {
+        if (S.p.x > 0.5 && S.g.x > 0.0) {
+            // That day's clouds. The frames either side of the moment are each carried along the
+            // motion between them (in opposite directions) to where their clouds would be now,
+            // and the two meet in the middle: clouds drift between frames instead of fading.
+            constexpr sampler fs(filter::linear, s_address::repeat, t_address::clamp_to_edge);
+            float f = S.p.y;
+            float2 fl = pastFlow.sample(fs, uv).rg;
+            float lodC = max(lod - 1.0, 0.0);
+            float ca = pastA.sample(sm, uv - f * fl, level(lodC)).r;
+            float cb = pastB.sample(sm, uv + (1.0 - f) * fl, level(lodC)).r;
+            // an eased mix, so each frame's own detail lasts longer either side of it
+            float w = smoothstep(0.0, 1.0, f);
+            cloud = mix(ca, cb, w) * min(S.g.x, 1.0);
+            cloud = min(cloud * max(S.g.x, 1.0), 1.0);
+        } else if (S.h.x > 0.5 && S.g.x > 0.0) {
             float c = cloudTex.sample(sm, uv, level(max(lod - 1.0, 0.0))).r;
             // The map is infrared: warm clear ground reads mid gray, cold high cloud near white, and
             // cold clear ground in winter in between, so only the brighter part counts as cloud.

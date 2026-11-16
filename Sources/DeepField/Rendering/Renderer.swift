@@ -289,7 +289,7 @@ final class Renderer {
         }
         var labels: [SIMD4<Float>] = []
         if c.scene == .liveEarth {
-            bindLiveEarth(enc, c, &sceneParams)
+            bindLiveEarth(enc, c, elapsed: elapsed, &sceneParams)
             var planets = SceneParams.liveEarthPlanets(c, elapsed: elapsed, sceneParams)
             labels = SceneParams.liveEarthLabels(c, planets, sceneParams, camera: cam,
                                                  width: target.width, height: target.height)
@@ -367,9 +367,9 @@ final class Renderer {
         pass.endEncoding()
     }
 
-    /// Live Earth's maps (slots 10 to 19, see ShaderSource) and the live layers that are on; the
+    /// Live Earth's maps (slots 10 to 22, see ShaderSource) and the live layers that are on; the
     /// flags in S.h tell the shader which ones it got.
-    private func bindLiveEarth(_ enc: MTLRenderCommandEncoder, _ c: WallpaperConfig, _ s: inout SceneParamsGPU) {
+    private func bindLiveEarth(_ enc: MTLRenderCommandEncoder, _ c: WallpaperConfig, elapsed: Double, _ s: inout SceneParamsGPU) {
         let night = EarthMaps.textures(device, queue)
         let day = EarthMaps.dayTextures(device, queue)
         let feeds = LiveEarthFeeds.shared
@@ -383,6 +383,20 @@ final class Renderer {
         let textures: [MTLTexture?] = [night?.lights, night?.ground, day?.january, day?.july, day?.water, day?.moon, clouds, aurora,
                                        sky?.stars, sky?.milkyWay]
         for (i, t) in textures.enumerated() { enc.setFragmentTexture(t ?? placeholder, index: 10 + i) }
+        // A frozen moment in the past (and a time-lapse running from one) shows that day's real
+        // clouds, moving between frames; anything else keeps the live map.
+        var moment: HistoricalClouds.Moment?
+        if c.earthClouds && c.earthFreezeTime {
+            let date = SceneParams.liveEarthDate(c, elapsed: elapsed)
+            let home = Astronomy.point(latitude: c.homeLatitude, longitude: c.homeLongitude)
+            if let source = HistoricalClouds.source(for: date, home: home, distance: c.earthDistance) {
+                moment = HistoricalClouds.shared.moment(date, source: source, device: device, queue: queue)
+            }
+        }
+        s.p = SIMD4(moment == nil ? 0 : 1, moment?.fraction ?? 0, 0, 0)
+        enc.setFragmentTexture(moment?.a ?? placeholder, index: 20)
+        enc.setFragmentTexture(moment?.b ?? placeholder, index: 21)
+        enc.setFragmentTexture(moment?.flow ?? placeholder, index: 22)
     }
 
     /// Fills the aurora's per-frame table: everything about the curtains that depends only on the

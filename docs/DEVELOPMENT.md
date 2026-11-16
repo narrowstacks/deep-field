@@ -48,6 +48,16 @@ which fetches them while the scene shows and keeps the last good copy in
 in `Resources/Earth` stand in. Command-line renders never fetch and read the bundled copies, so
 they come out the same every time (`--live-earth-cache` reads the downloaded ones instead).
 
+A frozen moment in the past (and a time-lapse from one) shows that day's real clouds
+(`Rendering/HistoricalClouds.swift`): NASA GIBS's 10-minute GOES and Himawari infrared when the
+view is North America and the Pacific and the date is within its last ~2.5 months, otherwise
+NOAA's GridSat-B1 every 3 hours since 1980 (via NCEI's OPeNDAP server). Each frame is turned into
+a cloud cover map, the motion between consecutive frames is found by block matching, and the
+shader carries both frames along that motion so clouds drift between frames instead of fading.
+Everything is cached under `.../LiveEarth/history`. Command-line renders wait for the downloads;
+`--prefetch-history SECONDS --config ...` fetches a whole span first, so parallel renders of a
+time-lapse find it cached.
+
 The real planets are reusable by any scene that draws the real sky: `Scenes/SkyPlanets.swift`
 works out where they are, how bright and how big (JPL's approximate elements, about 0.1 degree
 against Horizons), `SkyPlanets.gpu` turns them into the scene's frame as `SkyPlanetGPU` for

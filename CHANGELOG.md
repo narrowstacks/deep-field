@@ -10,6 +10,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - The stars behind Earth are the real night sky (about 9,000 stars in their own colors, and the Milky Way), turned to where they are at that moment.
 - Optional live clouds from weather satellites and NOAA's aurora forecast, updated while the scene shows. The last ones downloaded are kept, so the view still works offline.
 - The planets are in the sky too, where they really are and as bright as they really look. Keep them at true size, as points of light, or enlarge them to see their disks, phases, Jupiter's bands and Saturn's rings, and turn on labels to name them.
+- Freeze Live Earth on a past date and it shows that day's real clouds, from weather satellite records going back to 1980. They're downloaded once and kept.
 - The sun's disk and glare can be hidden while it's night at your place (its light still reaches Earth), and the clock can be frozen at any date and time.
 
 ## [0.4.1] - 2026-11-15
