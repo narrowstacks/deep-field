@@ -16,14 +16,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // a UI capture never touches desktop pictures or the network
         if !Settings.capturingUI { Updater.start() }
+        let args = CommandLine.arguments
+        // On a first launch the desktop stays as it was until the welcome guide says otherwise.
+        let welcome = Settings.isFirstLaunch && !Settings.capturingUI && !args.contains("--customize")
+        if welcome { Settings.wallpaperEnabled = false }
         buildWindows()
         buildStatusItem()
         if !Settings.capturingUI { LockScreenStill.shared.start() }
-        let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--capture-ui"), i + 1 < args.count {
             CustomizeWindowController.shared.captureForDebug(to: args[i + 1])
+        } else if let i = args.firstIndex(of: "--capture-welcome"), i + 1 < args.count {
+            WelcomeWindowController.shared.captureForDebug(to: args[i + 1], step: Settings.welcomeStep)
         } else if args.contains("--customize") {
             CustomizeWindowController.shared.show()
+        } else if welcome || args.contains("--welcome") {
+            showWelcome()
         }
 
         let ws = NSWorkspace.shared.notificationCenter
@@ -59,7 +66,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// of screens that went away are torn down.
     private func buildWindows() {
         var old = windows
-        windows = NSScreen.screens.map { screen in
+        let screens = Settings.wallpaperEnabled || Settings.capturingUI ? NSScreen.screens : []
+        windows = screens.map { screen in
             if let id = WallpaperWindow.displayID(of: screen), let i = old.firstIndex(where: { $0.displayID == id }) {
                 let w = old.remove(at: i)
                 w.place(on: screen)
@@ -78,6 +86,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         windows.forEach { $0.wallpaper.externallyPaused = paused }
     }
 
+    // MARK: welcome guide
+
+    @objc private func showWelcome() {
+        UserDefaults.standard.set(true, forKey: "welcomeShown")
+        WelcomeWindowController.shared.show { [weak self] setWallpaper in
+            if setWallpaper { self?.setWallpaper(true) }
+        }
+    }
+
+    private func setWallpaper(_ on: Bool) {
+        Settings.wallpaperEnabled = on
+        buildWindows()
+    }
+
+    @objc private func toggleWallpaper() { setWallpaper(!Settings.wallpaperEnabled) }
+
     // MARK: menu bar
 
     private func buildStatusItem() {
@@ -86,6 +110,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
         pauseItem.target = self
+        wallpaperItem.target = self
+        menu.addItem(wallpaperItem)
         menu.addItem(pauseItem)
         let customize = NSMenuItem(title: "Customize…", action: #selector(showCustomize), keyEquivalent: ",")
         customize.target = self
@@ -96,6 +122,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         loginItem.target = self
         menu.addItem(loginItem)
         menu.addItem(.separator())
+        let guide = NSMenuItem(title: "Welcome Guide…", action: #selector(showWelcome), keyEquivalent: "")
+        guide.target = self
+        menu.addItem(guide)
         let about = NSMenuItem(title: "About Deep Field", action: #selector(showAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
@@ -120,13 +149,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func checkForUpdates() { Updater.checkForUpdates() }
 
+    private let wallpaperItem = NSMenuItem(title: "Show on Desktop", action: #selector(toggleWallpaper), keyEquivalent: "")
     private let pauseItem = NSMenuItem(title: "Pause Animation", action: #selector(togglePause), keyEquivalent: "")
     private let lockScreenItem = NSMenuItem(title: "Use Scene on Lock Screen", action: #selector(toggleLockScreen), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLogin), keyEquivalent: "")
 
     /// Refreshed on every open, since the login item can also be changed in System Settings.
     func menuNeedsUpdate(_ menu: NSMenu) {
+        wallpaperItem.state = Settings.wallpaperEnabled ? .on : .off
         pauseItem.title = userPaused ? "Resume Animation" : "Pause Animation"
+        pauseItem.isHidden = !Settings.wallpaperEnabled
         lockScreenItem.state = ConfigStore.shared.config.lockScreenStill ? .on : .off
         switch SMAppService.mainApp.status {
         case .enabled: loginItem.state = .on

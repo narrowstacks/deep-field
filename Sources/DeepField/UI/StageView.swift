@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// The live wallpaper renderer, embedded. Renders at the main screen's resolution and scales down.
-private struct LivePreview: NSViewRepresentable {
+struct LivePreview: NSViewRepresentable {
     let reference: CGSize
     let actualPixels: Bool
     func makeNSView(context: Context) -> WallpaperView { WallpaperView(frame: .zero, previewOf: reference) }

@@ -1,5 +1,6 @@
 import AppKit
 
+_ = Settings.isFirstLaunch   // decided before anything below can save settings
 DefaultsMigration.run()   // settings saved under the old bundle identifier
 
 LockScreenStillTest.runIfRequested()   // dev: --lockscreen-still-test

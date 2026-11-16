@@ -22,7 +22,10 @@ Download **DeepField.dmg** from the [latest release](https://github.com/narrowst
 open it, and drag Deep Field to Applications. It runs on macOS 14 or later, on Apple silicon and
 Intel. The app is signed and notarized and updates itself.
 
-To start it with your Mac, choose **Launch at Login** from its menu bar icon.
+The first time you open it, a short guide lets you pick a scene and try a few looks on a large
+preview. Your desktop doesn't change until you choose **Set as Wallpaper** at the end. After that
+Deep Field lives in the menu bar, where you'll find **Customize…**, **Launch at Login** and the
+guide again.
 
 ## Scenes
 
