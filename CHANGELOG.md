@@ -6,6 +6,9 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 - Change scenes on a schedule: rotate through your presets and scenes every few minutes to once a day (in order or shuffled), or switch at set times on the days you choose. Set it up in the new Schedule section of Customize, and turn it on or skip ahead from the menu bar.
 - Each scheduled switch has a transition: Dissolve, Crossfade, Pan, Drift Away (the old scene's objects float off into the distance), Warp, Black Hole (a black hole sweeps across, bending one scene into the next), or Random.
+- Aurora from Orbit now shows the real Earth at night: actual city lights, coastlines and snow, turning slowly beneath you from Europe across North America and Asia.
+- The tops of the aurora curtains now fade softly into space instead of breaking up into a sharp, grainy edge.
+- Aurora from Orbit uses about a quarter of the GPU time it did, with the same look.
 
 ## [0.4.0] - 2026-11-15
 

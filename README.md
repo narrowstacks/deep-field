@@ -48,7 +48,7 @@ guide again.
   <tr>
     <td><img src="docs/media/gallery/planetaryNebula.png" alt="Planetary Nebula"><br><b>Planetary Nebula</b><br><sub>The glowing shell a dying star threw off.</sub></td>
     <td><img src="docs/media/gallery/ringedPlanet.png" alt="Ringed Planet"><br><b>Ringed Planet</b><br><sub>Rings and planet shadowing each other, with moons passing.</sub></td>
-    <td><img src="docs/media/gallery/auroraOrbit.png" alt="Aurora from Orbit"><br><b>Aurora from Orbit</b><br><sub>Aurora curtains over Earth's night side, city lights below.</sub></td>
+    <td><img src="docs/media/gallery/auroraOrbit.png" alt="Aurora from Orbit"><br><b>Aurora from Orbit</b><br><sub>Aurora curtains over Earth's night side, real city lights below.</sub></td>
   </tr>
   <tr>
     <td><img src="docs/media/gallery/gasGiant.png" alt="Gas Giant Storms"><br><b>Gas Giant Storms</b><br><sub>Flowing cloud bands and spinning storms, up close.</sub></td>

@@ -195,9 +195,13 @@ enum SceneParams {
         p.c = SIMD4(c.auroraRed.light3(L.aurora), Float(c.auroraActivity))
         p.d = SIMD4(c.auroraFringe.light3(L.aurora), Float(sub))
         p.e = SIMD4(c.auroraCityColor.light3(L.auroraCity), Float(c.auroraCityLights))
-        // the ground drifts at a quarter of a real low orbit's pace by default
-        p.f = SIMD4(Float(c.auroraClouds), Float(c.auroraMoonlight), Float(0.0012 * 0.25 * c.auroraDrift), Float(c.auroraLightning.rate))
-        p.g = SIMD4(Float(c.auroraSunrise), 5.3, 0, 0)
+        // Earth turns eastward under the view, about four times its real rate by default, so a
+        // full turn takes under six hours. The view starts over Europe and heads west from there.
+        let spin = 0.0003 * c.auroraDrift
+        let lon = (10 * deg - spin * t).remainder(dividingBy: 2 * .pi)
+        p.f = SIMD4(Float(c.auroraClouds), Float(c.auroraMoonlight), Float(spin), Float(c.auroraLightning.rate))
+        // z: whether the real Earth maps are bound (the renderer sets it), w: the view's longitude
+        p.g = SIMD4(Float(c.auroraSunrise), 5.3, 0, Float(lon))
         return p
     }
 

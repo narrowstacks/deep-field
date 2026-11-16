@@ -34,6 +34,10 @@ Everything is in `Sources/DeepField`:
 - `Mobile/`: the phone wallpaper export (portrait still, Live Photo pair, Photos library).
 - `Dev/`: the command line below (snapshot, benchmark, event list, UI capture).
 
+The Aurora scene's Earth at night comes from NASA's Black Marble city-light map, prepared into
+`Resources/Earth` by `Design/Earth/make_earth_maps.py`. `build.sh` copies that folder into the app,
+and a `swift build` binary finds it by walking up from its own path.
+
 An older nebula scene (pillars, dark clouds) is in the code but hidden from the scene list; see
 `SceneKind.isListed`.
 
@@ -46,6 +50,9 @@ An older nebula scene (pillars, dark clouds) is in the code but hidden from the 
   pass measures how much sky each pixel covers and filters detail to match, so heavily lensed
   regions don't shimmer. Each frame only reads those lookups and animates on top of them, and
   lensing of planets, supernovae and comets comes for free.
+- **Per-frame tables.** Aurora from Orbit fills a small table of its curtains' structure along
+  the oval (everything that depends only on the angle round the pole and on time) in a compute
+  pass before it draws, so the ray march reads it instead of evaluating noise at every step.
 - **Only the lookups a scene needs.** Each scene allocates just the bake textures it reads, in
   the smallest formats that hold its precision, and reuses them across re-bakes: about 8 MB per
   screen for flat-space scenes, up to about 44 MB for the black hole with planets.

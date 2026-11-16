@@ -49,6 +49,10 @@ final class Renderer {
     private let transitionPipeline: MTLRenderPipelineState
     private var bloomTargets: [SIMD2<Int>: BloomTargets] = [:]
     private let bloomLock = NSLock()
+    /// Fills the aurora's per-frame table of its curtains along the oval (`auroraLUT`).
+    private let auroraLUTPipeline: MTLComputePipelineState
+    /// The aurora's table, built on first use and shared by every view (guarded by `bloomLock`).
+    private var auroraLUT: MTLTexture?
 
     private struct BloomTargets {
         let hdr: MTLTexture       // the scene's linear light, full size
@@ -93,6 +97,7 @@ final class Renderer {
             framePipelines = Self.fragmentNames.mapValues { byName[$0]! }
             bloomBright = try compute("bloomBright")
             bloomBlur = try compute("bloomBlur")
+            auroraLUTPipeline = try compute("auroraLUT")
             imagePipeline = try render("imageFragment")
             transitionPipeline = try render("transitionFragment")
         } catch {
@@ -224,11 +229,6 @@ final class Renderer {
                      config c: WallpaperConfig, events: EventSchedule, orbitTime: Double? = nil) {
         let bloomAmount = c.bloom + c.scene.extraBloom
         let bloom = bloomAmount > 0 ? bloomResources(for: c.scene, width: target.width, height: target.height) : nil
-        let rp = MTLRenderPassDescriptor()
-        rp.colorAttachments[0].texture = bloom?.targets.hdr ?? target
-        rp.colorAttachments[0].loadAction = .dontCare
-        rp.colorAttachments[0].storeAction = .store
-        guard let enc = cb.makeRenderCommandEncoder(descriptor: rp) else { return }
 
         let aspect = Double(target.width) / Double(target.height)
         let cam = baked.camera.aspect == aspect ? baked.camera : Camera(c, aspect: aspect)
@@ -268,8 +268,23 @@ final class Renderer {
         var galaxy = c.scene == .galaxy ? GalaxyModel.gpu(c, elapsed: elapsed) : .empty
         var sceneParams = SceneParams.build(c, elapsed: elapsed, camera: cam, width: target.width,
                                             height: target.height, events: events)
+        // the aurora's table pass goes first, since a command buffer has one open encoder at a time
+        let lut = c.scene == .auroraOrbit ? encodeAuroraLUT(cb, frame: &f, scene: &sceneParams) : nil
+        let rp = MTLRenderPassDescriptor()
+        rp.colorAttachments[0].texture = bloom?.targets.hdr ?? target
+        rp.colorAttachments[0].loadAction = .dontCare
+        rp.colorAttachments[0].storeAction = .store
+        guard let enc = cb.makeRenderCommandEncoder(descriptor: rp) else { return }
         enc.setRenderPipelineState(bloom?.scene ?? framePipelines[c.scene]!)
         enc.setFragmentTextures(baked.textures, range: 0..<baked.textures.count)
+        if c.scene == .auroraOrbit {
+            // the real Earth at night, if its maps are there (S.g.z tells the shader)
+            let earth = EarthMaps.textures(device, queue)
+            sceneParams.g.z = earth == nil ? 0 : 1
+            enc.setFragmentTexture(earth?.lights ?? placeholder, index: 10)
+            enc.setFragmentTexture(earth?.ground ?? placeholder, index: 11)
+            enc.setFragmentTexture(lut ?? placeholder, index: 12)
+        }
         enc.setFragmentBytes(&f, length: MemoryLayout<FrameParams>.stride, index: 0)
         enc.setFragmentBytes(&planets, length: MemoryLayout<PlanetGPU>.stride * planets.count, index: 1)
         enc.setFragmentBytes(&ev, length: MemoryLayout<EventsGPU>.stride, index: 2)
@@ -303,6 +318,29 @@ final class Renderer {
         pass.setFragmentBytes(&params, length: MemoryLayout<SIMD4<Float>>.stride * 2, index: 0)
         pass.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         pass.endEncoding()
+    }
+
+    /// Fills the aurora's per-frame table: everything about the curtains that depends only on the
+    /// angle round the pole and on time. One texture serves every view, since all frames go
+    /// through the one command queue, which runs each buffer's passes in order.
+    private func encodeAuroraLUT(_ cb: MTLCommandBuffer, frame f: inout FrameParams,
+                                 scene s: inout SceneParamsGPU) -> MTLTexture? {
+        bloomLock.lock()
+        if auroraLUT == nil {
+            // 8192 texels round the pole: about six per cell of the finest ray noise
+            auroraLUT = makeTexture(device.supports32BitFloatFiltering ? .rgba32Float : .rgba16Float, 8192, 2)
+        }
+        let lut = auroraLUT
+        bloomLock.unlock()
+        guard let lut, let enc = cb.makeComputeCommandEncoder() else { return nil }
+        enc.setComputePipelineState(auroraLUTPipeline)
+        enc.setTexture(lut, index: 0)
+        enc.setBytes(&f, length: MemoryLayout<FrameParams>.stride, index: 0)
+        enc.setBytes(&s, length: MemoryLayout<SceneParamsGPU>.stride, index: 1)
+        enc.dispatchThreads(MTLSize(width: lut.width, height: 1, depth: 1),
+                            threadsPerThreadgroup: MTLSize(width: 64, height: 1, depth: 1))
+        enc.endEncoding()
+        return lut
     }
 
     /// The scene's linear-light pipeline and the intermediate textures for a target size.
