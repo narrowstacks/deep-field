@@ -208,6 +208,11 @@ git clone https://github.com/narrowstacks/deep-field.git && cd deep-field
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) covers the code layout, how the rendering works, the
 command line tools for snapshots and benchmarks, and how releases are made.
 
+Before your first pull request is merged, you'll be asked to sign the
+[Contributor License Agreement](CLA.md) by posting a comment on the pull request. It lets the
+maintainer keep Deep Field open source while also using contributions in other editions of the
+app, such as versions for iPhone and Apple TV.
+
 ## License
 
 Deep Field is free software under the [GNU General Public License v3.0](LICENSE). You can use,
