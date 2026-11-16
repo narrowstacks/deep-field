@@ -44,7 +44,9 @@ twinkles used sparingly. Ground scenes in real physics, tuned for looks.
    `git tag -a vx.y.z -m "Deep Field x.y.z" && git push origin vx.y.z`.
 3. The Release workflow builds, signs, notarizes and publishes on the self-hosted Mac runner;
    installed copies update through Sparkle.
-4. After a release, the website (narrowstacks/deep-field-website) needs a rebuild to show it.
+4. The workflow then pushes an empty `[deploy]` commit to narrowstacks/deep-field-website so it
+   rebuilds with the release (needs the `WEBSITE_DEPLOY_TOKEN` secret). If that step fails, push
+   `chore: ship Deep Field x.y.z [deploy]` there by hand.
 
 ## Writing
 
