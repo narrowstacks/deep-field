@@ -15,11 +15,15 @@ extension CustomizeWindowController {
             ConfigStore.shared.config.scene = scene
         }
         show()
-        // `-captureSize WxH` resizes the window first, as dragging its corner would
-        if let size = UserDefaults.standard.string(forKey: "captureSize")?.split(separator: "x").compactMap({ Double($0) }),
-           size.count == 2 {
-            window?.setContentSize(CGSize(width: size[0], height: size[1]))
+        // Captures use the window's first-open size (or `-captureSize WxH`), never the size you
+        // left it at, and stop remembering the frame first so they don't change that saved size.
+        window?.setFrameAutosaveName("")
+        var size = Theme.windowSize
+        if let s = UserDefaults.standard.string(forKey: "captureSize")?.split(separator: "x").compactMap({ Double($0) }),
+           s.count == 2 {
+            size = CGSize(width: s[0], height: s[1])
         }
+        window?.setContentSize(size)
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
             guard let view = self?.window?.contentView,
                   let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { exit(1) }

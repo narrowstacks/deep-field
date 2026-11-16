@@ -271,7 +271,16 @@ struct SceneTab: View {
             } header: {
                 // the scene itself heads its first group
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(scene.title).font(.title3.weight(.semibold)).foregroundStyle(.primary)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(scene.title).font(.title3.weight(.semibold)).foregroundStyle(.primary)
+                        Spacer()
+                        Button("Reset") { store.config = store.config.resettingScene(scene) }
+                            .controlSize(.small)
+                            .disabled(!store.config.isCustomized(scene))
+                            .help(scene.sharesSettings
+                                  ? "Puts this scene's settings and colors back to their defaults. Camera tilt and planets are shared with other scenes and reset for them too."
+                                  : "Puts this scene's settings and colors back to their defaults")
+                    }
                     Text(scene.blurb).font(.callout).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }

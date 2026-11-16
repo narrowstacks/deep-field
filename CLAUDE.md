@@ -17,6 +17,11 @@ dev command line; read it before touching rendering or adding a scene.
 - Scene events fire even with `--no-events` (that flag only stops the shared sky events). Pick a
   calm time with `--list-events`, or force one with `--demo <id>:<start>`.
 - `--benchmark --defaults --scene <kind>`: keep frame GPU time under about 2 ms.
+- `--check-customization` checks per-scene reset and image settings. A scene's new config keys
+  need its prefix (or an entry in `ownKeys` in `Config/SceneCustomization.swift`) for Reset to
+  cover them.
+- Focus filters and Shortcuts actions need the App Intents metadata `build.sh` extracts; test them
+  with `build/DeepField.app`, not the `.build/release` binary.
 
 ## Adding a scene
 
@@ -38,6 +43,15 @@ Every image and loop in the README is rendered by `Design/Brand/media.py` (see
 `Design/Brand/README.md`). When a scene's look or behavior changes substantially (new elements,
 colors, models, or a different default look), update its entries there, rerun the parts that
 show it, and commit the new media with the change. Check the output by eye before committing.
+
+## Screenshots and videos in PRs and issues
+
+- A PR or issue that adds a scene, changes how one looks or moves, or fixes a visual bug must
+  include screenshots: renders from `--snapshot` (before and after for changes and fixes), or a
+  `--capture-ui` image for Customize window changes.
+- When a still can't show it (motion, timing, an event, an animation bug), also attach a short
+  video or GIF, for example from `Design/Brand/loops.py` or a screen recording.
+- Upload with the `uploading-attachments` skill, so images don't land in the repo.
 
 ## Look and feel
 

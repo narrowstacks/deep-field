@@ -43,6 +43,9 @@ enum DevCommands {
             print("\(p.name): scene \(p.config.scene.rawValue), bloom \(p.config.bloom), levels \(p.config.levels)")
             exit(0)
         }
+        if args.has("--check-customization") {
+            exit(CustomizationCheck.run() ? 0 : 1)
+        }
         guard args.has("--list-events") || args.has("--snapshot") || args.has("--benchmark")
                 || args.has("--mobile-export") || args.has("--check-live") else { return }
 

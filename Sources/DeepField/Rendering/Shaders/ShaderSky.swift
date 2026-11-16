@@ -5,7 +5,21 @@ extension ShaderSource {
 // Sky as scalars: (star brightness, star tint, nebula A, nebula B) and a star id.
 // `fp` is the angular footprint of this pixel on the sky; where lensing squeezes a lot of sky
 // into one pixel, detail is filtered instead of aliasing into moire.
-static float4 skyScalars(float3 d, float fp, constant BakeParams& P, float seed, thread float& id) {
+// A different star field for each sky seed: the whole field turns to a hashed orientation, so
+// stars, nebulae and galaxies keep their look and only where they sit changes. Seed 0 is the
+// original sky.
+static float3 seededSky(float3 d, float s) {
+    if (s == 0.0) return d;
+    float3 q = float3(s * 0.0137, s * 0.0291 + 3.1, 7.7);
+    float3 h = float3(hash13(q), hash13(q + 19.1), hash13(q + 37.3));
+    float3 axis = normalize(h - 0.5 + float3(1e-3, 0.0, 0.0));
+    float a = 0.6 + 5.0 * fract(h.x * 7.13 + h.y * 3.71);
+    float c = cos(a), sn = sin(a);
+    return d * c + cross(axis, d) * sn + axis * dot(axis, d) * (1.0 - c);
+}
+
+static float4 skyScalars(float3 d0, float fp, constant BakeParams& P, float seed, thread float& id) {
+    float3 d = seededSky(d0, P.skySeed);
     float pixelAngle = 2.0 * P.tanHalfFov / P.height;
     float k = max(fp / pixelAngle, 1.0);           // > 1 where the sky is compressed
     float cells = 0.9 / pixelAngle;
@@ -15,7 +29,7 @@ static float4 skyScalars(float3 d, float fp, constant BakeParams& P, float seed,
     // galactic band: a tilted great circle of dense stars, glow and dark dust lanes
     float band = 0.0, dust = 0.0;
     if (P.milkyWay > 0.5 && seed == 0.0) {
-        float lat = dot(d, normalize(float3(0.42, 0.9, 0.08)));
+        float lat = dot(d0, normalize(float3(0.42, 0.9, 0.08)));
         float wobble = 0.05 * (fbmLOD(d * 3.0 + 11.0, fp * 3.0) - 0.5);
         band = exp(-pow((lat + wobble) / 0.09, 2.0));
         dust = smoothstep(0.42, 0.72, fbmLOD(d * 7.0 + 4.0, fp * 7.0)) * exp(-pow((lat + wobble * 1.5) / 0.035, 2.0));
@@ -156,13 +170,14 @@ static float3 skyColor(float4 sky, uint idq, float3 dir, bool far, constant Fram
         } else {
             col = mix(Pal.starWarm.rgb, Pal.starCool.rgb, tint) * bright;
             if (id > 0.0) {
-                // occasional twinkle: each star rolls the dice every ~5 s
-                float slotPos = F.time * 0.2 + id * 97.0;
+                // occasional twinkle: each star rolls the dice every ~5 s (at speed 1)
+                float tt = F.time * F.twinkleSpeed;
+                float slotPos = tt * 0.2 + id * 97.0;
                 float roll = hash13(float3(id * 1000.0, floor(slotPos), 7.0));
                 if (roll > 1.0 - 0.06 * F.twinkle) {
                     float env = sin(3.14159 * fract(slotPos));
-                    float flick = 0.5 + 0.5 * sin(F.time * 23.0 + id * 61.0) * sin(F.time * 9.0 + id * 17.0);
-                    col *= 1.0 + env * env * (1.0 + 3.0 * flick);
+                    float flick = 0.5 + 0.5 * sin(tt * 23.0 + id * 61.0) * sin(tt * 9.0 + id * 17.0);
+                    col *= 1.0 + env * env * (1.0 + 3.0 * flick) * F.twinkleBrightness;
                 }
                 if (F.pulsars > 0.5 && fract(id * 7919.0) < 0.004) {
                     col *= 0.25 + 3.5 * pow(0.5 + 0.5 * sin(F.time * 5.71 + id * 10.0), 12.0);
