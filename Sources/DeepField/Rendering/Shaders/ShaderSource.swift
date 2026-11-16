@@ -30,6 +30,9 @@
 //   8 info          lensed scenes: closest approach (black hole) or side and impact parameter
 //                   (wormhole), see the bake kernels; float32 (rgba for the tidal disruption's jets)
 //   9 starId        star id for twinkles and pulsars, 1..4095 (0 = none), uint16
+//   10, 11          aurora from orbit: the Earth maps (city lights, ground), see EarthMaps
+//   12              aurora from orbit: the per-frame table of the curtains along the oval
+//                   (8192x2, x = angle round the pole), filled by the auroraLUT kernel
 
 enum ShaderSource {
     static var full: String {

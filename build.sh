@@ -32,6 +32,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Framewor
 cp "$PRODUCTS/DeepField" "$APP/Contents/MacOS/DeepField"
 SPARKLE=$(find "$PRODUCTS" .build/artifacts -maxdepth 6 -name Sparkle.framework -type d | head -1)
 ditto "$SPARKLE" "$APP/Contents/Frameworks/Sparkle.framework"
+# the Aurora scene's Earth maps (Design/Earth/make_earth_maps.py)
+ditto Resources/Earth "$APP/Contents/Resources/Earth"
 
 # App Intents metadata: without it macOS doesn't list the Focus filter or the Shortcuts actions.
 # Xcode runs this step itself; SwiftPM doesn't, so it's run here on the compiler's const values.
