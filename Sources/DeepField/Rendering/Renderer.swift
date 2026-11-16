@@ -10,6 +10,10 @@ struct Baked {
     let shells: Bool
     /// GPU memory held by this bake's own textures.
     let bytes: Int
+    /// The camera the rays were traced from. Frames drawn from this bake use it too, so while a
+    /// new tilt waits for its bake the view holds still instead of moving its camera through
+    /// the old rays.
+    let camera: Camera
 
     /// Whether this bake still serves `c`, or it needs a new one.
     func matches(_ c: WallpaperConfig) -> Bool { key == c.bakeKey && shells == Renderer.needsShells(c) }
@@ -203,7 +207,7 @@ final class Renderer {
         skyEnc.setBytes(&p, length: MemoryLayout<BakeParams>.stride, index: 0)
         skyEnc.dispatchThreads(grid, threadsPerThreadgroup: group)
         skyEnc.endEncoding()
-        return Baked(textures: textures, key: c.bakeKey, shells: shells, bytes: bytes)
+        return Baked(textures: textures, key: c.bakeKey, shells: shells, bytes: bytes, camera: cam)
     }
 
     /// `elapsed` is seconds since launch (Double, so long orbital periods stay precise).
@@ -221,7 +225,8 @@ final class Renderer {
         rp.colorAttachments[0].storeAction = .store
         guard let enc = cb.makeRenderCommandEncoder(descriptor: rp) else { return }
 
-        let cam = Camera(c, aspect: Double(target.width) / Double(target.height))
+        let aspect = Double(target.width) / Double(target.height)
+        let cam = baked.camera.aspect == aspect ? baked.camera : Camera(c, aspect: aspect)
         var planets = PlanetFactory.make(c).map { $0.gpu(elapsed: orbitTime ?? elapsed) }
         var stars = StarSystem.stars(c, elapsed: orbitTime ?? elapsed)
         var lights = StarSystem.lights(c, stars: stars)

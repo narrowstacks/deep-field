@@ -13,6 +13,7 @@ final class WallpaperView: NSView {
     private var lastFrame: CFTimeInterval = 0
     private var observers: [NSObjectProtocol] = []
     private var rebakeWork: DispatchWorkItem?
+    private var lastRebake: CFTimeInterval = 0
     private let events = EventSchedule(seed: UInt64.random(in: 0...UInt64.max))
 
     /// Preview mode: render exactly what a screen of this pixel size would show, scaled down to fit.
@@ -163,14 +164,23 @@ final class WallpaperView: NSView {
         updateRunning()
         // a new scene can't draw from the old scene's bake, so that one re-bakes right away
         if let baked, !baked.matches(config), baked.key.scene == config.scene {
-            // debounce, so dragging a slider doesn't re-trace every intermediate value
+            // Re-trace as a slider moves, so a tilt turns smoothly: every change for the flat
+            // scenes (a bake is about a millisecond), at most every 0.1 s for the lensed ones
+            // (tens of ms), plus once more when the slider stops.
             rebakeWork?.cancel()
+            let gap = Renderer.lensing(config.scene) > 0 ? 0.1 : 0.0
+            let wait = gap - (CACurrentMediaTime() - lastRebake)
             let work = DispatchWorkItem { [weak self] in
+                self?.lastRebake = CACurrentMediaTime()
                 self?.bakedSize = (0, 0)
                 self?.layoutDrawable()
             }
-            rebakeWork = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+            if wait <= 0 {
+                work.perform()
+            } else {
+                rebakeWork = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + wait, execute: work)
+            }
         } else {
             rebakeWork?.cancel()
             layoutDrawable()
