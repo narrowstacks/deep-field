@@ -52,6 +52,16 @@ guide again.
   </tr>
   <tr>
     <td><img src="docs/media/gallery/gasGiant.png" alt="Gas Giant Storms"><br><b>Gas Giant Storms</b><br><sub>Flowing cloud bands and spinning storms, up close.</sub></td>
+    <td><img src="docs/media/gallery/protoplanetaryDisk.png" alt="Protoplanetary Disk"><br><b>Protoplanetary Disk</b><br><sub>A young star in a ringed dusty disk, with planets clearing the gaps.</sub></td>
+    <td><img src="docs/media/gallery/neutronMerger.png" alt="Neutron Star Merger"><br><b>Neutron Star Merger</b><br><sub>Two neutron stars spiral together and merge in a kilonova, again and again.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/media/gallery/dysonSwarm.png" alt="Dyson Swarm"><br><b>Dyson Swarm</b><br><sub>A star wrapped in crossing rings of glinting collector panels.</sub></td>
+    <td><img src="docs/media/gallery/roguePlanet.png" alt="Rogue Planet"><br><b>Rogue Planet</b><br><sub>A dark, sunless world drifting past the Milky Way, its poles aglow.</sub></td>
+    <td><img src="docs/media/gallery/eclipse.png" alt="Eclipse"><br><b>Eclipse</b><br><sub>A total eclipse from another world, with planets and skies you choose.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/media/gallery/quasar.png" alt="Quasar"><br><b>Quasar</b><br><sub>A galaxy's blazing core firing jets out to glowing radio lobes.</sub></td>
     <td></td>
     <td></td>
   </tr>
