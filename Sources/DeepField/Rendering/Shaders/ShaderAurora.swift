@@ -43,7 +43,7 @@ static float auWiggle(float psi, float T, float act, float sub, float storm, flo
     // strength would move them by T times its rate of change, a frantic race hours into a run.
     float clock = T * act + storm;
     float folds = sin(psi * 26.0 - clock * 0.3 + 3.0 * noise3(float3(psi * 9.0, T * 0.03 * act, 2.0))) * 0.006
-                + sin(psi * 70.0 + clock * 0.55 + 2.0 * noise3(float3(psi * 20.0, seed, T * 0.05 * act))) * 0.0018;
+                + sin(psi * 70.0 + clock * 0.6 + 2.0 * noise3(float3(psi * 20.0, seed, T * 0.05 * act))) * 0.0018;
     return slow + folds * (1.8 + 1.2 * sub);
 }
 

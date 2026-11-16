@@ -189,7 +189,7 @@ enum SceneParams {
         if case (let age, _)? = events.active(EventSchedule.substorm, rate: c.auroraEvents.rate, at: t, demo: demo) {
             let f = age / EventSchedule.substorm.duration
             sub = auroraSubstorm(f)
-            storm = auroraStormLead(f)
+            storm = auroraStormLead(f, activity: c.auroraActivity)
         }
         typealias L = PickedColor.Level
         p.a = SIMD4(Float(pitch), Float(h), Float(c.auroraDistance * deg), Float(c.auroraOvalSize * deg))
@@ -214,18 +214,20 @@ enum SceneParams {
     }
 
     /// How far a substorm has pushed the aurora's folds ahead by `f` through the event, in
-    /// seconds of their clock: the running total of its strength, scaled so a whole storm adds
-    /// 40 pi. That's a whole number of turns for both fold waves (0.3 and 0.55 rad per second),
-    /// so they're back in step when the storm ends instead of jumping. Up to about 1.8 times the calm pace
-    /// at the storm's height.
+    /// seconds of their clock: the running total of its strength. A whole storm adds a whole
+    /// number of turns of both fold waves (0.3 and 0.6 rad per second, so 2 pi / 0.3 each), so
+    /// they're back in step when it ends instead of jumping. The number of turns follows the
+    /// aurora's speed, which makes the folds run about 1.8 times their calm pace at the storm's
+    /// height at any speed (and not at all below about 0.08, where a turn would be too much).
     private static let stormSteps = 256
     private static let stormTotal = (0..<stormSteps).reduce(0.0) { $0 + auroraSubstorm((Double($1) + 0.5) / Double(stormSteps)) }
-    private static func auroraStormLead(_ f: Double) -> Double {
+    private static func auroraStormLead(_ f: Double, activity: Double) -> Double {
         let x = min(max(f, 0), 1) * Double(stormSteps)
         let whole = Int(x)
         var sum = (0..<whole).reduce(0.0) { $0 + auroraSubstorm((Double($1) + 0.5) / Double(stormSteps)) }
         if whole < stormSteps { sum += (x - Double(whole)) * auroraSubstorm((Double(whole) + 0.5) / Double(stormSteps)) }
-        return 40 * .pi * sum / stormTotal
+        let turns = (activity * 6).rounded()
+        return turns * (2 * .pi / 0.3) * sum / stormTotal
     }
 
     // MARK: Live Earth
