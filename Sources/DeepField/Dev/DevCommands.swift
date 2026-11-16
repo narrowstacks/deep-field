@@ -97,7 +97,7 @@ struct Arguments {
 }
 
 extension EventSchedule {
-    /// Prints when each event kind (sky, wormhole, comet, star close-up, planetary nebula, ringed planet, aurora and gas giant scenes) fires in the
+    /// Prints when each event kind (sky, wormhole, comet, star close-up, planetary nebula, ringed planet, aurora, gas giant and protoplanetary disk scenes) fires in the
     /// first `minutes`, at the configured frequencies.
     func list(minutes: Double, config c: WallpaperConfig) {
         let w = c.wormholeEvents.rate, cm = c.cometEvents.rate, st = c.starFlares.rate
@@ -110,7 +110,8 @@ extension EventSchedule {
                                 ("shellEjection", Self.shellEjection, c.planetaryEvents.rate),
                                 ("whiteStorm", Self.whiteStorm, c.ringedEvents.rate),
                                 ("substorm", Self.substorm, c.auroraEvents.rate),
-                                ("cometImpact", Self.cometImpact, c.gasEvents.rate)] {
+                                ("cometImpact", Self.cometImpact, c.gasEvents.rate),
+                                ("accretionOutburst", Self.accretionOutburst, c.protoEvents.rate)] {
             var t = 0.0
             var starts: [Int] = []
             while t < minutes * 60 {

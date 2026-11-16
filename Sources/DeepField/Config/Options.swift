@@ -95,6 +95,57 @@ enum Frequency: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// How the protoplanetary disk is seen: starlight scattered off its surface, the dust's own
+/// millimeter glow (as ALMA sees it), or both.
+enum ProtoDiskLook: String, Codable, CaseIterable, Identifiable {
+    case scattered, blend, alma
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .scattered: "Scattered light"
+        case .blend: "Both"
+        case .alma: "ALMA glow"
+        }
+    }
+    /// How much the small grains hide the millimeter glow, scattered light weight, glow weight.
+    var weights: SIMD3<Float> {
+        switch self {
+        case .scattered: SIMD3(1, 1, 0.1)
+        case .blend: SIMD3(0.015, 0.5, 0.8)
+        case .alma: SIMD3(0.02, 0.06, 1.2)
+        }
+    }
+}
+
+/// Color looks for the protoplanetary disk: dust, lit surface, star, jets (as picks), and a look.
+struct ProtoDiskPreset {
+    let name: String
+    let look: ProtoDiskLook
+    let dust: RGB, gas: RGB, star: RGB, jet: RGB
+
+    static let all: [ProtoDiskPreset] = [
+        ProtoDiskPreset(name: "Default", look: .blend, dust: WallpaperConfig.Tuned.protoDust.color,
+                        gas: WallpaperConfig.Tuned.protoGas.color, star: WallpaperConfig.Tuned.protoStar.color,
+                        jet: WallpaperConfig.Tuned.protoJet.color),
+        ProtoDiskPreset(name: "HL Tau (ALMA)", look: .alma, dust: RGB(1.0, 0.55, 0.12), gas: RGB(0.9, 0.4, 0.2),
+                        star: RGB(1.0, 0.92, 0.75), jet: RGB(1.0, 0.45, 0.3)),
+        ProtoDiskPreset(name: "Scattered light", look: .scattered, dust: RGB(0.95, 0.6, 0.35), gas: RGB(0.78, 0.84, 1.0),
+                        star: RGB(1.0, 0.95, 0.85), jet: RGB(1.0, 0.3, 0.4)),
+        ProtoDiskPreset(name: "Infrared", look: .scattered, dust: RGB(1.0, 0.3, 0.2), gas: RGB(1.0, 0.62, 0.3),
+                        star: RGB(1.0, 0.8, 0.6), jet: RGB(0.4, 0.7, 1.0)),
+        ProtoDiskPreset(name: "Teal", look: .blend, dust: RGB(0.12, 0.78, 0.7), gas: RGB(0.5, 0.38, 1.0),
+                        star: RGB(0.9, 0.95, 1.0), jet: RGB(1.0, 0.35, 0.75)),
+    ]
+
+    func apply(to c: inout WallpaperConfig) {
+        c.protoLook = look
+        c.protoDustColor = dust
+        c.protoGasColor = gas
+        c.protoStarColor = star
+        c.protoJetColor = jet
+    }
+}
+
 /// Color looks for the ringed planet: light bands, dark bands, rings (as picks).
 struct RingedPlanetPreset {
     let name: String
