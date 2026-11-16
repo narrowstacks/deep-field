@@ -15,6 +15,9 @@ struct Baked {
     /// the old rays.
     let camera: Camera
 
+    /// The shaded size it was traced at (the direction lookup is allocated for every scene).
+    var size: (Int, Int) { (textures[Renderer.Slot.dir.rawValue].width, textures[Renderer.Slot.dir.rawValue].height) }
+
     /// Whether this bake still serves `c`, or it needs a new one.
     func matches(_ c: WallpaperConfig) -> Bool { key == c.bakeKey && shells == Renderer.needsShells(c) }
 }
@@ -43,6 +46,7 @@ final class Renderer {
     private let bloomBright: MTLComputePipelineState
     private let bloomBlur: MTLComputePipelineState
     private let imagePipeline: MTLRenderPipelineState
+    private let transitionPipeline: MTLRenderPipelineState
     private var bloomTargets: [SIMD2<Int>: BloomTargets] = [:]
     private let bloomLock = NSLock()
 
@@ -90,6 +94,7 @@ final class Renderer {
             bloomBright = try compute("bloomBright")
             bloomBlur = try compute("bloomBlur")
             imagePipeline = try render("imageFragment")
+            transitionPipeline = try render("transitionFragment")
         } catch {
             fatalError("Shader compile failed: \(error)")
         }
@@ -276,6 +281,28 @@ final class Renderer {
         enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         enc.endEncoding()
         if let bloom { encodeBloom(cb, bloom.targets, target: target, frame: &f) }
+    }
+
+    /// Mixes two finished frames into `target` with a transition (`transitionFragment`):
+    /// `progress` 0 shows `from`, 1 shows `to`. `seed` varies the pattern or direction, and the
+    /// two configs give the levels and dither the mix is dithered back onto.
+    func encodeTransition(_ cb: MTLCommandBuffer, target: MTLTexture, from: MTLTexture, to: MTLTexture,
+                          progress: Double, seed: Float, style: TransitionStyle,
+                          fromConfig: WallpaperConfig, toConfig: WallpaperConfig) {
+        let rp = MTLRenderPassDescriptor()
+        rp.colorAttachments[0].texture = target
+        rp.colorAttachments[0].loadAction = .dontCare
+        rp.colorAttachments[0].storeAction = .store
+        guard let pass = cb.makeRenderCommandEncoder(descriptor: rp) else { return }
+        var params = [SIMD4<Float>(Float(min(max(progress, 0), 1)), seed, style.shaderIndex, 0),
+                      SIMD4<Float>(Float(fromConfig.levels), fromConfig.dither.shaderIndex,
+                                   Float(toConfig.levels), toConfig.dither.shaderIndex)]
+        pass.setRenderPipelineState(transitionPipeline)
+        pass.setFragmentTexture(from, index: 0)
+        pass.setFragmentTexture(to, index: 1)
+        pass.setFragmentBytes(&params, length: MemoryLayout<SIMD4<Float>>.stride * 2, index: 0)
+        pass.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        pass.endEncoding()
     }
 
     /// The scene's linear-light pipeline and the intermediate textures for a target size.

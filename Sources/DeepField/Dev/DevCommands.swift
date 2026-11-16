@@ -3,7 +3,7 @@ import Foundation
 /// Dev command line. Each command renders offscreen or prints, then exits; without one the app
 /// starts normally.
 ///
-///     --snapshot out.png [--size 3440x1440] [--time 10] [--no-events]
+///     --snapshot out.png [--size 3440x1440] [--time 10] [--no-events] [--transition-from scene:0.5:pan]
 ///     --benchmark [--size 3440x1440] [--time 300] [--frames 120] [--no-events]
 ///     --list-events [minutes]
 ///     --mobile-export outdir [--device 17-pro-max|WIDTHxHEIGHT] [--live] [--smooth]
@@ -43,6 +43,9 @@ enum DevCommands {
             print("\(p.name): scene \(p.config.scene.rawValue), bloom \(p.config.bloom), levels \(p.config.levels)")
             exit(0)
         }
+        if args.has("--check-schedule") {
+            exit(ScheduleCheck.run() ? 0 : 1)
+        }
         if args.has("--check-customization") {
             exit(CustomizationCheck.run() ? 0 : 1)
         }
@@ -66,7 +69,21 @@ enum DevCommands {
         let size = args.size()
         if let path = args.value("--snapshot") {
             let time = args.value("--time").flatMap(Double.init) ?? 10
-            Snapshot.render(to: path, config: config, size: size, time: time, eventsEnabled: eventsEnabled)
+            // --transition-from <scene>:<progress>[:<style>] renders a schedule transition from that scene
+            var transition: FrameCapture.Transition?
+            if let spec = args.value("--transition-from") {
+                let parts = spec.split(separator: ":").map(String.init)
+                guard parts.count >= 2, let kind = SceneKind(rawValue: parts[0]), let progress = Double(parts[1]),
+                      let style = parts.count > 2 ? TransitionStyle(rawValue: parts[2]) : .dissolve else {
+                    FileHandle.standardError.write("--transition-from expects <scene>:<progress>[:<style>]\n".data(using: .utf8)!)
+                    exit(1)
+                }
+                var from = config
+                from.scene = kind
+                transition = (from, progress, style)
+            }
+            Snapshot.render(to: path, config: config, size: size, time: time, eventsEnabled: eventsEnabled,
+                            transition: transition)
             exit(0)
         }
         if args.has("--benchmark") {

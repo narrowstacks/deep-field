@@ -89,6 +89,17 @@ share a content identifier (the still's Apple maker note key 17, the movie's
 `com.apple.quicktime.content.identifier`, and a `still-image-time` metadata track at the middle
 frame).
 
+### Schedule and transitions
+
+`Config/Schedule.swift` works out which entry is due from the clock alone (rotation counts
+intervals from a saved anchor; timed entries look back a week for the latest start), and
+`App/Scheduler.swift` applies it once per slot, so a relaunch or a change made by hand doesn't
+repeat a switch. Nothing switches while a Focus filter is on. A switch goes through
+`ConfigStore.transition(to:seconds:style:)`: each wallpaper view keeps the outgoing bake, draws
+both looks into offscreen targets, and mixes them in `transitionFragment`. Every style dithers its
+mix back onto the levels, and a pixel that isn't moving or mixing keeps its exact color, so a
+transition starts and ends on the exact frames.
+
 ### Lock screen still
 
 Deep Field keeps a still of the current scene as each screen's desktop picture. It re-renders
@@ -110,11 +121,14 @@ since, and puts your original pictures back when you turn the option off.
 .build/release/DeepField --check-live still.HEIC movie.MOV   # pairing metadata, loads as a Live Photo?
 build/DeepField.app/Contents/MacOS/DeepField --customize   # open the Customize window at launch
 build/DeepField.app/Contents/MacOS/DeepField --check-picker outdir -captureTab 0   # drive the color wells, check the preview follows
-build/DeepField.app/Contents/MacOS/DeepField --capture-ui out.png -captureTab N -captureScene name [--defaults]   # image of the window (N: 0 Scene, 1 Sky, 2 Image, 3 System, 4 Phone)
+build/DeepField.app/Contents/MacOS/DeepField --capture-ui out.png -captureTab N -captureScene name [--defaults]   # image of the window (N: 0 Scene, 1 Sky, 2 Image, 3 System, 4 Phone, 5 Schedule)
 defaults write com.narrowstacks.DeepField debug -bool true     # log bake times, fps, pause/resume
 .build/release/DeepField --preset-roundtrip out.deepfield [--scene ...] [--config ...]   # write a preset file, read it back, compare
 .build/release/DeepField --preset-check file.deepfield         # load a preset file the way Import does
 .build/release/DeepField --check-customization                 # per-scene reset and image settings, on plain configs
+.build/release/DeepField --check-schedule                      # which entry rotation and timed schedules pick, DST included
+.build/release/DeepField --snapshot out.png --defaults --scene galaxy --transition-from ringedPlanet:0.5:blackHole
+    # halfway through a schedule transition (dissolve, crossfade, pan, driftAway, warp, blackHole)
 build/DeepField.app/Contents/MacOS/DeepField --welcome          # show the first-launch guide
 build/DeepField.app/Contents/MacOS/DeepField --capture-welcome out.png -welcomeStep N [--defaults]   # image of guide step N (0 to 3)
 ```

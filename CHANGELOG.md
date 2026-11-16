@@ -4,6 +4,9 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+- Change scenes on a schedule: rotate through your presets and scenes every few minutes to once a day (in order or shuffled), or switch at set times on the days you choose. Set it up in the new Schedule section of Customize, and turn it on or skip ahead from the menu bar.
+- Each scheduled switch has a transition: Dissolve, Crossfade, Pan, Drift Away (the old scene's objects float off into the distance), Warp, Black Hole (a black hole sweeps across, bending one scene into the next), or Random.
+
 ## [0.4.0] - 2026-11-15
 
 - New scene: Black Hole Merger. Two black holes spiral together, bending the starlight behind them into arcs and rings, and merge into one larger hole that rings down in a last burst of gravitational waves.

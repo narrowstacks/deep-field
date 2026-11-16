@@ -22,7 +22,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if welcome { Settings.wallpaperEnabled = false }
         buildWindows()
         buildStatusItem()
-        if !Settings.capturingUI { LockScreenStill.shared.start() }
+        if !Settings.capturingUI {
+            LockScreenStill.shared.start()
+            Scheduler.shared.start()
+        }
         if let i = args.firstIndex(of: "--capture-ui"), i + 1 < args.count {
             CustomizeWindowController.shared.captureForDebug(to: args[i + 1])
         } else if let i = args.firstIndex(of: "--capture-welcome"), i + 1 < args.count {
@@ -118,6 +121,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(customize)
         presetsItem.submenu = NSMenu()
         menu.addItem(presetsItem)
+        scheduleItem.target = self
+        menu.addItem(scheduleItem)
+        skipItem.target = self
+        menu.addItem(skipItem)
         menu.addItem(.separator())
         lockScreenItem.target = self
         menu.addItem(lockScreenItem)
@@ -154,6 +161,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let presetsItem = NSMenuItem(title: "Presets", action: nil, keyEquivalent: "")
     private let wallpaperItem = NSMenuItem(title: "Show on Desktop", action: #selector(toggleWallpaper), keyEquivalent: "")
     private let pauseItem = NSMenuItem(title: "Pause Animation", action: #selector(togglePause), keyEquivalent: "")
+    private let scheduleItem = NSMenuItem(title: "Change on Schedule", action: #selector(toggleSchedule), keyEquivalent: "")
+    private let skipItem = NSMenuItem(title: "Next in Schedule", action: #selector(skipSchedule), keyEquivalent: "")
     private let lockScreenItem = NSMenuItem(title: "Use Scene on Lock Screen", action: #selector(toggleLockScreen), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLogin), keyEquivalent: "")
 
@@ -164,6 +173,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         pauseItem.title = userPaused ? "Resume Animation" : "Pause Animation"
         pauseItem.isHidden = !Settings.wallpaperEnabled
         lockScreenItem.state = ConfigStore.shared.config.lockScreenStill ? .on : .off
+        let schedule = ScheduleStore.shared.schedule
+        scheduleItem.state = schedule.enabled ? .on : .off
+        // with nothing scheduled yet, the item opens Customize to set it up
+        scheduleItem.title = schedule.entries.isEmpty ? "Set Up Schedule…" : "Change on Schedule"
+        skipItem.isHidden = !(schedule.enabled && schedule.mode == .rotate && schedule.entries.count > 1)
         switch SMAppService.mainApp.status {
         case .enabled: loginItem.state = .on
         case .requiresApproval: loginItem.state = .mixed   // registered, waiting for approval in System Settings
@@ -209,6 +223,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func importPreset() { PresetStore.shared.promptToImport() }
     @objc private func exportPreset() { PresetStore.shared.promptToExport(nil) }
 
+    @objc private func toggleSchedule() {
+        if ScheduleStore.shared.schedule.entries.isEmpty {
+            CustomizeWindowController.shared.show(section: .schedule)
+        } else {
+            ScheduleStore.shared.schedule.enabled.toggle()
+        }
+    }
+    @objc private func skipSchedule() { Scheduler.shared.skip() }
     @objc private func togglePause() { userPaused.toggle(); applyPause() }
     @objc private func showCustomize() { CustomizeWindowController.shared.show() }
     @objc private func toggleLockScreen() { ConfigStore.shared.config.lockScreenStill.toggle() }

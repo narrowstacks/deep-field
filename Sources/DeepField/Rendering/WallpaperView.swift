@@ -16,6 +16,19 @@ final class WallpaperView: NSView {
     private var lastRebake: CFTimeInterval = 0
     private let events = EventSchedule(seed: UInt64.random(in: 0...UInt64.max))
 
+    /// A transition in progress: the look being left, drawn from its own bake and transitioned
+    /// into the new one, plus the two frames' render targets.
+    private struct Fade {
+        var baked: Baked
+        let config: WallpaperConfig
+        let start: Double, duration: Double
+        let seed: Float
+        let style: TransitionStyle
+        var targets: (MTLTexture, MTLTexture)?
+    }
+    private var fade: Fade?
+    private var seenTransition = 0
+
     /// Preview mode: render exactly what a screen of this pixel size would show, scaled down to fit.
     private let previewOf: CGSize?
 
@@ -162,6 +175,11 @@ final class WallpaperView: NSView {
 
     private func configChanged() {
         updateRunning()
+        if let t = ConfigStore.shared.transition, t.id != seenTransition {
+            seenTransition = t.id
+            startFade(t)
+            return
+        }
         // a new scene can't draw from the old scene's bake, so that one re-bakes right away
         if let baked, !baked.matches(config), baked.key.scene == config.scene {
             // Re-trace as a slider moves, so a tilt turns smoothly: every change for the flat
@@ -185,6 +203,20 @@ final class WallpaperView: NSView {
             rebakeWork?.cancel()
             layoutDrawable()
         }
+    }
+
+    /// Keeps the bake on screen as the outgoing frame. The new look gets a bake of its own (no
+    /// texture reuse, which would overwrite the old one), unless both share the same bake.
+    private func startFade(_ t: ConfigStore.Transition) {
+        rebakeWork?.cancel()
+        if let old = baked, old.matches(t.from), previewOf == nil || window != nil {
+            fade = Fade(baked: old, config: t.from, start: t.start, duration: t.duration,
+                        seed: Float.random(in: 0..<100), style: t.style, targets: nil)
+            if !old.matches(config) { baked = nil }
+        } else {
+            fade = nil   // nothing of the old look on screen yet, so just switch
+        }
+        layoutDrawable()
     }
 
     private func layoutDrawable() {
@@ -211,9 +243,21 @@ final class WallpaperView: NSView {
         CATransaction.commit()
         placePreviewLayer()
 
+        if var f = fade, f.baked.size != (w, h) {
+            // a different pixel size (or a resize) needs the outgoing look traced at the new size
+            if let b = Renderer.shared.bake(width: w, height: h, config: f.config, wait: false) {
+                f.baked = b
+                f.targets = nil
+                fade = f
+            } else {
+                fade = nil
+            }
+        }
         if bakedSize != (w, h) || !(baked?.matches(config) ?? false) {
             let t0 = CACurrentMediaTime()
-            baked = Renderer.shared.bake(width: w, height: h, config: config, wait: Settings.debug, reusing: baked)
+            // while fading, the outgoing frame may still be drawing from the current textures
+            baked = Renderer.shared.bake(width: w, height: h, config: config, wait: Settings.debug,
+                                         reusing: fade == nil ? baked : nil)
             bakedSize = (w, h)
             if Settings.debug {
                 NSLog("DeepField: baked %@ %dx%d in %.1f ms, %.1f MB", config.scene.rawValue, w, h,
@@ -252,11 +296,40 @@ final class WallpaperView: NSView {
         render()
     }
 
+    /// Eased progress of a fade, or nil once it's over.
+    private func fadeProgress(_ f: Fade, now: Double) -> Double? {
+        let u = (now - f.start) / max(f.duration, 0.001)
+        guard u < 1 else { return nil }
+        let x = max(u, 0)
+        return x * x * (3 - 2 * x)
+    }
+
+    /// The two frames' targets, at the drawable's size, made once per fade.
+    private func fadeTargets(for drawable: MTLTexture) -> (MTLTexture, MTLTexture)? {
+        guard var f = fade else { return nil }
+        if let t = f.targets, t.0.width == drawable.width, t.0.height == drawable.height { return t }
+        let r = Renderer.shared, usage: MTLTextureUsage = [.renderTarget, .shaderRead]
+        guard let a = r.makeTexture(.bgra8Unorm, drawable.width, drawable.height, usage: usage),
+              let b = r.makeTexture(.bgra8Unorm, drawable.width, drawable.height, usage: usage) else { return nil }
+        f.targets = (a, b)
+        fade = f
+        return (a, b)
+    }
+
     private func render() {
         guard let baked, metalLayer.drawableSize.width > 0 else { return }
         let r = Renderer.shared
         guard let drawable = metalLayer.nextDrawable(), let cb = r.queue.makeCommandBuffer() else { return }
-        r.encodeFrame(cb, target: drawable.texture, baked: baked, elapsed: r.elapsed, config: config, events: events)
+        let now = r.elapsed
+        if let f = fade, let progress = fadeProgress(f, now: now), let (a, b) = fadeTargets(for: drawable.texture) {
+            r.encodeFrame(cb, target: a, baked: f.baked, elapsed: now, config: f.config, events: events)
+            r.encodeFrame(cb, target: b, baked: baked, elapsed: now, config: config, events: events)
+            r.encodeTransition(cb, target: drawable.texture, from: a, to: b, progress: progress, seed: f.seed,
+                               style: f.style, fromConfig: f.config, toConfig: config)
+        } else {
+            fade = nil
+            r.encodeFrame(cb, target: drawable.texture, baked: baked, elapsed: now, config: config, events: events)
+        }
         cb.present(drawable)
         cb.commit()
         if previewOf != nil { Self.debugRenderHook?(config) }

@@ -5,7 +5,7 @@ enum Settings {
     private static let d = UserDefaults.standard
     static var debug: Bool { d.bool(forKey: "debug") }
     /// Dev only: the Customize section `--capture-ui` opens on (pass `-captureTab N`: 0 Scene,
-    /// 1 Sky, 2 Image, 3 System, 4 Phone; anything else is Scene).
+    /// 1 Sky, 2 Image, 3 System, 4 Phone, 5 Schedule; anything else is Scene).
     static var captureTab: Int { d.integer(forKey: "captureTab") }
     /// Dev only: the window is being captured to an image, so the preview is drawn as a still.
     static var capturingUI: Bool {

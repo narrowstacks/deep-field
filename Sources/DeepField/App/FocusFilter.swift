@@ -141,6 +141,8 @@ enum FocusWallpaper {
                 store.config = UserPreset(name: "", config: saved).applied(over: store.config)
             }
             defaults.removeObject(forKey: key)
+            // a scheduled switch that came due during the Focus happens now
+            Scheduler.shared.evaluate()
             return
         }
         // only the first Focus to change things saves; switching between Focuses keeps it
