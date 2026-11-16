@@ -12,6 +12,7 @@ extension SceneKind {
         case .nebula: "Glowing gas and dark dust."
         case .gasGiant: "A giant planet close up, its bands flowing and its storms spinning."
         case .protoplanetaryDisk: "A young star in its dusty disk, ringed with gaps that forming planets have cleared, and jets from its poles."
+        case .neutronMerger: "Two neutron stars spiral together, rippling the sky with gravitational waves, and merge in a kilonova."
         case .auroraOrbit: "Aurora curtains over the night side of Earth, seen from orbit, with city lights and storms below."
         case .ringedPlanet: "A banded gas giant and its rings, each shadowing the other, with small moons in orbit."
         case .planetaryNebula: "A dying star's shed shell, lit from inside by the white dwarf left behind."
@@ -24,6 +25,7 @@ extension SceneKind {
     var details: String? {
         switch self {
         case .tidalDisruption: "A star strays too close and overflows toward the hole. Tides stretch it into an egg, and a stream of its gas peels off the tip, spirals in, and feeds the accretion disk. The star, stream and jets are all bent by the hole's gravity."
+        case .neutronMerger: "Gravitational waves carry off the pair's orbital energy, so they close in and orbit faster and faster: the chirp. Tides stretch them just before they touch. The merger throws out neutron-rich debris that glows from radioactive heavy elements, hot blue at first, then redder as it spreads and cools."
         default: nil
         }
     }

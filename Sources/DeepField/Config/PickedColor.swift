@@ -69,6 +69,8 @@ enum PickedColor {
         static let protoGas: Float = 0.5
         static let protoStar: Float = 1.0
         static let protoJet: Float = 0.5
+        static let mergerStar: Float = 0.8
+        static let mergerKilonova: Float = 0.6
     }
 }
 
@@ -91,6 +93,7 @@ extension WallpaperConfig {
         case auroraGreen, auroraRed, auroraFringe, auroraCity = "auroraCityColor"
         case gasZone, gasBelt, gasStorm
         case protoDust = "protoDustColor", protoGas = "protoGasColor", protoStar = "protoStarColor", protoJet = "protoJetColor"
+        case mergerStar = "mergerStarColor", mergerHot, mergerCool
 
         var light: RGB {
             switch self {
@@ -118,6 +121,9 @@ extension WallpaperConfig {
             case .protoGas: RGB(0.55, 0.62, 1.0)
             case .protoStar: RGB(1.0, 0.85, 0.65)
             case .protoJet: RGB(1.0, 0.25, 0.45)
+            case .mergerStar: RGB(0.42, 0.68, 1.0)
+            case .mergerHot: RGB(0.3, 0.58, 1.0)
+            case .mergerCool: RGB(1.0, 0.2, 0.06)
             }
         }
 
@@ -143,6 +149,8 @@ extension WallpaperConfig {
             case .protoGas: L.protoGas
             case .protoStar: L.protoStar
             case .protoJet: L.protoJet
+            case .mergerStar: L.mergerStar
+            case .mergerHot, .mergerCool: L.mergerKilonova
             }
         }
 

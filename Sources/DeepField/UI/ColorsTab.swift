@@ -102,6 +102,18 @@ struct SceneColors: View {
                 }
                 .fixedSize()
             }
+        case .neutronMerger:
+            ColorRow("Stars", store.color(\.mergerStarColor))
+            ColorRow("Kilonova, hot", store.color(\.mergerHot))
+            ColorRow("Kilonova, cooled", store.color(\.mergerCool))
+            LabeledContent("Presets") {
+                Menu("Apply") {
+                    ForEach(MergerPreset.all, id: \.name) { preset in
+                        Button(preset.name) { preset.apply(to: &store.config) }
+                    }
+                }
+                .fixedSize()
+            }
         case .auroraOrbit:
             ColorRow("Aurora (oxygen, low)", store.color(\.auroraGreen))
             ColorRow("Aurora tops (oxygen, high)", store.color(\.auroraRed))

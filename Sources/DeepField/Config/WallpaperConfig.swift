@@ -179,6 +179,17 @@ struct WallpaperConfig: Codable, Equatable {
     var protoJetColor = Tuned.protoJet.color
     var protoEvents: Frequency = .normal
 
+    // Neutron star merger
+    var mergerCycleMinutes = 4.0       // one inspiral, merger and kilonova, then a fresh binary
+    var mergerView = 62.0              // angle between the orbit axis and our line of sight, degrees
+    var mergerBrightness = 1.0
+    var mergerGlow = 1.0
+    var mergerWaves = 1.0              // how strongly the gravitational waves ripple the sky
+    var mergerJet = true
+    var mergerStarColor = Tuned.mergerStar.color
+    var mergerHot = Tuned.mergerHot.color
+    var mergerCool = Tuned.mergerCool.color
+
     // Comet
     var cometTailLength = 1.0
     var cometActivity = 1.0
@@ -298,7 +309,7 @@ struct WallpaperConfig: Codable, Equatable {
         c.protoGaps = min(max(c.protoGaps, 1), 7)
         for kp in [\WallpaperConfig.starOrbitMinutes, \.planetOrbitMinutes, \.galaxyRotationMinutes,
                    \.tdeCycleMinutes, \.pulsarPeriod, \.nebulaFlow, \.planetSize, \.galaxySize,
-                   \.ringedRingWidth, \.ringedBands, \.ringedMoonSpeed] {
+                   \.ringedRingWidth, \.ringedBands, \.ringedMoonSpeed, \.mergerCycleMinutes] {
             positive(kp, min: 0.05)
         }
         if c.binaryStars.count < 2 { c.binaryStars += d.binaryStars.dropFirst(c.binaryStars.count) }

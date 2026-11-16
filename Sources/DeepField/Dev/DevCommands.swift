@@ -138,5 +138,13 @@ extension EventSchedule {
             }
             print(k.id, name, starts)   // the id is what --demo takes
         }
+        // the neutron star merger starts each of its scene's cycles rather than being scheduled
+        var mergers: [Int] = []
+        var t = 0.0
+        while t < minutes * 60 {
+            if SceneParams.mergerClock(c, t, demo: [:]).u < 1 { mergers.append(Int(t)) }
+            t += 1
+        }
+        print(Self.neutronMerger.id, "neutronMerger", mergers)
     }
 }
