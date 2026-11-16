@@ -36,16 +36,22 @@ RAMPS = {
     "dark": (["fff1d6", "ffb347", "f2700f"], ["ffffff", "b6e6ff", "4aa6ff"]),    # for dark backgrounds
     "light": (["f2700f", "9a3208", "3a0f04"], ["4aa6ff", "1f4fd8", "0b1a4a"]),   # for light backgrounds
 }
-TAG_COLOR = {"dark": hexrgb("b9c3d6"), "light": hexrgb("3b4256")}
+TAG_COLOR = {"dark": hexrgb("b9c3d6"), "light": hexrgb("3b4256"), "white": hexrgb("ffffff")}
 
 
 # ---------- wordmark ----------
 
 def wordmark_dots(theme="dark", sub=2):
     """The wordmark as a dot grid: (rgba uint8, mask). Each font cell is sub x sub dots, colored
-    by ordered dither: warm on DEEP, cool on FIELD, bright at the top fading down."""
+    by ordered dither: warm on DEEP, cool on FIELD, bright at the top fading down. The "white"
+    theme is plain white."""
     m = pixelfont.wordmark_mask().repeat(sub, 0).repeat(sub, 1)
     H, W = m.shape
+    if theme == "white":
+        rgba = np.zeros((H, W, 4), np.uint8)
+        rgba[..., :3] = 255
+        rgba[..., 3] = m * 255
+        return rgba, m
     yy, xx = np.mgrid[0:H, 0:W]
     t1 = B8[yy % 8, xx % 8]
     t2 = B8[(yy + 3) % 8, (xx + 5) % 8]
@@ -178,13 +184,13 @@ def rounded(im, r):
     return Image.fromarray(arr)
 
 
-def hero(W, H, cell, dot, hole_x, fade, text_x, tagline=True, corner=0, zoom=None, tag="plate"):
+def hero(W, H, cell, dot, hole_x, fade, text_x, tagline=True, corner=0, zoom=None, tag="plate", theme="dark"):
     # zoom: the app's phone framing, used here to pull the camera back for taller frames
     cfg = {"phoneFraming": {"zoom": zoom, "shift": 0}} if zoom else None
     bg = scene_plate(W, H, cell, hole_x=hole_x, config=cfg, tag=tag)
     bg = dither_fade(bg, cell, *fade)
     im = Image.fromarray(bg).convert("RGBA")
-    lk = lockup("dark", dot, tagline=tagline, outline=True)
+    lk = lockup(theme, dot, tagline=tagline, outline=True)
     im.alpha_composite(lk, (round(text_x * W), (H - lk.height) // 2))
     return rounded(im, corner) if corner else im
 
@@ -224,8 +230,9 @@ def main():
         save(lockup(theme, 6), os.path.join(SITE, "logo", f"logo-{theme}.png"))
         save(lockup(theme, 3, tagline=False), os.path.join(MEDIA, f"logo-{theme}.png"))
 
-    # README banner (works on light and dark GitHub themes: its own dark plate, rounded corners)
-    save(hero(1600, 520, 4, 4, hole_x=0.74, fade=(0.30, 0.62), text_x=0.045, corner=22, tag="banner"),
+    # README banner (works on light and dark GitHub themes: its own dark plate, rounded corners),
+    # with plain white lettering, a size up from the other heroes
+    save(hero(1600, 520, 4, 5, hole_x=0.8, fade=(0.36, 0.7), text_x=0.045, corner=22, tag="banner", theme="white"),
          os.path.join(MEDIA, "banner.png"))
 
     # website heroes and social cards
