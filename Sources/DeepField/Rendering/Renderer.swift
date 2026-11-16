@@ -45,6 +45,7 @@ final class Renderer {
     private var linearPipelines: [String: MTLRenderPipelineState] = [:]
     private let bloomBright: MTLComputePipelineState
     private let bloomBlur: MTLComputePipelineState
+    private let bloomDown: MTLComputePipelineState
     private let imagePipeline: MTLRenderPipelineState
     private let transitionPipeline: MTLRenderPipelineState
     private var bloomTargets: [SIMD2<Int>: BloomTargets] = [:]
@@ -58,7 +59,8 @@ final class Renderer {
 
     private struct BloomTargets {
         let hdr: MTLTexture       // the scene's linear light, full size
-        let a: MTLTexture, b: MTLTexture    // quarter size, ping-pong for the blur
+        /// Ping-pong pairs for the blur: quarter size, then each level half the one before.
+        let levels: [(a: MTLTexture, b: MTLTexture)]
     }
     let start = CACurrentMediaTime()
     /// Bound in place of the textures a scene doesn't use.
@@ -99,6 +101,7 @@ final class Renderer {
             framePipelines = Self.fragmentNames.mapValues { byName[$0]! }
             bloomBright = try compute("bloomBright")
             bloomBlur = try compute("bloomBlur")
+            bloomDown = try compute("bloomDown")
             auroraLUTPipeline = try compute("auroraLUT")
             imagePipeline = try render("imageFragment")
             transitionPipeline = try render("transitionFragment")
@@ -433,18 +436,26 @@ final class Renderer {
         }
         let size = SIMD2(w, h)
         if bloomTargets[size] == nil {
-            let qw = max(1, (w + 3) / 4), qh = max(1, (h + 3) / 4)
-            guard let hdr = makeTexture(.rgba16Float, w, h, usage: [.renderTarget, .shaderRead]),
-                  let a = makeTexture(.rgba16Float, qw, qh), let b = makeTexture(.rgba16Float, qw, qh) else { return nil }
+            guard let hdr = makeTexture(.rgba16Float, w, h, usage: [.renderTarget, .shaderRead]) else { return nil }
+            // enough levels for the widest radius on a 6K display (sigma ~100 quarter texels)
+            var levels: [(a: MTLTexture, b: MTLTexture)] = []
+            var lw = max(1, (w + 3) / 4), lh = max(1, (h + 3) / 4)
+            while levels.count < 7 {
+                guard let a = makeTexture(.rgba16Float, lw, lh), let b = makeTexture(.rgba16Float, lw, lh) else { return nil }
+                levels.append((a, b))
+                if min(lw, lh) < 8 { break }
+                lw = (lw + 1) / 2; lh = (lh + 1) / 2
+            }
             if bloomTargets.count >= 6 { bloomTargets.removeAll() }   // sizes come and go (previews, exports)
-            bloomTargets[size] = BloomTargets(hdr: hdr, a: a, b: b)
+            bloomTargets[size] = BloomTargets(hdr: hdr, levels: levels)
         }
         guard let pipeline = linearPipelines[name], let targets = bloomTargets[size] else { return nil }
         return (pipeline, targets)
     }
 
-    /// Bright pass into a quarter-size texture, a horizontal and a vertical blur, then the
-    /// composite that adds the glow and tone maps, quantizes and dithers into `target`.
+    /// Bright pass into a quarter-size texture, halved until the glow's sigma is 3 texels or less,
+    /// a horizontal and a vertical blur there, then the composite that adds the glow and tone
+    /// maps, quantizes and dithers into `target`.
     private func encodeBloom(_ cb: MTLCommandBuffer, _ t: BloomTargets, target: MTLTexture, frame f: inout FrameParams) {
         guard let enc = cb.makeComputeCommandEncoder() else { return }
         func dispatch(_ out: MTLTexture) {
@@ -453,13 +464,25 @@ final class Renderer {
         }
         enc.setComputePipelineState(bloomBright)
         enc.setTexture(t.hdr, index: 0)
-        enc.setTexture(t.a, index: 1)
+        enc.setTexture(t.levels[0].a, index: 1)
         enc.setBytes(&f, length: MemoryLayout<FrameParams>.stride, index: 0)
-        dispatch(t.a)
+        dispatch(t.levels[0].a)
         // the radius is a fraction of the frame's shorter side, so the glow looks the same at any size
-        let sigma = f.bloom.w * Float(min(t.a.width, t.a.height))
+        var sigma = f.bloom.w * Float(min(t.levels[0].a.width, t.levels[0].a.height))
+        var k = 0
+        enc.setComputePipelineState(bloomDown)
+        while sigma > 3, k + 1 < t.levels.count {
+            enc.setTexture(t.levels[k].a, index: 0)
+            enc.setTexture(t.levels[k + 1].a, index: 1)
+            dispatch(t.levels[k + 1].a)
+            k += 1
+            sigma /= 2
+        }
+        // the 4x4 means already spread the light by about 0.4 texel squared at this level
+        if k > 0 { sigma = max(sigma * sigma - 0.4, 0.25).squareRoot() }
+        let (a, b) = t.levels[k]
         enc.setComputePipelineState(bloomBlur)
-        for (src, dst, dir) in [(t.a, t.b, SIMD2<Float>(1, 0)), (t.b, t.a, SIMD2<Float>(0, 1))] {
+        for (src, dst, dir) in [(a, b, SIMD2<Float>(1, 0)), (b, a, SIMD2<Float>(0, 1))] {
             var params = SIMD4<Float>(dir.x, dir.y, sigma, 0)
             enc.setTexture(src, index: 0)
             enc.setTexture(dst, index: 1)
@@ -474,9 +497,10 @@ final class Renderer {
         rp.colorAttachments[0].storeAction = .store
         guard let pass = cb.makeRenderCommandEncoder(descriptor: rp) else { return }
         f.bloom.z = 0
+        f.bloom.w = 1 / Float(4 << k)   // frame pixels to glow texels, for imageFragment
         pass.setRenderPipelineState(imagePipeline)
         pass.setFragmentTexture(t.hdr, index: 0)
-        pass.setFragmentTexture(t.a, index: 1)
+        pass.setFragmentTexture(a, index: 1)
         pass.setFragmentBytes(&f, length: MemoryLayout<FrameParams>.stride, index: 0)
         pass.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         pass.endEncoding()

@@ -24,7 +24,7 @@ struct FrameParams {
     float twinkleBrightness; float twinkleSpeed;
     float4 camPos; float4 camRight; float4 camUp;   // camRight.w / camUp.w = drawable width / height
     float4 image;    // contrast, black point, highlight rolloff, vignette
-    float4 bloom;    // amount, threshold, 1 = the scene pass writes linear light for the bloom passes, radius
+    float4 bloom;    // amount, threshold, 1 = the scene pass writes linear light for the bloom passes, radius (glow scale in imageFragment)
 };
 
 struct Palette {
@@ -276,7 +276,22 @@ kernel void bloomBright(texture2d<float> hdr [[texture(0)]],
     dst.write(float4(sum / wsum, 1.0), gid);
 }
 
-// A 17-tap Gaussian along `dir`, sigma in texels; taps spread to cover about 2.7 sigma.
+// Halves the bright pass for wide glows: each output texel is the mean of the 4x4 texels round
+// its center, read as four bilinear taps. Blurring a smaller copy keeps the blur's taps about a
+// texel apart; spread wider, they copy a sharp edge (Earth's limb) into rings and streaks.
+kernel void bloomDown(texture2d<float> src [[texture(0)]],
+                      texture2d<float, access::write> dst [[texture(1)]],
+                      uint2 gid [[thread_position_in_grid]]) {
+    if (gid.x >= dst.get_width() || gid.y >= dst.get_height()) return;
+    constexpr sampler s(filter::linear, address::clamp_to_edge, coord::pixel);
+    float2 c = float2(gid) * 2.0 + 1.0;
+    float3 sum = src.sample(s, c + float2(-1.0, -1.0)).rgb + src.sample(s, c + float2(1.0, -1.0)).rgb
+               + src.sample(s, c + float2(-1.0, 1.0)).rgb + src.sample(s, c + float2(1.0, 1.0)).rgb;
+    dst.write(float4(sum * 0.25, 1.0), gid);
+}
+
+// A 17-tap Gaussian along `dir`, sigma in texels; taps spread to cover about 2.7 sigma. The
+// renderer keeps sigma at 3 texels or less (see bloomDown), so the taps stay a texel apart.
 kernel void bloomBlur(texture2d<float> src [[texture(0)]],
                       texture2d<float, access::write> dst [[texture(1)]],
                       constant float4& B [[buffer(0)]],      // direction xy, sigma
@@ -297,14 +312,30 @@ kernel void bloomBlur(texture2d<float> src [[texture(0)]],
     dst.write(float4(sum / wsum, 1.0), gid);
 }
 
+// The glow read with a cubic B-spline (four bilinear taps) instead of plain bilinear, so a glow
+// blurred on a small texture comes back smooth instead of in visible diamonds and patches.
+// `pos` is in the texture's pixels.
+static float3 smoothGlow(texture2d<float> t, float2 pos) {
+    constexpr sampler s(filter::linear, address::clamp_to_edge, coord::pixel);
+    float2 tc = pos - 0.5;
+    float2 i = floor(tc), f = tc - i;
+    float2 w0 = (1.0 - f) * (1.0 - f) * (1.0 - f) / 6.0;
+    float2 w1 = (4.0 - 6.0 * f * f + 3.0 * f * f * f) / 6.0;
+    float2 w3 = f * f * f / 6.0;
+    float2 w2 = 1.0 - w0 - w1 - w3;
+    float2 g0 = w0 + w1, g1 = w2 + w3;
+    float2 p0 = i - 0.5 + w1 / g0, p1 = i + 1.5 + w3 / g1;
+    return g0.y * (g0.x * t.sample(s, float2(p0.x, p0.y)).rgb + g1.x * t.sample(s, float2(p1.x, p0.y)).rgb)
+         + g1.y * (g0.x * t.sample(s, float2(p0.x, p1.y)).rgb + g1.x * t.sample(s, float2(p1.x, p1.y)).rgb);
+}
+
 fragment float4 imageFragment(VOut in [[stage_in]],
                               texture2d<float> hdr [[texture(0)]],
                               texture2d<float> glow [[texture(1)]],
                               constant FrameParams& F [[buffer(0)]]) {
     uint2 p = uint2(in.pos.xy);
-    constexpr sampler s(filter::linear, address::clamp_to_edge);
-    float2 uv = (float2(p) + 0.5) / float2(hdr.get_width(), hdr.get_height());
-    float3 x = max(hdr.read(p).rgb, 0.0) * F.exposure + glow.sample(s, uv).rgb * F.bloom.x;
+    // F.bloom.w here is the glow texture's size relative to the frame (the renderer sets it)
+    float3 x = max(hdr.read(p).rgb, 0.0) * F.exposure + smoothGlow(glow, (float2(p) + 0.5) * F.bloom.w) * F.bloom.x;
     return quantized(toneMapped(x, p, F), p, F);
 }
 
