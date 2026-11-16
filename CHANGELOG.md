@@ -4,6 +4,8 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-15
+
 - Ten new scenes: Planetary Nebula, Ringed Planet, Aurora from Orbit, Gas Giant Storms, Protoplanetary Disk, Neutron Star Merger, Dyson Swarm, Rogue Planet, Eclipse and Quasar, each with its own settings, colors and occasional events.
 - Eclipse lets you choose the world you stand on and the planet in the sky, give it an atmosphere, and hold the eclipse at totality to watch the corona and eruptions.
 - A welcome guide on first launch: pick a scene and try a few looks on a large preview. Your desktop only changes when you choose Set as Wallpaper.
