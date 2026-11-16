@@ -23,7 +23,7 @@ struct CustomizeView: View {
         HStack(spacing: 0) {
             StageView(store: store, thumbnails: thumbnails, section: section, reference: Self.reference,
                       showPhoneClock: showPhoneClock, actualPixels: $actualPixels)
-                .frame(width: Theme.stageWidth)
+                .frame(minWidth: Theme.stageWidth, maxWidth: .infinity)
                 .background(Theme.stageBackground)
             Divider()
             VStack(spacing: 0) {
@@ -40,7 +40,7 @@ struct CustomizeView: View {
                 .padding(.bottom, 4)
                 inspector
             }
-            .frame(maxWidth: .infinity)
+            .frame(width: Theme.inspectorWidth)
             .background(Theme.inspectorBackground)
         }
         .frame(minWidth: Theme.windowSize.width, maxWidth: .infinity,

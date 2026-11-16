@@ -26,7 +26,41 @@ final class WallpaperView: NSView {
 
     /// Preview only: show the drawable at the wallpaper's real cell size, centered and cropped,
     /// instead of scaled to fit, so pixel size, levels and dither can be judged.
-    var actualPixels = false { didSet { if actualPixels != oldValue { layoutDrawable() } } }
+    var actualPixels = false {
+        didSet {
+            guard actualPixels != oldValue else { return }
+            pan = .zero
+            layoutDrawable()
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+
+    /// Preview at 1:1: how far the view has been dragged from centered, in points.
+    private var pan = CGPoint.zero
+
+    // Dragging the 1:1 preview pans it; it only moves the layer, so nothing redraws.
+    override var mouseDownCanMoveWindow: Bool { !(previewOf != nil && actualPixels) }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard previewOf != nil, actualPixels else { return super.mouseDragged(with: event) }
+        pan.x += event.deltaX
+        pan.y -= event.deltaY
+        placePreviewLayer()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard previewOf != nil, actualPixels else { return super.mouseDown(with: event) }
+        NSCursor.closedHand.push()
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard previewOf != nil, actualPixels else { return super.mouseUp(with: event) }
+        NSCursor.pop()
+    }
+
+    override func resetCursorRects() {
+        if previewOf != nil, actualPixels { addCursorRect(bounds, cursor: .openHand) }
+    }
 
     /// Dev only (`--check-picker`): called with the config each preview frame was drawn with.
     static var debugRenderHook: ((WallpaperConfig) -> Void)?
@@ -82,7 +116,36 @@ final class WallpaperView: NSView {
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
-        layoutDrawable()
+        // The preview renders at the screen's resolution whatever its size, so resizing the
+        // window only moves the layer: the compositor rescales the last frame, with no re-bake
+        // and no extra frame per step of a live resize.
+        if previewOf != nil, window != nil, bakedSize != (0, 0) {
+            placePreviewLayer()
+        } else {
+            layoutDrawable()
+        }
+    }
+
+    /// Fits the preview's layer to the view: the whole frame, or centered at true pixel size.
+    private func placePreviewLayer() {
+        guard let ref = previewOf, let window else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        if actualPixels {
+            let px = CGFloat(config.pixelSize), scale = window.backingScaleFactor
+            let fw = (ref.width / px).rounded(.up) * px / scale, fh = (ref.height / px).rounded(.up) * px / scale
+            // Centered, then shifted by the drag, but never so far that an edge comes into view.
+            func axis(_ view: CGFloat, _ layer: CGFloat, _ pan: inout CGFloat) -> CGFloat {
+                let slack = max((layer - view) / 2, 0)
+                pan = min(max(pan, -slack), slack)
+                return (view - layer) / 2 + pan
+            }
+            metalLayer.frame = CGRect(x: axis(bounds.width, fw, &pan.x), y: axis(bounds.height, fh, &pan.y),
+                                      width: fw, height: fh)
+        } else {
+            metalLayer.frame = bounds
+        }
+        CATransaction.commit()
     }
 
     override func viewDidChangeBackingProperties() {
@@ -125,12 +188,6 @@ final class WallpaperView: NSView {
             w = Int((ref.width / px).rounded(.up))
             h = Int((ref.height / px).rounded(.up))
             metalLayer.contentsScale = scale
-            if actualPixels {
-                let fw = CGFloat(w) * px / scale, fh = CGFloat(h) * px / scale
-                metalLayer.frame = CGRect(x: (bounds.width - fw) / 2, y: (bounds.height - fh) / 2, width: fw, height: fh)
-            } else {
-                metalLayer.frame = bounds
-            }
         } else {
             // Round up and let the layer overhang the window edge, so every dither cell is
             // exactly px*px device pixels (no uneven columns from rescaling).
@@ -142,6 +199,7 @@ final class WallpaperView: NSView {
         }
         metalLayer.drawableSize = CGSize(width: w, height: h)
         CATransaction.commit()
+        placePreviewLayer()
 
         if bakedSize != (w, h) || !(baked?.matches(config) ?? false) {
             let t0 = CACurrentMediaTime()
