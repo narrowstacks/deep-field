@@ -16,12 +16,20 @@ struct SceneTab: View {
         switch scene {
         case .binary, .trinary, .stellarSurface, .dysonSwarm: "Star colors follow the star type."
         case .pulsar: "Slowed down from hundreds of turns a second so the beams don't strobe."
+        case .blackHoleMerger:
+            if let d = BlackHoleDetection.all.first(where: { $0.matches(store.config) }) {
+                "\(d.name): \(mass(d.m1)) and \(mass(d.m2)) solar masses made one of \(mass(d.remnant)). \(d.note)"
+            } else {
+                "Real mergers take seconds (stellar) to years (supermassive); every size is paced to the cycle here."
+            }
         case .galaxy: store.config.darkMatter
             ? "Outer stars orbit as fast as inner ones, as observed in real galaxies."
             : "Without dark matter the outer disk lags behind. Real galaxies don't do this."
         default: nil
         }
     }
+
+    private func mass(_ m: Double) -> String { m < 10 ? String(format: "%.1f", m) : String(format: "%.0f", m) }
 
     var body: some View {
         Form {
@@ -158,6 +166,44 @@ struct SceneTab: View {
                         .help("0° looks straight down onto the orbit")
                     Toggle("Jet", isOn: $store.config.mergerJet)
                         .help("A short jet punching out along the orbit's axis just after the merger")
+                case .blackHoleMerger:
+                    Picker("Detection", selection: bbhDetection) {
+                        ForEach(BlackHoleDetection.all, id: \.name) { Text($0.name).tag($0.name) }
+                        Text("Custom").tag("Custom")
+                    }
+                    .help("Load the masses, spins and viewing angle of a merger LIGO, Virgo and KAGRA heard")
+                    Picker("Black holes", selection: $store.config.bbhModel) {
+                        ForEach(BlackHoleMergerModel.allCases) { Text($0.title).tag($0) }
+                    }
+                    .help("Stellar pairs merge in empty space, or in a quasar's gas disk where the kicked remnant sets off a flare. Intermediate ones sit in a dense star cluster. Supermassive ones, brought together by colliding galaxies, clear a hole in their gas disk and feed on streams from its edge")
+                    SliderRow(title: "Mass ratio", value: $store.config.bbhMassRatio, range: 0.05...1)
+                        .help("The lighter hole's mass over the heavier one's. Unequal pairs are tighter, wind through more orbits and add a third arm to the waves")
+                    SliderRow(title: "Remnant spin", value: $store.config.bbhSpin, range: 0...0.98)
+                        .help("Faster spin flattens one side of the shadow and makes the ringdown higher and longer")
+                    SliderRow(title: "Precession", value: $store.config.bbhPrecession, range: 0...1)
+                        .help("Spins tilted off the orbit's axis make the orbit wobble, faster as it tightens. They also make the recoil kick much stronger")
+                    SliderRow(title: "Recoil kick", value: $store.config.bbhKick, range: 0...2)
+                        .help("Waves beamed unevenly push the remnant away. Unequal masses and tilted spins kick hardest")
+                    Toggle("Eccentric orbit", isOn: $store.config.bbhEccentric)
+                        .help("The pair stays eccentric to the end: the companion dives in, whirls round and swings back out, sending a burst of waves at each close pass")
+                    Toggle("Hierarchical chain", isOn: $store.config.bbhChain)
+                        .help("Each remnant becomes the heavy partner of the next merger, three times over, so it grows and each new companion is relatively smaller")
+                    SliderRow(title: "Speed", value: $store.config.bbhSpeed, range: 0.25...3) { String(format: "%.2fx", $0) }
+                        .help("How fast everything in this scene moves, the merger cycle included")
+                    SliderRow(title: "Cycle length", value: $store.config.bbhCycleMinutes, range: 2...15) { String(format: "%.1f min", $0) }
+                        .help("From one merger to the next: the remnant settles, a companion falls in and is captured, and their orbit speeds up until they merge, timed at Speed 1")
+                    SliderRow(title: "Ringdown slow motion", value: $store.config.bbhRingdown, range: 1...6) { String(format: "%.1fx", $0) }
+                        .help("Slows the last second of the chirp and the ringdown so the joined shadow's spin and wobble can be seen. 1 is true to the rest of the scene")
+                    SliderRow(title: "Lensing", value: $store.config.bbhLensing, range: 0...2)
+                        .help("How strongly each hole bends the light behind it into arcs and rings")
+                    Toggle("Background galaxy", isOn: $store.config.bbhGalaxy)
+                        .help("A distant galaxy almost straight behind the pair, bent into a ring that breaks into arcs as they move")
+                    Toggle("Strain trace", isOn: $store.config.bbhTrace)
+                        .help("The waves as a detector records them, drawn along the bottom: a rising chirp, the merger, the ringdown")
+                    SliderRow(title: "Wave ripple", value: $store.config.bbhWaves, range: 0...3)
+                        .help("How strongly the gravitational waves bend the starlight behind them")
+                    SliderRow(title: "Viewing angle", value: $store.config.bbhView, range: 0...85) { String(format: "%.0f°", $0) }
+                        .help("0° looks straight down onto the orbit")
                 case .dysonSwarm:
                     StarPicker(title: "Star", star: $store.config.dysonStar)
                     SliderRow(title: "Density", value: $store.config.dysonDensity, range: 0...1)
@@ -330,6 +376,14 @@ struct SceneTab: View {
             } header: {
                 GroupHeader(title: "Events")
             }
+        case .blackHoleMerger:
+            Section {
+                DemoGrid(store: store, demos: [("Merger", EventSchedule.blackHoleMerger)])
+            } header: {
+                GroupHeader(title: "Events")
+            } footer: {
+                GroupFooter("The merger ends every cycle; set how often with Cycle length.")
+            }
         case .neutronMerger:
             Section {
                 DemoGrid(store: store, demos: [("Merger", EventSchedule.neutronMerger)])
@@ -472,6 +526,14 @@ struct SceneTab: View {
         } header: {
             GroupHeader(title: "Air")
         }
+    }
+
+    /// The black hole merger's detection, by name; editing anything after picking one makes it Custom.
+    private var bbhDetection: Binding<String> {
+        Binding(
+            get: { BlackHoleDetection.all.first { $0.matches(store.config) }?.name ?? "Custom" },
+            set: { name in BlackHoleDetection.all.first { $0.name == name }?.apply(to: &store.config) }
+        )
     }
 
     /// The air composition, by preset name; editing anything after picking one makes it Custom.

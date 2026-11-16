@@ -16,7 +16,7 @@
 //     palette, tone maps, and dithers: lensedFragment (black hole, tidal disruption, wormhole),
 //     systemFragment, galaxyFragment, pulsarFragment, cometFragment, stellarFragment,
 //     nebulaFragment, planetaryFragment, ringedFragment, auroraFragment,
-//     gasGiantFragment, protoDiskFragment, neutronMergerFragment, dysonFragment, rogueFragment.
+//     gasGiantFragment, protoDiskFragment, neutronMergerFragment, blackHoleMergerFragment, dysonFragment, rogueFragment.
 //
 // Texture slots (Renderer.Slot). A scene allocates only the ones it uses (Renderer.formats);
 // the rest are bound to a 1x1 placeholder and never read or written.
@@ -33,6 +33,6 @@
 
 enum ShaderSource {
     static var full: String {
-        [common, bake, sky, planets, lensed, stars, galaxy, pulsar, comet, nebula, planetary, ringed, aurora, gasGiant, protoDisk, neutronMerger, dyson, roguePlanet, eclipse, quasar].joined(separator: "\n\n")
+        [common, bake, sky, planets, lensed, stars, galaxy, pulsar, comet, nebula, planetary, ringed, aurora, gasGiant, protoDisk, neutronMerger, blackHoleMerger, dyson, roguePlanet, eclipse, quasar].joined(separator: "\n\n")
     }
 }

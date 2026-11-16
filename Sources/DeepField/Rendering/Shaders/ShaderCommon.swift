@@ -64,7 +64,7 @@ struct Light {
 };
 
 // Per-scene slots; each fragment shader documents its own use of them.
-struct SceneParams { float4 a; float4 b; float4 c; float4 d; float4 e; float4 f; float4 g; float4 h; float4 i; float4 j; float4 k; float4 l; float4 m; };
+struct SceneParams { float4 a; float4 b; float4 c; float4 d; float4 e; float4 f; float4 g; float4 h; float4 i; float4 j; float4 k; float4 l; float4 m; float4 n; float4 o; float4 p; };
 
 struct Galaxy {
     float4 shape;    // type (0 spiral, 1 barred, 2 elliptical, 3 irregular, 4 ring), arms, tan(pitch), bar length

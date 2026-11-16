@@ -52,6 +52,8 @@ struct EventSchedule {
     // neutron star merger scene: the merger closes every cycle on its own (SceneParams.mergerClock),
     // so this kind never fires from the schedule; it is here for --demo and Show me
     static let neutronMerger   = Kind(id: 19, slot: 600, chance: 0, duration: 80)
+    // black hole merger scene: likewise ends every cycle (SceneParams.bbhClock)
+    static let blackHoleMerger = Kind(id: 24, slot: 600, chance: 0, duration: 80)
     // dyson swarm scene
     static let swarmWave       = Kind(id: 21, slot: 720, chance: 0.6, duration: 45)
     // rogue planet scene
@@ -83,7 +85,7 @@ struct EventSchedule {
     static func skyDirection(_ u: Double, _ v: Double, camera cam: Camera, config c: WallpaperConfig) -> SIMD3<Double>? {
         let d = cam.ray(u, v)
         switch c.scene {
-        case .binary, .trinary, .galaxy, .pulsar, .nebula, .planetaryNebula, .ringedPlanet, .auroraOrbit, .gasGiant, .protoplanetaryDisk, .neutronMerger, .dysonSwarm, .roguePlanet, .eclipse, .comet, .stellarSurface, .quasar:
+        case .binary, .trinary, .galaxy, .pulsar, .nebula, .planetaryNebula, .ringedPlanet, .auroraOrbit, .gasGiant, .protoplanetaryDisk, .neutronMerger, .blackHoleMerger, .dysonSwarm, .roguePlanet, .eclipse, .comet, .stellarSurface, .quasar:
             return d
         case .wormhole:
             // lensing is mild away from the throat; just keep events clear of it
