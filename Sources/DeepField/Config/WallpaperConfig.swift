@@ -163,6 +163,19 @@ struct WallpaperConfig: Codable, Equatable {
     var gasStorm = Tuned.gasStorm.color
     var gasEvents: Frequency = .normal
 
+    // Eclipse
+    var eclipseCycleMinutes = 4.0      // one full pass of the occluder across the sun
+    var eclipseCoronaSize = 1.0
+    var eclipseCoronaBrightness = 1.0
+    var eclipseProminences = 1.0
+    var eclipseLandscape = true
+    var eclipsePlanet = true
+    var eclipseCoronaColor = Tuned.eclipseCorona.color
+    var eclipseProminenceColor = Tuned.eclipseProminence.color
+    var eclipseGroundColor = Tuned.eclipseGround.color
+    var eclipsePlanetColor = Tuned.eclipsePlanet.color
+    var eclipseEvents: Frequency = .normal
+
     // Comet
     var cometTailLength = 1.0
     var cometActivity = 1.0

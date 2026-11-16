@@ -89,6 +89,11 @@ struct SceneColors: View {
             ColorRow("Light zones", store.color(\.gasZone))
             ColorRow("Dark belts", store.color(\.gasBelt))
             ColorRow("Great spot", store.color(\.gasStorm))
+        case .eclipse:
+            ColorRow("Corona", store.color(\.eclipseCoronaColor))
+            ColorRow("Prominences", store.color(\.eclipseProminenceColor))
+            if store.config.eclipseLandscape { ColorRow("Ground", store.color(\.eclipseGroundColor)) }
+            if store.config.eclipsePlanet { ColorRow("Planet", store.color(\.eclipsePlanetColor)) }
         case .auroraOrbit:
             ColorRow("Aurora (oxygen, low)", store.color(\.auroraGreen))
             ColorRow("Aurora tops (oxygen, high)", store.color(\.auroraRed))

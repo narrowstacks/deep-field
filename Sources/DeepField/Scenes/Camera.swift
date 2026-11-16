@@ -38,6 +38,7 @@ struct PhoneFraming: Codable, Equatable {
         case .ringedPlanet: (0.32, -0.15, 0)
         case .auroraOrbit: (0.35, -0.1, 0)
         case .gasGiant: (0.3, -0.1, 0)
+        case .eclipse: (0.62, 0.0, 0)
         case .comet: (0.8, -0.45, 0)
         case .stellarSurface: (1.3, -0.5, 0)
         }
@@ -79,7 +80,7 @@ struct Camera {
             let l = PhoneFraming.layout(c.scene)
             let zoom = min(max(f.zoom, 0.25), 4)
             let v = min(max(l.subjectY + 2 * f.shift, -0.9), 0.9)
-            let screenSpace = c.scene == .comet || c.scene == .stellarSurface
+            let screenSpace = c.scene == .comet || c.scene == .stellarSurface || c.scene == .eclipse
             if screenSpace {
                 // the sky keeps the desktop's field of view; the subject scales itself
                 tanHalf = max(0.27, 0.70 / aspect)

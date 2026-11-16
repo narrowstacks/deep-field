@@ -129,6 +129,15 @@ struct SceneTab: View {
                     SliderRow(title: "Axis tilt", value: $store.config.gasTilt, range: -40...40) { String(format: "%.0f°", $0) }
                     Toggle("Moon", isOn: $store.config.gasMoon)
                     FrequencyRow(title: "Lightning", value: $store.config.gasLightning)
+                case .eclipse:
+                    SliderRow(title: "Cycle length", value: $store.config.eclipseCycleMinutes, range: 1...10) { String(format: "%.1f min", $0) }
+                        .help("How long one eclipse takes, from full sun through totality and back to full sun")
+                    SliderRow(title: "Corona size", value: $store.config.eclipseCoronaSize, range: 0.5...2)
+                    SliderRow(title: "Corona brightness", value: $store.config.eclipseCoronaBrightness, range: 0.3...2.5)
+                    SliderRow(title: "Prominences", value: $store.config.eclipseProminences, range: 0...2.5)
+                        .help("How many pink loops and sheets of cool gas stand round the edge of the sun")
+                    Toggle("Landscape", isOn: $store.config.eclipseLandscape)
+                    Toggle("Planet in the sky", isOn: $store.config.eclipsePlanet)
                 case .comet:
                     SliderRow(title: "Tail length", value: $store.config.cometTailLength, range: 0.3...2)
                     SliderRow(title: "Activity", value: $store.config.cometActivity, range: 0.2...2.5)
@@ -247,6 +256,15 @@ struct SceneTab: View {
                 DemoGrid(store: store, demos: [("Comet Impact", EventSchedule.cometImpact)])
             } header: {
                 GroupHeader(title: "Events")
+            }
+        case .eclipse:
+            Section {
+                FrequencyRow(title: "Eruptions", value: $store.config.eclipseEvents)
+                DemoGrid(store: store, demos: [("Eruption", EventSchedule.eclipseEruption)])
+            } header: {
+                GroupHeader(title: "Events")
+            } footer: {
+                GroupFooter("Eruptions wait for totality, when the corona is out.")
             }
         case .auroraOrbit:
             Section {
