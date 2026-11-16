@@ -4,6 +4,15 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-11-16
+
+- Live Earth: a new Aurora speed slider sets how fast the aurora ripples and drifts. It now moves at half its old pace by default.
+- Fixed bloom at large radii breaking into rings, stripes and patches around bright edges such as Earth's limb.
+- Eclipse: the ground keeps the same craters and boulders at every pixel size, instead of losing most of them at larger sizes.
+- Aurora from Orbit: substorms no longer make the curtains race and flicker; they now speed up smoothly. The Activity slider is now called Speed, goes lower, and new setups start at a calmer pace.
+- Optionally show Deep Field in the Dock and the app switcher while the Customize window is open, with a full app menu (turn it on under System in Customize). Clicking the Dock icon brings Customize back.
+- Copy, paste, undo and the other standard shortcuts now work in Customize's text fields.
+
 ## [0.4.5] - 2026-11-16
 
 - New scene: Live Earth. The whole Earth as it is right now, seen from high above a place you choose, which stays in the middle of the view. Sunlight, seasons and the day-night line are real, with city lights on the night side and the sun's glint on the oceans.
