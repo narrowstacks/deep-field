@@ -4,6 +4,8 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-15
+
 - New scene: Black Hole Merger. Two black holes spiral together, bending the starlight behind them into arcs and rings, and merge into one larger hole that rings down in a last burst of gravitational waves.
 - Load a real detection (GW150914, GW170814, GW190412, GW190521, GW190814, GW231123 or GW250114) to use its masses, spins and viewing angle, or set mass ratio, spin and precession yourself.
 - Choose the black holes' size: stellar pairs in empty space or inside a quasar's gas disk (where the remnant sets off a flare), intermediate ones inside a dense star cluster, or supermassive ones in a gas disk, with streams feeding each hole and jets that change direction after the merger.
