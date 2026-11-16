@@ -158,6 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func showAbout() {
+        NSApp.unhide(nil)
         NSApp.activate(ignoringOtherApps: true)
         NSApp.orderFrontStandardAboutPanel(options: [
             .credits: NSAttributedString(string: "Animated, pixel-dithered space wallpapers.\ngithub.com/narrowstacks/deep-field",
