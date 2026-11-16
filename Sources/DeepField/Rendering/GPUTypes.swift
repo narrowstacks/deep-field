@@ -9,6 +9,7 @@ struct BakeParams {
     var shellR0: Float, shellR1: Float, throat: Float, starDensity: Float
     var lensing: Float, galaxies: Float, lookX: Float, lookY: Float   // lensing: 0 none, 1 black hole, 2 wormhole
     var milkyWay: Float, nebulaType: Float, nebulaSeed: Float, shells: Float
+    var skySeed: Float
 }
 
 struct FrameParams {
@@ -19,6 +20,7 @@ struct FrameParams {
     var pixelAngle: Float, starCount: Float, lightCount: Float, ringStrength: Float
     var nebulaType: Float
     var screenScale: Float     // screen-space scenes' units per half screen height (1 on the desktop)
+    var twinkleBrightness: Float, twinkleSpeed: Float
     var camPos: SIMD4<Float>
     var camRight: SIMD4<Float>   // w = drawable width
     var camUp: SIMD4<Float>      // w = drawable height

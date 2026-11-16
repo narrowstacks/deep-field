@@ -8,8 +8,11 @@ final class WallpaperWindow: NSWindow {
         wallpaper = WallpaperView(frame: NSRect(origin: .zero, size: screen.frame.size))
         super.init(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
         setFrame(screen.frame, display: false)
-        // Desktop level: below every app window and below Finder's desktop icons.
-        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
+        // One above the desktop level: below every app window and Finder's desktop icons, but
+        // above the system's desktop picture. On macOS 14 and 15 the Dock draws each Space's
+        // picture at exactly the desktop level, and switching Spaces orders that Space's picture
+        // over a window at the same level, so the wallpaper only showed on the Space it started on.
+        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) + 1)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
         ignoresMouseEvents = true
         isOpaque = true

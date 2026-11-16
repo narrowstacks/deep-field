@@ -11,6 +11,7 @@ struct BakeParams {
     float shellR0; float shellR1; float throat; float starDensity;
     float lensing; float galaxies; float lookX; float lookY;   // lensing: 0 none, 1 black hole, 2 wormhole
     float milkyWay; float nebulaType; float nebulaSeed; float shells;   // shells: 1 = record planet shell crossings
+    float skySeed;   // 0 = the original sky; otherwise the star field is turned to a new orientation
 };
 
 struct FrameParams {
@@ -20,6 +21,7 @@ struct FrameParams {
     float dither; float twinkle; float pulsars; float skyBrightness;
     float pixelAngle; float starCount; float lightCount; float ringStrength;   // pixelAngle: radians per drawable pixel
     float nebulaType; float screenScale;   // screenScale: screen-space scenes' units per half height
+    float twinkleBrightness; float twinkleSpeed;
     float4 camPos; float4 camRight; float4 camUp;   // camRight.w / camUp.w = drawable width / height
     float4 image;    // contrast, black point, highlight rolloff, vignette
     float4 bloom;    // amount, threshold, 1 = the scene pass writes linear light for the bloom passes, radius

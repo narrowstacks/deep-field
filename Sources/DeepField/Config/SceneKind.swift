@@ -70,6 +70,10 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Scenes with settings on the Scene tab that other scenes also use (camera tilt, planets,
+    /// the shared disk colors), which a per-scene reset puts back for those scenes too.
+    var sharesSettings: Bool { ![.quasar, .galaxy].contains(self) }
+
     /// Scenes that show the orbiting planets.
     var hasPlanets: Bool { [.blackHole, .wormhole, .binary, .trinary].contains(self) }
 }

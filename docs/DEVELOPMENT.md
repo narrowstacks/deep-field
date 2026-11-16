@@ -10,14 +10,19 @@ git clone https://github.com/narrowstacks/deep-field.git && cd deep-field
 ```
 
 `build.sh` builds a release binary for this Mac and wraps it into `build/DeepField.app`
-(ad-hoc signed). `UNIVERSAL=1` adds Intel, and `SIGNING_IDENTITY` signs it for distribution.
+(ad-hoc signed). It also extracts the App Intents metadata (`Contents/Resources/Metadata.appintents`)
+that makes the Focus filter and Shortcuts actions in `App/FocusFilter.swift` visible to macOS.
+Xcode does this step for Xcode projects; SwiftPM doesn't, so `build.sh` compiles with Swift const
+values (`Resources/AppIntentsProtocols.json` lists the protocols to gather) and runs
+`appintentsmetadataprocessor` itself. A plain `swift build` binary has no Focus filter. `UNIVERSAL=1` adds Intel, and `SIGNING_IDENTITY` signs it for distribution.
 
 ## Code layout
 
 Everything is in `Sources/DeepField`:
 
 - `App/`: entry point, app delegate and menu bar, the per-screen wallpaper windows, runtime flags.
-- `Config/`: the settings model (`WallpaperConfig`, whose Codable keys are the saved format),
+- `Config/`: the settings model (`WallpaperConfig`, whose Codable keys are the saved format;
+  `SceneCustomization` holds per-scene image settings and which keys each scene's Reset covers),
   scene kinds and options, star types, palettes and presets, and `ConfigStore`.
 - `Scenes/`: CPU-side scene state: camera, planets, star systems, galaxy kinematics, the event
   schedule, and per-frame parameters for the newer scenes (`SceneParams`, `TidalDisruption`).
@@ -109,6 +114,7 @@ build/DeepField.app/Contents/MacOS/DeepField --capture-ui out.png -captureTab N 
 defaults write com.narrowstacks.DeepField debug -bool true     # log bake times, fps, pause/resume
 .build/release/DeepField --preset-roundtrip out.deepfield [--scene ...] [--config ...]   # write a preset file, read it back, compare
 .build/release/DeepField --preset-check file.deepfield         # load a preset file the way Import does
+.build/release/DeepField --check-customization                 # per-scene reset and image settings, on plain configs
 build/DeepField.app/Contents/MacOS/DeepField --welcome          # show the first-launch guide
 build/DeepField.app/Contents/MacOS/DeepField --capture-welcome out.png -welcomeStep N [--defaults]   # image of guide step N (0 to 3)
 ```

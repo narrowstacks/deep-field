@@ -1,7 +1,10 @@
 import Foundation
 
 struct WallpaperConfig: Codable, Equatable {
-    var scene: SceneKind = .blackHole
+    /// Switching scenes also swaps in that scene's own image settings, if it has them.
+    var scene: SceneKind = .blackHole {
+        didSet { if scene != oldValue { swapImage(leaving: oldValue) } }
+    }
 
     // Look
     var pixelSize = 3
@@ -21,6 +24,12 @@ struct WallpaperConfig: Codable, Equatable {
     var bloom = 0.3                // glow amount; 0 skips the bloom passes entirely
     var bloomRadius = 0.03         // fraction of the frame's shorter side
     var bloomThreshold = 0.5       // tone-mapped brightness where the glow starts
+
+    /// Image settings for scenes that keep their own, by scene raw value. The flat fields above
+    /// always hold the active scene's values, so the renderer never looks here.
+    var sceneImage: [String: ImageSettings] = [:]
+    /// The shared image settings, parked here while the active scene uses its own.
+    var sharedImage: ImageSettings?
 
     /// Set a still of the scene as the desktop picture, so the lock and login screens match.
     var lockScreenStill = false
@@ -290,6 +299,7 @@ struct WallpaperConfig: Codable, Equatable {
     var nebula = 1.0
     var galaxies = true
     var milkyWay = false
+    var skySeed = 0                    // 0 is the original sky; any other value turns it to a new one
 
     // Planets
     var planetCount = 3
@@ -300,6 +310,8 @@ struct WallpaperConfig: Codable, Equatable {
 
     // Events
     var twinkles: Frequency = .normal
+    var twinkleBrightness = 1.0        // how much a twinkling star brightens
+    var twinkleSpeed = 1.0             // how fast twinkles come and go, and how fast they flicker
     var pulsars = true
     var supernovae: Frequency = .normal
     var comets: Frequency = .normal
@@ -322,7 +334,7 @@ struct WallpaperConfig: Codable, Equatable {
     /// scene, and the pixel size sets the bake's resolution.
     struct BakeKey: Equatable {
         var scene: SceneKind, tilt: Double, diskSize: Double, throat: Double
-        var starDensity: Double, galaxies: Bool, milkyWay: Bool, pixelSize: Int
+        var starDensity: Double, galaxies: Bool, milkyWay: Bool, skySeed: Int, pixelSize: Int
         var nebulaType: NebulaType, nebulaSeed: Int
         var tdeStar: SIMD2<Double>          // star radius and distance (tidal disruption only)
         var phoneFraming: PhoneFraming?
@@ -332,7 +344,7 @@ struct WallpaperConfig: Codable, Equatable {
         BakeKey(scene: scene, tilt: cameraTilt,
                 diskSize: scene == .blackHole ? diskSize : 0,     // the tidal disruption bakes a fixed disk
                 throat: scene == .wormhole ? throat : 0,
-                starDensity: starDensity, galaxies: galaxies, milkyWay: milkyWay, pixelSize: pixelSize,
+                starDensity: starDensity, galaxies: galaxies, milkyWay: milkyWay, skySeed: skySeed, pixelSize: pixelSize,
                 nebulaType: scene == .nebula ? nebulaType : .pillars, nebulaSeed: scene == .nebula ? nebulaSeed : 0,
                 tdeStar: scene == .tidalDisruption ? SIMD2(tdeStar.radius * tdeStarSize, tdeStarDistance) : .zero,
                 phoneFraming: phoneFraming)

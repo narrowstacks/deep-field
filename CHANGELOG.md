@@ -12,6 +12,13 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Turn on Strain trace to see the waves drawn along the bottom as a detector records them: the rising chirp, the merger and the ringdown.
 - New EHT color look, after the Event Horizon Telescope's images.
 - The shadows stretch toward each other and join through a neck, and the new hole starts as a spinning peanut that rounds out. Ringdown slow motion slows the merger so you can watch it, and Speed sets how fast the whole scene runs.
+- Each scene has a Reset button that puts its settings and colors back to their defaults.
+- Give a scene its own image settings (exposure, bloom, pixel size and the rest) with Separate settings for this scene in the Image section. Other scenes keep the shared ones.
+- Star field in the Sky section rearranges the background sky. Type a seed to get the same sky back, or press Randomize.
+- Twinkling stars now have brightness and speed controls.
+- Focus filters: in System Settings > Focus, have a Focus switch Deep Field to one of your presets or a scene, and switch back when it ends.
+- Shortcuts actions to apply a preset or set the scene.
+- Fixed: on macOS 14 and 15 the wallpaper showed only on the Space where Deep Field started. It now shows on every Space.
 - Protoplanetary Disk: with low flaring, the star no longer shows dark speckles.
 - Eclipse: a planet placed in front of the sun now blocks its light and glare, and the corona comes out around it.
 - Eclipse: the ground looks more natural on every world. Craters no longer overlap, big craters are shallower, and boulders lie scattered around them. Rock has broad swells and lighter and darker regions, ice has softer frost glints, dunes are gentler and patchier, and basalt has ropy folds.

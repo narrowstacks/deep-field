@@ -6,7 +6,17 @@ struct ImageTab: View {
 
     var body: some View {
         let c = $store.config
+        let scene = store.config.scene
+        let own = store.config.sceneHasOwnImage
         Form {
+            Section {
+                Toggle("Separate settings for \(scene.title)", isOn: $store.config.sceneHasOwnImage)
+                    .help("Give this scene its own tone, glow and pixel look. Turning it off goes back to the shared settings.")
+            } footer: {
+                GroupFooter(own
+                    ? "These settings apply only to \(scene.title). Other scenes keep the shared ones."
+                    : "These settings are shared by every scene that doesn't have its own.")
+            }
             Section {
                 SliderRow(title: "Saturation", value: c.saturation, range: 0...2.5)
                 SliderRow(title: "Exposure", value: c.brightness, range: WallpaperConfig.exposureRange)
@@ -23,8 +33,7 @@ struct ImageTab: View {
                         .help("Puts tone and glow back to their defaults")
                 }
             } footer: {
-                GroupFooter("Applies to every scene.")
-                    .help("Applied before the dither, so the result stays pixel-dithered")
+                GroupFooter("Applied before the dither, so the result stays pixel-dithered.")
             }
             Section {
                 SliderRow(title: "Bloom", value: c.bloom, range: WallpaperConfig.bloomRange,

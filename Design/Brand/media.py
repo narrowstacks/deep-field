@@ -135,6 +135,13 @@ def customizations():
     tiles = [label(still(f"zoom-{z}", "stellarSurface", 60, tile, 2, {"starZoom": z}), n) for z, n in zooms]
     save(montage(tiles, 3), os.path.join(MEDIA, "star-zoom.png"))
 
+    worlds = [({"eclipseWorld": "rock"}, "Gray rock + teal giant"),
+              ({"eclipseWorld": "ice", "eclipseSkyBody": "ringedGiant"}, "Ice + ringed giant"),
+              ({"eclipseWorld": "desert", "eclipseSkyBody": "bandedGiant", "eclipseAtmosphere": True}, "Rust desert + air"),
+              ({"eclipseWorld": "basalt", "eclipseSkyBody": "rockyMoon"}, "Volcanic basalt + moon")]
+    tiles = [label(still(f"eclipse-{i}", "eclipse", 60, tile, 2, c), n) for i, (c, n) in enumerate(worlds)]
+    save(montage(tiles, 2), os.path.join(MEDIA, "eclipse-surfaces.png"))
+
     looks = [({}, "Default"),
              ({"bloom": 2.2, "bloomRadius": 0.05, "bloomThreshold": 0.35, "vignette": 0.8}, "Bloom + vignette"),
              ({"pixelSize": 4, "dither": "bayer4", "levels": 3}, "Bayer 4x4, 3 levels"),
@@ -147,6 +154,12 @@ def customizations():
 
 
 # ---------- loops ----------
+
+# The README's lead loop: no planets, so the disk has the frame to itself, and a strong but tight
+# glow (a high threshold keeps it off the black hole's shadow), a little brighter and richer,
+# and no twinkling stars, which flicker distractingly in a short loop.
+HERO_LOOK = {"planetCount": 0, "bloom": 1.2, "bloomRadius": 0.025, "bloomThreshold": 0.6,
+             "brightness": 1.3, "saturation": 1.5, "blackPoint": 0.02, "twinkles": "off"}
 
 LOOP = (720, 450)      # GIF size; cells of 2 px, so 360x225 cells
 FPS = 12
@@ -175,7 +188,7 @@ def side_by_side(a, b, la, lb):
 
 
 def all_loops():
-    loop("black-hole", "blackHole", 60, 4, speed=3, size=(960, 400), cell=3)
+    loop("black-hole", "blackHole", 60, 4, speed=3, size=(960, 400), cell=3, config=HERO_LOOK)
     loop("star-meets-black-hole", "tidalDisruption", 60, 4, speed=3)
     loop("pulsar", "pulsar", 60, 3, blend=0)             # one 3 s rotation: loops exactly
     loop("galaxy", "galaxy", 60, 4, speed=24, config={"galaxyType": "barred"})

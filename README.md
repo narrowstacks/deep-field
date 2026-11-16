@@ -99,6 +99,15 @@ Found a look you like? Save it as a preset from the **Presets** menu in Customiz
 between your presets from the menu bar icon. Presets export as small `.deepfield` files you can
 share, and anyone with Deep Field can import them.
 
+A few more things you can change:
+
+- **Reset** next to a scene's name puts that scene's settings and colors back to their defaults.
+- **Separate settings for this scene** in the Image section gives a scene its own exposure, bloom
+  and pixel look, so a bright scene and a dark one can each look their best.
+- **Star field** in the Sky section rearranges the background stars, nebulae and galaxies. Type a
+  number to come back to a sky you liked, or press **Randomize**.
+- Twinkling stars have their own brightness and speed, next to how often they twinkle.
+
 <p align="center">
   <img src="docs/media/ui-scene.png" alt="The Customize window, Scene section, with the galaxy selected" width="100%">
 </p>
@@ -111,6 +120,14 @@ Change the look itself: add bloom or a vignette, use bigger pixels, or turn dith
 
 <img src="docs/media/image-controls.png" alt="The same scene with default settings, bloom and vignette, a coarse Bayer 4x4 look, and no dither" width="100%">
 
+### Focus modes and Shortcuts
+
+Deep Field can change with your Focus. In **System Settings > Focus**, choose a Focus, add a
+**Focus Filter**, pick Deep Field, and choose one of your presets or a scene. It switches when the
+Focus turns on and goes back to how it was when the Focus ends. The same choices are actions in
+the Shortcuts app (**Apply Deep Field Preset** and **Set Deep Field Scene**), for any automation
+you like.
+
 ### A galaxy with and without dark matter
 
 <img src="docs/media/loops/dark-matter.gif" alt="The same galaxy with and without a dark matter halo, sped up" width="100%">
@@ -118,6 +135,13 @@ Change the look itself: add bloom or a vignette, use bigger pixels, or turn dith
 The Galaxy scene has a dark matter switch. With it on, the outer stars orbit about as fast as
 the inner ones, which matches what astronomers measure. Turn it off and the outer disk falls
 behind, which is what we'd expect if visible matter were all there is.
+
+### Eclipses from other worlds
+
+Stand on gray rock, ice, rust desert or cracked volcanic basalt, put a gas giant, a ringed giant
+or a cratered moon in the sky, and give the world an atmosphere if you like.
+
+<img src="docs/media/eclipse-surfaces.png" alt="The eclipse seen from four worlds: gray rock under a teal giant, ice under a ringed giant, a rust desert with an atmosphere, and volcanic basalt with a cratered moon" width="100%">
 
 ### Black hole mergers, as LIGO hears them
 

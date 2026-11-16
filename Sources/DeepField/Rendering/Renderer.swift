@@ -187,7 +187,7 @@ final class Renderer {
                            lensing: Self.lensing(c.scene), galaxies: c.galaxies ? 1 : 0,
                            lookX: Float(look.x), lookY: Float(look.y), milkyWay: c.milkyWay ? 1 : 0,
                            nebulaType: c.nebulaType.shaderIndex, nebulaSeed: Float(c.nebulaSeed),
-                           shells: shells ? 1 : 0)
+                           shells: shells ? 1 : 0, skySeed: Float(c.skySeed % 1_000_000))
         enc.setComputePipelineState(pipeline)
         enc.setTextures(textures, range: 0..<textures.count)
         enc.setBytes(&p, length: MemoryLayout<BakeParams>.stride, index: 0)
@@ -251,6 +251,7 @@ final class Renderer {
                             pixelAngle: Float(pixelAngle), starCount: Float(starCount), lightCount: Float(lightCount),
                             ringStrength: Float(c.photonRing), nebulaType: c.nebulaType.shaderIndex,
                             screenScale: Float(cam.screenScale),
+                            twinkleBrightness: Float(c.twinkleBrightness), twinkleSpeed: Float(c.twinkleSpeed),
                             camPos: SIMD4(cam.pos),
                             camRight: SIMD4(Float(cam.right.x), Float(cam.right.y), Float(cam.right.z), Float(target.width)),
                             camUp: SIMD4(Float(cam.up.x), Float(cam.up.y), Float(cam.up.z), Float(target.height)),
