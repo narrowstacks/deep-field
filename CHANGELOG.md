@@ -4,8 +4,6 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
-- Aurora from Orbit: substorms no longer make the curtains race and flicker; they now speed up smoothly. The Activity slider is now called Speed, goes lower, and new setups start at a calmer pace.
-
 ## [0.4.5] - 2026-11-16
 
 - New scene: Live Earth. The whole Earth as it is right now, seen from high above a place you choose, which stays in the middle of the view. Sunlight, seasons and the day-night line are real, with city lights on the night side and the sun's glint on the oceans.
