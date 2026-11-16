@@ -130,8 +130,8 @@ struct SceneTab: View {
                     Toggle("Moon", isOn: $store.config.gasMoon)
                     FrequencyRow(title: "Lightning", value: $store.config.gasLightning)
                 case .neutronMerger:
-                    SliderRow(title: "Cycle length", value: $store.config.mergerCycleMinutes, range: 1...15) { String(format: "%.1f min", $0) }
-                        .help("From a fresh wide pair through the merger and the fading kilonova. The orbit speeds up toward the end of each cycle")
+                    SliderRow(title: "Cycle length", value: $store.config.mergerCycleMinutes, range: 2...15) { String(format: "%.1f min", $0) }
+                        .help("From one merger to the next: the kilonova fades around the new remnant, a companion falls in and is captured, and their orbit speeds up until they merge")
                     SliderRow(title: "Star brightness", value: $store.config.mergerBrightness, range: 0.3...2.5)
                     SliderRow(title: "Glow", value: $store.config.mergerGlow, range: 0.4...2.5)
                         .help("How far each star's halo spreads")

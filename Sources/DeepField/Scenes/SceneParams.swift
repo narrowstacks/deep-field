@@ -245,26 +245,70 @@ enum SceneParams {
     /// Seconds before the merger that a demo (the merger event) starts from.
     static let mergerLead = 12.0
 
-    /// Where the merger cycle stands at time t: seconds into it, its length, how long the
-    /// kilonova lasts (the merger comes at cycle - post), and which cycle this is. A demo jumps
-    /// the cycle to a few seconds before the merger and carries on from there.
-    static func mergerClock(_ c: WallpaperConfig, _ t: Double,
-                            demo: [UInt64: Double]) -> (u: Double, cycle: Double, post: Double, index: Double) {
-        let cycle = max(c.mergerCycleMinutes * 60, 60)
-        let post = min(70, cycle * 0.35)
-        var u = t
+    /// The merger cycle at time t. Each cycle starts with a merger (u = 0) and ends with the next
+    /// one: the kilonova fades over the first `post` seconds into a lingering nebula around the
+    /// remnant, a companion falls in from beyond the frame when tau (the time left before the
+    /// next merger) reaches `tauA`, its orbit is round by `tauC`, and the chirp runs from there.
+    /// A demo jumps to a few seconds before a merger and carries on from there.
+    struct MergerClock {
+        let u: Double, cycle: Double, index: Double
+        var post: Double { min(70, cycle * 0.3) }
+        var tau: Double { cycle - u }
+        var tauA: Double { cycle * 0.62 }
+        var tauC: Double { cycle * 0.22 }
+    }
+
+    static func mergerClock(_ c: WallpaperConfig, _ t: Double, demo: [UInt64: Double]) -> MergerClock {
+        let cycle = max(c.mergerCycleMinutes * 60, 120)
+        var u = t + cycle * 0.3              // so a launch opens on the remnant, not a flash
         if let s = demo[EventSchedule.neutronMerger.id], t >= s {
-            u = cycle - post - mergerLead + (t - s)
+            u = cycle - mergerLead + (t - s)
         }
         let index = floor(u / cycle)
-        return (u - index * cycle, cycle, post, index)
+        return MergerClock(u: u - index * cycle, cycle: cycle, index: index)
+    }
+
+    /// The chirp's constant: orbital phase phi0 - K tau^(5/8) once the orbit is circular.
+    private static let mergerK = 4.5
+    /// The captured orbit: semi-major axis (its apoapsis lies beyond the frame) and eccentricity.
+    private static let mergerCapA = 14.5, mergerCapE = 0.8
+
+    /// The companion's orbit relative to the remnant at time-to-merger tau: semi-major axis and
+    /// eccentricity. Gravitational waves shrink and circularize it; by tauC it has joined the
+    /// circular chirp, whose separation goes as tau^(1/4).
+    private static func mergerOrbit(_ tau: Double, _ k: MergerClock) -> (a: Double, e: Double) {
+        let w = smoothstep(k.tauC, k.tauA, tau)
+        let chirp = 1.55 * pow(max(tau, 0), 0.25)
+        return (chirp + (mergerCapA - chirp) * w, mergerCapE * w)
+    }
+
+    /// Mean anomaly at tau: pi (apoapsis) at tauA, then advanced at the Kepler rate for the
+    /// shrinking orbit (omega^2 a^3 fixed, matching the chirp), in closed form once it's circular.
+    private static func mergerMeanAnomaly(_ tau: Double, _ k: MergerClock) -> Double {
+        func rate(_ x: Double) -> Double { 0.625 * mergerK * pow(mergerOrbit(x, k).a / 1.55, -1.5) }
+        let lo = max(tau, k.tauC), hi = k.tauA
+        var m = Double.pi
+        if hi > lo {
+            // Simpson's rule
+            let steps = 160, h = (hi - lo) / Double(steps)
+            var s = rate(lo) + rate(hi)
+            for i in 1..<steps { s += rate(lo + Double(i) * h) * (i % 2 == 1 ? 4 : 2) }
+            m += s * h / 3
+        }
+        if tau < k.tauC { m += mergerK * (pow(k.tauC, 0.625) - pow(max(tau, 0), 0.625)) }
+        return m
+    }
+
+    /// Where the periapsis points in cycle `index`: companions come in from alternate sides.
+    private static func mergerPeriapsis(_ index: Double) -> Double {
+        (index.truncatingRemainder(dividingBy: 2) == 0 ? 0 : .pi) + 0.35 * sin(index * 1.7)
     }
 
     private static func neutronMerger(_ c: WallpaperConfig, _ t: Double, _ cam: Camera,
                                       _ demo: [UInt64: Double]) -> SceneParamsGPU {
         var p = SceneParamsGPU()
-        let (u, cycle, post, index) = mergerClock(c, t, demo: demo)
-        let tau = cycle - post - u                       // time left before the merger
+        let k = mergerClock(c, t, demo: demo)
+        let u = k.u, tau = k.tau
         // the orbit axis leans away from our line of sight, up and a little to the side
         let view = c.mergerView / 180 * .pi
         let toCam = simd_normalize(cam.pos)
@@ -272,38 +316,59 @@ enum SceneParams {
         let n = simd_normalize(cos(view) * toCam + sin(view) * lean)
         let e1 = simd_normalize(cam.right - n * simd_dot(cam.right, n))
         let e2 = simd_cross(n, e1)
-        // The quadrupole chirp: phase phi0 - K tau^(5/8), separation shrinking as tau^(1/4)
-        // (Kepler: a^3 omega^2 stays fixed). Each cycle starts the orbit at a new angle.
-        let K = 4.5
-        let phi0 = index * 2.4
-        let te = max(tau, 0)
-        let phi = phi0 - K * pow(te, 0.625)
-        let a = 1.55 * pow(te, 0.25)
-        let R = 0.2
-        let cA = (cos(phi) * e1 + sin(phi) * e2) * a / 2
-        // tides stretch each star toward the other in the last moments
-        let stretch = 1 + 0.9 * pow(min(2.6 * R / max(a, 1e-3), 1), 3)
+        let K = mergerK
+        // the circular chirp's phase constant for this cycle's pair, and for the last one
+        let mC = mergerMeanAnomaly(k.tauC, k) + K * pow(k.tauC, 0.625)
+        let phi0Next = mC + mergerPeriapsis(k.index), phi0Last = mC + mergerPeriapsis(k.index - 1)
+
+        // The companion: falls in from apoapsis beyond the frame at tauA, swings close past the
+        // remnant, and is worn down into the chirp. Its position comes from Kepler's equation.
+        var rel = SIMD3<Double>(0, 0, 0)
+        var presence = 0.0, stretch = 1.0
+        if tau < k.tauA {
+            let (a, e) = mergerOrbit(tau, k)
+            let m = mergerMeanAnomaly(tau, k)
+            var E = m + e * sin(m)
+            for _ in 0..<12 { E -= (E - e * sin(E) - m) / (1 - e * cos(E)) }
+            let r = a * (1 - e * cos(E))
+            let nu = 2 * atan2(sqrt(1 + e) * sin(E / 2), sqrt(1 - e) * cos(E / 2))
+            let ang = nu + mergerPeriapsis(k.index)
+            rel = (cos(ang) * e1 + sin(ang) * e2) * r
+            presence = smoothstep(k.tauA, k.tauA - 4, tau)
+            // tides stretch each star toward the other in the last moments
+            stretch = 1 + 0.9 * pow(min(2.6 * 0.2 / max(r, 1e-3), 1), 3)
+        }
+        // The pair's balance point: the remnant stays put while the companion is far and
+        // light on it, and the two share the orbit equally as it tightens (equal masses).
+        let share = 0.5 * (1 - smoothstep(k.tauC, k.tauA, tau))
+        let cA = -rel * share, cB = rel * (1 - share)
+
         // each star's magnetic axis turns with its spin
         func magnetic(_ incl: Double, _ period: Double, _ offset: Double) -> SIMD3<Double> {
             let w = 2 * .pi * t / period + offset
             return cos(incl) * n + sin(incl) * (cos(w) * e1 + sin(w) * e2)
         }
-        let fadeIn = smoothstep(0, 8, u) * (1 - smoothstep(cycle - 6, cycle, u))
-        let age = tau <= 0 ? -tau : -1
-        let kfade = age >= 0 ? 1 - smoothstep(post * 0.55, post - 1, age) : 0
-        let flash = age >= 0 ? exp(-age / 0.3) : 0
+        // The remnant is a magnetar: a slow beat in its glow and field, and a spin-down
+        // brightening just after it forms. The beat quiets once it has a partner.
+        let beat = pow(0.5 + 0.5 * sin(2 * .pi * t / 5.0), 3)
+        let remGlow = 1 + 0.6 * beat * (1 - 0.6 * presence) + 1.2 * exp(-u / 25)
+        // the kilonova: bright, then a lingering nebula that dims as the next merger nears
+        let kfade = (1 - 0.7 * smoothstep(k.post * 0.5, k.post, u)) * (1 - 0.4 * smoothstep(0.8 * k.cycle, k.cycle, u))
+        let flash = exp(-u / 0.3)
+        // waves: those still to arrive from the coming merger, or those spreading from the last
+        let tauW = u < k.cycle / 2 ? -u : tau
+        let phi0 = (tauW < 0 ? phi0Last : phi0Next).truncatingRemainder(dividingBy: 2 * .pi)
         typealias L = PickedColor.Level
-        p.a = SIMD4(SIMD3<Float>(cA), Float(R))
-        p.b = SIMD4(SIMD3<Float>(-cA), Float(stretch))
+        p.a = SIMD4(SIMD3<Float>(cA), Float(remGlow))
+        p.b = SIMD4(SIMD3<Float>(cB), Float(stretch))
         p.c = SIMD4(SIMD3<Float>(n), Float(c.mergerWaves))
-        p.d = SIMD4(SIMD3<Float>(e1), Float(tau))
-        p.e = SIMD4(c.mergerStarColor.light3(L.mergerStar) * Float(c.mergerBrightness), Float(fadeIn))
-        p.f = SIMD4(c.mergerHot.light3(L.mergerKilonova), Float(age))
+        p.d = SIMD4(SIMD3<Float>(e1), Float(tauW))
+        p.e = SIMD4(c.mergerStarColor.light3(L.mergerStar) * Float(c.mergerBrightness), Float(presence))
+        p.f = SIMD4(c.mergerHot.light3(L.mergerKilonova), Float(u))
         p.g = SIMD4(c.mergerCool.light3(L.mergerKilonova), Float(kfade))
         p.h = SIMD4(SIMD3<Float>(magnetic(0.6, 1.7, 0)), c.mergerJet ? 1 : 0)
         p.i = SIMD4(SIMD3<Float>(magnetic(0.85, 2.6, 2)), Float(c.mergerGlow))
-        // phi0 wrapped so the shader's float phase keeps its precision
-        p.j = SIMD4(Float(K), Float(phi0.truncatingRemainder(dividingBy: 2 * .pi)), 0.6, Float(flash))
+        p.j = SIMD4(Float(K), Float(phi0), Float(k.tauC), Float(flash))
         return p
     }
 
