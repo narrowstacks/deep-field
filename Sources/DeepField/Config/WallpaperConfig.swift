@@ -215,6 +215,29 @@ struct WallpaperConfig: Codable, Equatable {
     var rogueMoon = true
     var rogueEvents: Frequency = .normal
 
+    // Eclipse
+    var eclipseCycleMinutes = 4.0      // one full pass of the occluder across the sun
+    var eclipseCoronaSize = 1.0
+    var eclipseCoronaBrightness = 1.0
+    var eclipseProminences = 1.0
+    var eclipseMotion: EclipseMotion = .cycle
+    var eclipseLandscape = true
+    var eclipseWorld: EclipseWorld = .rock
+    var eclipseSkyBody: EclipseSkyBody = .tealGiant
+    var eclipsePlanetSize = 1.0
+    var eclipsePlanetX = -0.6          // the body's center, in screen half-widths
+    var eclipsePlanetY = -0.18         // and half-heights
+    var eclipseAtmosphere = false
+    var eclipseAirColor = RGB(0.36, 0.6, 1.0)   // the sky's scattering color
+    var eclipseAirDensity = 1.0
+    var eclipseAirHaze = 0.15
+    var eclipseClouds = 0.5
+    var eclipseCoronaColor = Tuned.eclipseCorona.color
+    var eclipseProminenceColor = Tuned.eclipseProminence.color
+    var eclipseGroundColor = Tuned.eclipseGround.color
+    var eclipsePlanetColor = Tuned.eclipsePlanet.color
+    var eclipseEvents: Frequency = .normal
+
     // Comet
     var cometTailLength = 1.0
     var cometActivity = 1.0

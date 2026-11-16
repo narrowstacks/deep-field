@@ -75,6 +75,10 @@ enum PickedColor {
         static let dysonHeat: Float = 0.1
         static let rogueAurora: Float = 0.5
         static let rogueRift: Float = 0.5
+        static let eclipseCorona: Float = 1.0
+        static let eclipseProminence: Float = 1.0
+        static let eclipseGround: Float = 1.0
+        static let eclipsePlanet: Float = 1.0
     }
 }
 
@@ -100,6 +104,7 @@ extension WallpaperConfig {
         case mergerStar = "mergerStarColor", mergerHot, mergerCool
         case dysonPanelA, dysonPanelB, dysonHeat
         case rogueAuroraLow, rogueAuroraHigh, rogueRift = "rogueRiftColor"
+        case eclipseCorona, eclipseProminence, eclipseGround, eclipsePlanet
 
         var light: RGB {
             switch self {
@@ -136,6 +141,10 @@ extension WallpaperConfig {
             case .rogueAuroraLow: RGB(0.1, 1.0, 0.55)
             case .rogueAuroraHigh: RGB(0.75, 0.15, 1.0)
             case .rogueRift: RGB(1.0, 0.32, 0.06)
+            case .eclipseCorona: RGB(0.5, 0.62, 1.0)
+            case .eclipseProminence: RGB(1.0, 0.16, 0.42)
+            case .eclipseGround: RGB(0.62, 0.58, 0.54)
+            case .eclipsePlanet: RGB(0.3, 0.7, 0.85)
             }
         }
 
@@ -167,6 +176,10 @@ extension WallpaperConfig {
             case .dysonHeat: L.dysonHeat
             case .rogueAuroraLow, .rogueAuroraHigh: L.rogueAurora
             case .rogueRift: L.rogueRift
+            case .eclipseCorona: L.eclipseCorona
+            case .eclipseProminence: L.eclipseProminence
+            case .eclipseGround: L.eclipseGround
+            case .eclipsePlanet: L.eclipsePlanet
             }
         }
 

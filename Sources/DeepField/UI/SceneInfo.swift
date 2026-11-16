@@ -15,6 +15,7 @@ extension SceneKind {
         case .neutronMerger: "Two neutron stars spiral together, rippling the sky with gravitational waves, and merge in a kilonova."
         case .dysonSwarm: "A star wrapped in rings of orbiting solar panels, its light leaking out between them."
         case .roguePlanet: "A planet adrift between the stars with no sun, seen by the starlight it blocks, its aurorae glowing."
+        case .eclipse: "A total eclipse of the sun over the horizon of another world, its corona and prominences coming out as the light fades."
         case .auroraOrbit: "Aurora curtains over the night side of Earth, seen from orbit, with city lights and storms below."
         case .ringedPlanet: "A banded gas giant and its rings, each shadowing the other, with small moons in orbit."
         case .planetaryNebula: "A dying star's shed shell, lit from inside by the white dwarf left behind."

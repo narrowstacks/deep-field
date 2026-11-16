@@ -1,7 +1,7 @@
 import Foundation
 
 enum SceneKind: String, Codable, CaseIterable, Identifiable {
-    case blackHole, tidalDisruption, wormhole, binary, trinary, galaxy, pulsar, nebula, planetaryNebula, ringedPlanet, auroraOrbit, gasGiant, protoplanetaryDisk, neutronMerger, dysonSwarm, roguePlanet, comet, stellarSurface
+    case blackHole, tidalDisruption, wormhole, binary, trinary, galaxy, pulsar, nebula, planetaryNebula, ringedPlanet, auroraOrbit, gasGiant, protoplanetaryDisk, neutronMerger, dysonSwarm, roguePlanet, eclipse, comet, stellarSurface
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -21,6 +21,7 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
         case .neutronMerger: "Neutron Star Merger"
         case .dysonSwarm: "Dyson Swarm"
         case .roguePlanet: "Rogue Planet"
+        case .eclipse: "Eclipse"
         case .comet: "Comet"
         case .stellarSurface: "Star Close-up"
         }
@@ -45,6 +46,7 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
         case .neutronMerger: 15
         case .dysonSwarm: 17
         case .roguePlanet: 18
+        case .eclipse: 19
         }
     }
     /// Scenes offered in the Customize window. The nebula scene is parked for now (its code is
@@ -53,10 +55,13 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
     static var listed: [SceneKind] { allCases.filter(\.isListed) }
 
     /// Glow added to the global bloom setting for scenes whose look leans on it.
+    /// The eclipse takes most of it back: its bright inner corona would otherwise glow across the
+    /// moon's black disk.
     var extraBloom: Double {
         switch self {
         case .auroraOrbit: 0.4
         case .protoplanetaryDisk, .dysonSwarm: 0.2
+        case .eclipse: -0.22
         default: 0
         }
     }

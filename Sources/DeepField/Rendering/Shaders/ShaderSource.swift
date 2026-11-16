@@ -33,6 +33,6 @@
 
 enum ShaderSource {
     static var full: String {
-        [common, bake, sky, planets, lensed, stars, galaxy, pulsar, comet, nebula, planetary, ringed, aurora, gasGiant, protoDisk, neutronMerger, dyson, roguePlanet].joined(separator: "\n\n")
+        [common, bake, sky, planets, lensed, stars, galaxy, pulsar, comet, nebula, planetary, ringed, aurora, gasGiant, protoDisk, neutronMerger, dyson, roguePlanet, eclipse].joined(separator: "\n\n")
     }
 }

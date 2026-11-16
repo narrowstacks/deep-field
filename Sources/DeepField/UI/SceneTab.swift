@@ -178,6 +178,19 @@ struct SceneTab: View {
                         .help("Heat from inside the planet glowing through cracks in its ice")
                     SliderRow(title: "Milky Way", value: $store.config.rogueMilkyWay, range: 0...2)
                     Toggle("Moon", isOn: $store.config.rogueMoon)
+                case .eclipse:
+                    Picker("Motion", selection: $store.config.eclipseMotion) {
+                        ForEach(EclipseMotion.allCases) { Text($0.title).tag($0) }
+                    }
+                    .help("Hold at totality parks the moon over the sun, so the corona, prominences and eruptions are always out")
+                    if store.config.eclipseMotion == .cycle {
+                        SliderRow(title: "Cycle length", value: $store.config.eclipseCycleMinutes, range: 1...10) { String(format: "%.1f min", $0) }
+                            .help("How long one eclipse takes, from full sun through totality and back to full sun")
+                    }
+                    SliderRow(title: "Corona size", value: $store.config.eclipseCoronaSize, range: 0.5...2)
+                    SliderRow(title: "Corona brightness", value: $store.config.eclipseCoronaBrightness, range: 0.3...2.5)
+                    SliderRow(title: "Prominences", value: $store.config.eclipseProminences, range: 0...2.5)
+                        .help("How many pink loops and sheets of cool gas stand round the edge of the sun, and how often small jets shoot up")
                 case .comet:
                     SliderRow(title: "Tail length", value: $store.config.cometTailLength, range: 0.3...2)
                     SliderRow(title: "Activity", value: $store.config.cometActivity, range: 0.2...2.5)
@@ -215,6 +228,7 @@ struct SceneTab: View {
             }
             if scene == .ringedPlanet { ringedSections }
             if scene == .auroraOrbit { auroraSections }
+            if scene == .eclipse { eclipseSections }
             if scene == .stellarSurface {
                 Section {
                     SliderRow(title: "Zoom", value: $store.config.starZoom, range: WallpaperConfig.starZoomRange)
@@ -327,6 +341,17 @@ struct SceneTab: View {
             } header: {
                 GroupHeader(title: "Events")
             }
+        case .eclipse:
+            Section {
+                FrequencyRow(title: "Eruptions", value: $store.config.eclipseEvents)
+                DemoGrid(store: store, demos: [("Eruption", EventSchedule.eclipseEruption)])
+            } header: {
+                GroupHeader(title: "Events")
+            } footer: {
+                GroupFooter(store.config.eclipseMotion == .cycle
+                            ? "Eruptions wait for totality, when the corona is out."
+                            : "Held at totality, eruptions come every few minutes, with small jets in between.")
+            }
         case .auroraOrbit:
             Section {
                 FrequencyRow(title: "Substorms", value: $store.config.auroraEvents)
@@ -385,6 +410,57 @@ struct SceneTab: View {
         } header: {
             GroupHeader(title: "View")
         }
+    }
+
+    /// The eclipse scene's ground, sky body and air.
+    @ViewBuilder private var eclipseSections: some View {
+        Section {
+            Toggle("Landscape", isOn: $store.config.eclipseLandscape)
+            if store.config.eclipseLandscape {
+                Picker("Surface", selection: $store.config.eclipseWorld) {
+                    ForEach(EclipseWorld.allCases) { Text($0.title).tag($0) }
+                }
+            }
+        } header: {
+            GroupHeader(title: "Ground")
+        }
+        Section {
+            Picker("Body", selection: $store.config.eclipseSkyBody) {
+                ForEach(EclipseSkyBody.allCases) { Text($0.title).tag($0) }
+            }
+            if store.config.eclipseSkyBody != .none {
+                SliderRow(title: "Size", value: $store.config.eclipsePlanetSize, range: 0.4...1.8)
+                SliderRow(title: "Horizontal position", value: $store.config.eclipsePlanetX, range: -1...1)
+                SliderRow(title: "Height", value: $store.config.eclipsePlanetY, range: -0.6...0.9)
+            }
+        } header: {
+            GroupHeader(title: "In the sky")
+        }
+        Section {
+            Toggle("Atmosphere", isOn: $store.config.eclipseAtmosphere)
+                .help("Off is an airless world with a black sky. With air the sky darkens as the sun goes, and at totality a sunset glow rings the horizon")
+            if store.config.eclipseAtmosphere {
+                Picker("Composition", selection: airPreset) {
+                    ForEach(EclipseAirPreset.all, id: \.name) { Text($0.name).tag($0.name) }
+                    Text("Custom").tag("Custom")
+                }
+                ColorRow("Sky color", store.color(\.eclipseAirColor))
+                SliderRow(title: "Density", value: $store.config.eclipseAirDensity, range: 0.1...3)
+                SliderRow(title: "Haze", value: $store.config.eclipseAirHaze, range: 0...2)
+                    .help("Dust or smog: it whitens and dims the sky and spreads a glow round the sun")
+                SliderRow(title: "Clouds", value: $store.config.eclipseClouds, range: 0...1)
+            }
+        } header: {
+            GroupHeader(title: "Air")
+        }
+    }
+
+    /// The air composition, by preset name; editing anything after picking one makes it Custom.
+    private var airPreset: Binding<String> {
+        Binding(
+            get: { EclipseAirPreset.all.first { $0.matches(store.config) }?.name ?? "Custom" },
+            set: { name in EclipseAirPreset.all.first { $0.name == name }?.apply(to: &store.config) }
+        )
     }
 
     /// The ringed planet's rings, lighting and moons, each in its own group.

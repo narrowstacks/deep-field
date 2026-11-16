@@ -56,6 +56,8 @@ struct EventSchedule {
     static let swarmWave       = Kind(id: 21, slot: 720, chance: 0.6, duration: 45)
     // rogue planet scene
     static let starGlint       = Kind(id: 22, slot: 900, chance: 0.6, duration: 240)
+    // eclipse scene: the window is long enough to wait for the next totality (see SceneParams.eclipse)
+    static let eclipseEruption = Kind(id: 23, slot: 900, chance: 0.6, duration: 800)
 
     /// If an event of this kind is running at time t: its age in seconds and a generator for its parameters.
     func active(_ k: Kind, rate: Double, at t: Double, demo: [UInt64: Double] = [:]) -> (age: Double, rng: Rng)? {
@@ -79,7 +81,7 @@ struct EventSchedule {
     static func skyDirection(_ u: Double, _ v: Double, camera cam: Camera, config c: WallpaperConfig) -> SIMD3<Double>? {
         let d = cam.ray(u, v)
         switch c.scene {
-        case .binary, .trinary, .galaxy, .pulsar, .nebula, .planetaryNebula, .ringedPlanet, .auroraOrbit, .gasGiant, .protoplanetaryDisk, .neutronMerger, .dysonSwarm, .roguePlanet, .comet, .stellarSurface:
+        case .binary, .trinary, .galaxy, .pulsar, .nebula, .planetaryNebula, .ringedPlanet, .auroraOrbit, .gasGiant, .protoplanetaryDisk, .neutronMerger, .dysonSwarm, .roguePlanet, .eclipse, .comet, .stellarSurface:
             return d
         case .wormhole:
             // lensing is mild away from the throat; just keep events clear of it

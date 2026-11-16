@@ -122,6 +122,11 @@ struct SceneColors: View {
             ColorRow("Aurora (low)", store.color(\.rogueAuroraLow))
             ColorRow("Aurora tops", store.color(\.rogueAuroraHigh))
             ColorRow("Rift glow", store.color(\.rogueRiftColor))
+        case .eclipse:
+            ColorRow("Corona", store.color(\.eclipseCoronaColor))
+            ColorRow("Prominences", store.color(\.eclipseProminenceColor))
+            if store.config.eclipseLandscape { ColorRow("Ground", store.color(\.eclipseGroundColor)) }
+            if store.config.eclipseSkyBody != .none { ColorRow("Sky body", store.color(\.eclipsePlanetColor)) }
         case .auroraOrbit:
             ColorRow("Aurora (oxygen, low)", store.color(\.auroraGreen))
             ColorRow("Aurora tops (oxygen, high)", store.color(\.auroraRed))
