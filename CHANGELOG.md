@@ -4,6 +4,11 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-15
+
+- The scene gallery in the Customize window scrolls, so every scene can be reached. Before, the last few were cut off with no way to get to them.
+- The Customize window can be resized. Make it taller to see more scenes at once, or wider for more room for settings. It remembers its size and position.
+
 ## [0.2.0] - 2026-11-15
 
 - Ten new scenes: Planetary Nebula, Ringed Planet, Aurora from Orbit, Gas Giant Storms, Protoplanetary Disk, Neutron Star Merger, Dyson Swarm, Rogue Planet, Eclipse and Quasar, each with its own settings, colors and occasional events.

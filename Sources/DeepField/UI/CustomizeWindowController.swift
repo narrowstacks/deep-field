@@ -12,11 +12,15 @@ final class CustomizeWindowController {
         if window == nil {
             let w = NSWindow(contentViewController: NSHostingController(rootView: CustomizeView()))
             w.title = "Customize Deep Field"
-            w.styleMask = [.titled, .closable, .miniaturizable]
+            // resizable: a taller window shows more of the gallery, a wider one a wider inspector
+            w.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            w.setContentSize(Theme.windowSize)
+            w.contentMinSize = CGSize(width: Theme.windowSize.width, height: Theme.minWindowHeight)
             // dark in both system appearances: colors are judged against a black sky
             w.appearance = NSAppearance(named: .darkAqua)
             w.isReleasedWhenClosed = false
             w.center()
+            w.setFrameAutosaveName("CustomizeWindow")   // remembers the size and position you leave it at
             closeObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in self?.closed() }
             window = w

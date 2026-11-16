@@ -9,8 +9,8 @@ struct LivePreview: NSViewRepresentable {
     func updateNSView(_ nsView: WallpaperView, context: Context) { nsView.actualPixels = actualPixels }
 }
 
-/// The window's left column: the preview (or the phone preview), a caption and the scene
-/// gallery. Always visible, so every change in the inspector shows at once.
+/// The window's left column: the preview (or the phone preview), a caption and the scrolling
+/// scene gallery. Always visible, so every change in the inspector shows at once.
 struct StageView: View {
     @ObservedObject var store: ConfigStore
     @ObservedObject var thumbnails: SceneThumbnails
@@ -28,15 +28,18 @@ struct StageView: View {
             if section == .phone {
                 HStack(alignment: .top, spacing: 20) {
                     PhoneStage(store: store, showClock: showPhoneClock)
-                    SceneGallery(store: store, thumbnails: thumbnails, columns: 2)
+                    ScrollView { SceneGallery(store: store, thumbnails: thumbnails, columns: 2) }
                 }
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     preview
                     caption
-                    SceneGallery(store: store, thumbnails: thumbnails, columns: Theme.gallery(for: reference).columns)
-                        .padding(.top, 14)
-                    Spacer(minLength: 0)
+                    // scrolls once the scenes outgrow the window; taller windows show more at once
+                    ScrollView {
+                        SceneGallery(store: store, thumbnails: thumbnails, columns: Theme.gallery(for: reference).columns)
+                            .padding(.vertical, 2)
+                    }
+                    .padding(.top, 12)
                 }
             }
         }

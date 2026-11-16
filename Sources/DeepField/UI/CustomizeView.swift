@@ -43,7 +43,8 @@ struct CustomizeView: View {
             .frame(maxWidth: .infinity)
             .background(Theme.inspectorBackground)
         }
-        .frame(width: Theme.windowSize.width, height: Theme.windowSize.height)
+        .frame(minWidth: Theme.windowSize.width, maxWidth: .infinity,
+               minHeight: Theme.minWindowHeight, maxHeight: .infinity)
         .preferredColorScheme(.dark)
         .background { shortcuts }
         .onChange(of: section) { if section == .phone { actualPixels = false } }

@@ -9,7 +9,9 @@ enum Theme {
     static let hairline = Color(nsColor: .separatorColor)
 
     static let stageWidth: CGFloat = 720, inspectorWidth: CGFloat = 440
-    static let windowSize = CGSize(width: 1160, height: 740)
+    static let windowSize = CGSize(width: 1160, height: 740)    // the window's size when it first opens
+    /// Resizing goes no smaller than this: the preview, its caption and a row of the gallery.
+    static let minWindowHeight: CGFloat = 600
     static let stagePadding: CGFloat = 20
     static let previewBox = CGSize(width: 680, height: 425)
 
