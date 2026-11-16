@@ -104,6 +104,24 @@ jobs:
             --title "Deep Field ${{ steps.ver.outputs.version }}" \
             --notes-file "${{ steps.ver.outputs.notes }}" "${FLAGS[@]}"
 
+      # The website reads releases at build time, and its Vercel builds are opt-in through a
+      # [deploy] marker in the commit subject. An empty commit with that marker on its main
+      # rebuilds it with this release. Made through the API, so nothing is cloned.
+      - name: Deploy the website
+        if: steps.ver.outputs.prerelease == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.WEBSITE_DEPLOY_TOKEN }}
+          REPO: narrowstacks/deep-field-website
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          [[ -n "$GH_TOKEN" ]] || { echo "error: WEBSITE_DEPLOY_TOKEN is not set" >&2; exit 1; }
+          HEAD_SHA=$(gh api "repos/$REPO/git/ref/heads/main" -q .object.sha)
+          TREE=$(gh api "repos/$REPO/git/commits/$HEAD_SHA" -q .tree.sha)
+          NEW=$(gh api "repos/$REPO/git/commits" -f message="chore: ship Deep Field $VERSION [deploy]" \
+            -f tree="$TREE" -f "parents[]=$HEAD_SHA" -q .sha)
+          gh api -X PATCH "repos/$REPO/git/refs/heads/main" -f sha="$NEW" >/dev/null
+          echo "Pushed $NEW to $REPO main"
+
       # The self-hosted runner persists between jobs, so remove everything secret we wrote.
       - name: Scrub signing material
         if: always()
