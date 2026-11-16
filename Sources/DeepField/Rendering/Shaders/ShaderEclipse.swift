@@ -626,11 +626,14 @@ fragment float4 eclipseFragment(FRAME_INPUTS)
                 spec = 1.0;
             } else if (world == 3) {
                 // lava glowing through cracks in the cooled crust: faint in sunlight, plain at totality
-                float ce = ecCellEdge(uv * 55.0, 12.0);
-                float w = max(0.04, fp * 55.0 * 1.2);
-                float crack = exp(-sq(ce / w)) * (0.04 / w) + 0.35 * exp(-sq(ce / (w * 3.0))) * (0.04 / w);
+                // the cracks wander, and only some stretches of them are still hot
+                float2 wv = uv * 40.0 + 0.6 * float2(fbm(float3(uv * 20.0, 1.0)), fbm(float3(uv * 20.0, 4.0)));
+                float ce = ecCellEdge(wv, 12.0);
+                float w = max(0.025, fp * 40.0 * 1.2);
+                float crack = exp(-sq(ce / w)) * (0.025 / w) + 0.25 * exp(-sq(ce / (w * 2.5))) * (0.025 / w);
+                float hot = smoothstep(0.45, 0.7, noise3(float3(uv * 60.0, 8.0)));
                 float flick = 0.7 + 0.3 * noise3(float3(uv * 30.0, T * 0.3));
-                glowG = float3(1.0, 0.32, 0.06) * crack * flick * 0.07 * adapt * (1.0 - smoothstep(0.0004, 0.0015, fp));
+                glowG = float3(1.0, 0.3, 0.05) * crack * hot * flick * 0.025 * adapt * (1.0 - smoothstep(0.0004, 0.0015, fp));
                 alb *= 1.0 - 0.4 * saturate(crack);
             }
             alb *= 0.85 + 0.3 * noise3(float3(uv * 900.0, 3.0)) * (1.0 - smoothstep(0.3, 0.8, fp * 900.0)) * (world == 1 ? 0.3 : 1.0);
