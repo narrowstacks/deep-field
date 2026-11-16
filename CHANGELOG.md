@@ -2,7 +2,11 @@
 
 All notable changes to Deep Field. Versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.3.0] - 2026-11-15
+
+- Every scene with its own colors now has one-click color presets, shown as swatches like the black hole's. Choosing a black hole palette no longer changes the galaxy scene's colors.
+- Making the Customize window bigger now makes the preview bigger too, with more scenes per row in the gallery. The preview costs no more to draw at a larger size.
+- At 1:1 preview scale, drag the preview to look around the whole screen.
 
 ## [0.2.1] - 2026-11-15
 
