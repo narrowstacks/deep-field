@@ -13,6 +13,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ConfigStore.shared.flush()
     }
 
+    /// Clicking the Dock icon (or opening the app again from Finder) opens Customize.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !Settings.capturingUI { showCustomize() }
+        return false
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // a UI capture never touches desktop pictures or the network
         if !Settings.capturingUI { Updater.start() }
@@ -22,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if welcome { Settings.wallpaperEnabled = false }
         buildWindows()
         buildStatusItem()
+        NSApp.mainMenu = MainMenu.build(target: self)
         if !Settings.capturingUI {
             LockScreenStill.shared.start()
             Scheduler.shared.start()
@@ -150,7 +157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.menu = menu
     }
 
-    @objc private func showAbout() {
+    @objc func showAbout() {
         NSApp.activate(ignoringOtherApps: true)
         NSApp.orderFrontStandardAboutPanel(options: [
             .credits: NSAttributedString(string: "Animated, pixel-dithered space wallpapers.\ngithub.com/narrowstacks/deep-field",
@@ -159,7 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ])
     }
 
-    @objc private func checkForUpdates() { Updater.checkForUpdates() }
+    @objc func checkForUpdates() { Updater.checkForUpdates() }
 
     private let presetsItem = NSMenuItem(title: "Presets", action: nil, keyEquivalent: "")
     private let wallpaperItem = NSMenuItem(title: "Show on Desktop", action: #selector(toggleWallpaper), keyEquivalent: "")
@@ -235,7 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc private func skipSchedule() { Scheduler.shared.skip() }
     @objc private func togglePause() { userPaused.toggle(); applyPause() }
-    @objc private func showCustomize() { CustomizeWindowController.shared.show() }
+    @objc func showCustomize() { CustomizeWindowController.shared.show() }
     @objc private func toggleLockScreen() { ConfigStore.shared.config.lockScreenStill.toggle() }
 
     @objc private func toggleLogin() {

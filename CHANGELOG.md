@@ -4,6 +4,9 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+- Optionally show Deep Field in the Dock and the app switcher while the Customize window is open, with a full app menu (turn it on under System in Customize). Clicking the Dock icon brings Customize back.
+- Copy, paste, undo and the other standard shortcuts now work in Customize's text fields.
+
 ## [0.4.5] - 2026-11-16
 
 - New scene: Live Earth. The whole Earth as it is right now, seen from high above a place you choose, which stays in the middle of the view. Sunlight, seasons and the day-night line are real, with city lights on the night side and the sun's glint on the oceans.

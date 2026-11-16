@@ -21,6 +21,11 @@ enum Settings {
         set { d.set(newValue, forKey: "wallpaperEnabled") }
     }
 
+    /// Whether Deep Field shows in the Dock and the app switcher, with its own menus, while the
+    /// Customize window is open. It's a menu bar app the rest of the time.
+    static let dockWhileCustomizingKey = "dockWhileCustomizing"
+    static var dockWhileCustomizing: Bool { d.bool(forKey: dockWhileCustomizingKey) }
+
     /// True on a first launch: no saved settings, no earlier version's keys, and the guide not yet
     /// seen. Worked out once at startup, before anything saves.
     static let isFirstLaunch: Bool = {

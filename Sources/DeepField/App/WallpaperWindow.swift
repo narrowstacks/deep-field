@@ -14,6 +14,7 @@ final class WallpaperWindow: NSWindow {
         // over a window at the same level, so the wallpaper only showed on the Space it started on.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) + 1)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
+        isExcludedFromWindowsMenu = true
         ignoresMouseEvents = true
         isOpaque = true
         hasShadow = false

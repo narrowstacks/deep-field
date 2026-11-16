@@ -31,8 +31,19 @@ final class CustomizeWindowController {
                 forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in self?.closed() }
             window = w
         }
+        updateDockIcon()
         NSApp.activate(ignoringOtherApps: true)
+        if window?.isMiniaturized == true { window?.deminiaturize(nil) }
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// In the Dock while this window is open, if the setting is on; a menu bar app otherwise.
+    func updateDockIcon() {
+        guard !Settings.capturingUI else { return }
+        let policy: NSApplication.ActivationPolicy = window != nil && Settings.dockWhileCustomizing ? .regular : .accessory
+        guard NSApp.activationPolicy() != policy else { return }
+        NSApp.setActivationPolicy(policy)
+        if policy == .regular { NSApp.activate(ignoringOtherApps: true) }
     }
 
     private func closed() {
@@ -42,6 +53,7 @@ final class CustomizeWindowController {
         // (which invalidates its display link) and is freed along with its bake
         let w = window
         window = nil
+        updateDockIcon()
         DispatchQueue.main.async { w?.contentViewController = nil }
     }
 }
