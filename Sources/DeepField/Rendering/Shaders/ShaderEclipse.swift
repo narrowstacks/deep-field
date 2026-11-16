@@ -21,7 +21,8 @@ extension ShaderSource {
 // S.j = middle of the uncovered sunlight (sun radii), eye adaptation gain, log10 of the uncovered sunlight
 // S.k = air's scattering color (brightest channel 1), density (0 = airless)
 // S.l = haze, clouds, sky body type (0 teal giant, 1 banded, 2 ringed, 3 ice giant, 4 cratered moon), ground type (0 rock, 1 ice, 2 desert, 3 basalt)
-// S.m = eruption style (0 a lifting prominence and its bubble, 1 a bare, fast ejection), eruption scale
+// S.m = eruption style (0 a lifting prominence and its bubble, 1 a bare, fast ejection), eruption scale,
+//       sunlight our occluder alone lets through (0..1), the share of that the sky body leaves
 
 constant float EC_HEIGHT = 0.0098;   // the camera above the ground, moon radii (the horizon dips 8 degrees)
 constant float EC_MOUNT = 0.012;     // the occluder's limb relief, sun radii
@@ -94,32 +95,52 @@ static float3 ecCorona(float2 d, float r, float T, float size, float3 tint) {
 // One layer of craters `cell` apart: bowls with raised rims and ejecta aprons, `depth` deep
 // (1 = fresh). Adds height, slope (in the uv plane), and the shadows the rims cast onto the
 // floors for two lights, each given as a horizontal direction (xy) and the tangent of its
-// elevation (z), w = penumbra.
+// elevation (z), w = penumbra. Each crater keeps its rim inside its own cell, so craters of one
+// size never overlap; `occ` carries where bigger craters' walls and rims are, and smaller craters
+// fade out there instead of straddling them. Big craters have flatter floors and steeper walls,
+// fresh walls are brighter than the dusty floors, and `ej` collects their ejecta (for boulders).
 static void ecCraters(float2 uv, float cell, float seed, float fp, float depth, float4 L1, float4 L2,
-                      thread float& h, thread float2& g, thread float& sh1, thread float& sh2, thread float& alb) {
+                      thread float& h, thread float2& g, thread float& sh1, thread float& sh2, thread float& alb,
+                      thread float& occ, thread float& ej) {
     if (cell * 0.12 < fp) return;     // the whole layer is under a pixel: just the albedo
     float2 cid = floor(uv / cell);
-    float D = 0.26 * depth, RIM = 0.06 * depth;
+    float occIn = occ;
     for (int j = -1; j <= 1; j++)
     for (int i = -1; i <= 1; i++) {
         float2 c = cid + float2(i, j);
         float3 hh = hash33(float3(c, seed));
         if (hh.z > 0.75) continue;
-        float rad = cell * (0.12 + 0.38 * sq(hh.z / 0.75));
-        float2 ctr = (c + 0.2 + 0.6 * hh.xy) * cell;
+        float size = sq(hh.z / 0.75);
+        float rr = 0.12 + 0.3 * size;                  // radius over cell
+        float rad = cell * rr;
+        // big craters are shallower for their width (their walls slump), so the low sun shadows
+        // only the near part of their floors
+        float D = (0.28 - 0.19 * size) * depth, RIM = (0.06 - 0.02 * size) * depth;
+        // the rim (with its wobble) stays inside the cell
+        float2 ctr = (c + 0.5 + (0.5 - rr * 1.12) * (2.0 * hh.xy - 1.0)) * cell;
         float2 l = (uv - ctr) / rad;
+        float r0 = length(l);
+        if (r0 > 2.3) continue;
         // worn, slightly polygonal rims rather than perfect circles
-        float wob = noise3(float3(normalize(l + 1e-5) * 1.8, seed * 3.0 + c.x * 0.37 + c.y));
-        float rho = length(l) * (1.0 + 0.14 * (wob - 0.5));
-        if (rho > 2.6) continue;
-        float k = smoothstep(0.8, 2.5, rad / fp);   // craters near a pixel across fade out
-        float fin = D * (rho * rho - 1.0) + RIM, din = 2.0 * D * rho;
-        float eo = exp(-(rho - 1.0) * 2.4);
-        float fout = RIM * eo, dout = -2.4 * RIM * eo;
-        float m = smoothstep(0.9, 1.1, rho);
+        float wob = noise3(float3(l / max(r0, 1e-4) * 1.8, seed * 3.0 + c.x * 0.37 + c.y));
+        float rho = r0 * (1.0 + 0.14 * (wob - 0.5));
+        if (rho > 2.1) continue;
+        float k = smoothstep(0.8, 2.5, rad / fp) * (1.0 - 0.9 * occIn);   // craters near a pixel across fade out
+        // inner profile rho^p: a bowl when small, a flat floor and steep walls when big
+        float pw = 2.0 + 2.0 * size;
+        float rp = pow(max(rho, 1e-4), pw - 1.0);
+        float fin = D * (rp * rho - 1.0) + RIM, din = pw * D * rp;
+        float eo = exp(-(rho - 1.0) * 2.8);
+        float fout = RIM * eo * smoothstep(2.1, 1.5, rho), dout = -2.8 * RIM * eo * smoothstep(2.1, 1.5, rho);
+        float m = smoothstep(0.92, 1.08, rho);
         float f = mix(fin, fout, m), df = mix(din, dout, m);
         h += k * f * rad;
-        g += k * df * l / max(rho, 1e-4);
+        g += k * df * l / max(r0, 1e-4);
+        float band = smoothstep(0.45, 0.85, rho) * smoothstep(1.6, 1.05, rho);
+        occ = max(occ, k * band);
+        ej = max(ej, k * smoothstep(0.9, 1.15, rho) * smoothstep(2.0, 1.2, rho) * depth);
+        // the dust has slid off the walls and pooled on the floor
+        alb += k * depth * (0.12 * smoothstep(0.55, 0.9, rho) * smoothstep(1.15, 0.95, rho) - 0.07 * smoothstep(0.7, 0.3, rho));
         if (rho < 1.05) {
             // the rim on the light's side shades the floor below it
             float b1 = dot(l, L1.xy), b2 = dot(l, L2.xy);
@@ -135,6 +156,40 @@ static void ecCraters(float2 uv, float cell, float seed, float fp, float depth, 
             float ang = atan2(l.y, l.x);
             float streak = 0.5 + 0.8 * smoothstep(0.45, 0.8, noise3(float3(cos(ang) * 6.0, sin(ang) * 6.0, seed + c.x)));
             alb += 0.45 * k * depth * exp(-max(rho - 1.0, 0.0) * 1.1) * smoothstep(0.6, 1.0, rho) * streak;
+        }
+    }
+}
+
+// Boulders `cell` apart: rounded blocks, more of them where `ej` says crater ejecta lies, each
+// lit on its sunward side and casting a short soft shadow away from the sun (L as for ecCraters).
+static void ecBoulders(float2 uv, float cell, float seed, float fp, float chance, float ej, float4 L,
+                       thread float2& g, thread float& sh, thread float& alb) {
+    if (cell * 0.15 < fp) return;
+    float2 cid = floor(uv / cell);
+    float2 perpL = float2(-L.y, L.x);
+    float len = 0.7 / max(L.z, 0.15);                // shadow length, in boulder radii
+    for (int j = -1; j <= 1; j++)
+    for (int i = -1; i <= 1; i++) {
+        float2 c = cid + float2(i, j);
+        float3 hh = hash33(float3(c, seed));
+        if (hh.z > chance * (0.35 + 1.6 * ej)) continue;
+        float rad = cell * (0.06 + 0.16 * fract(hh.z * 13.7));
+        float2 ctr = (c + 0.2 + 0.6 * hh.xy) * cell;
+        float2 l = (uv - ctr) / rad;
+        float k = smoothstep(0.7, 2.0, rad / fp);
+        // a little irregular, flattened along a random direction
+        float2 ax = float2(cos(hh.x * 6.28), sin(hh.x * 6.28));
+        float2 le = l + ax * dot(l, ax) * 0.35;
+        float r2 = dot(le, le);
+        if (r2 < 1.0) {
+            float hz = sqrt(1.0 - r2);
+            g -= k * le / max(hz, 0.25) * 0.7;
+            alb += k * 0.06 * (hh.y - 0.5);
+        }
+        float along = dot(l, -L.xy), across = abs(dot(l, perpL));
+        if (along > 0.0 && r2 > 0.8) {
+            float s = smoothstep(1.0, 0.6, across) * smoothstep(len + 0.4, len - 0.3, along);
+            sh *= 1.0 - 0.85 * k * s;
         }
     }
 }
@@ -565,7 +620,10 @@ fragment float4 eclipseFragment(FRAME_INPUTS)
         float3 Lpl = normalize(S.f.xyz + 0.6 * tp * normalize(sunD - S.f.xyz * dot(sunD, S.f.xyz)));
         float plI = tp > 0.0 ? S.i.w * 0.6 * adapt : 0.0;
         float coI = 0.006 * S.g.w * adapt * (air ? 0.5 : 1.0);
-        float resid = max(eCam - ecUncovered(length(o), Ro), 0.0);
+        // (the limb's valleys let through a little more than a smooth disk would; the sky body,
+        // far beyond our occluder, dims every spot alike)
+        float resid = max(S.m.z - ecUncovered(length(o), Ro), 0.0);
+        float bodyShare = S.m.w;
         float3 plCol = mix(planetCol, float3(0.8, 0.9, 1.0), 0.25);
         float3 coCol = mix(float3(1.0, 0.97, 0.94), S.c.rgb, 0.4);
         float3 skyAmb = air ? sunLight * sunT * airC * 0.12 * min(dens, 2.0) + gain * 0.004 * min(dens, 2.0) * shadeDeep * sunset : float3(0.0);
@@ -583,17 +641,26 @@ fragment float4 eclipseFragment(FRAME_INPUTS)
             float2 sh2 = normalize(sunD.xz + 1e-5), ph2 = normalize(Lpl.xz + 1e-5);
             float4 L1 = float4(sh2, sunD.y / length(sunD.xz), ts * 0.7);
             float4 L2 = float4(ph2, max(Lpl.y, 0.02) / length(Lpl.xz), tp * 0.5);
-            float hgt = 0.0, sS = 1.0, sP = 1.0, bright = 0.0;
+            float hgt = 0.0, sS = 1.0, sP = 1.0, bright = 0.0, occ = 0.0, ej = 0.0;
             float2 grad = float2(0.0);
             // each world wears its own relief: fresh craters on rock and basalt, shallow ones on
             // ice, a few worn ones between dunes on the desert
             float depth = world == 1 ? 0.45 : (world == 2 ? 0.35 : 1.0);
-            ecCraters(uv, 0.05, 1.0, fp, depth, L1, L2, hgt, grad, sS, sP, bright);
-            if (world != 2) ecCraters(uv, 0.016, 2.0, fp, depth, L1, L2, hgt, grad, sS, sP, bright);
+            ecCraters(uv, 0.05, 1.0, fp, depth, L1, L2, hgt, grad, sS, sP, bright, occ, ej);
+            if (world != 2) ecCraters(uv, 0.016, 2.0, fp, depth, L1, L2, hgt, grad, sS, sP, bright, occ, ej);
             if (world == 0 || world == 3) {
-                ecCraters(uv, 0.0055, 3.0, fp, depth, L1, L2, hgt, grad, sS, sP, bright);
-                ecCraters(uv, 0.0018, 4.0, fp, depth, L1, L2, hgt, grad, sS, sP, bright);
+                ecCraters(uv, 0.0055, 3.0, fp, depth, L1, L2, hgt, grad, sS, sP, bright, occ, ej);
+                ecCraters(uv, 0.0018, 4.0, fp, depth, L1, L2, hgt, grad, sS, sP, bright, occ, ej);
             }
+            // boulders: blocks thrown out round the craters, a few weathered out of the plains;
+            // ice has fewer (blocks of crust), sand buries all but a scattered few
+            float chance = world == 0 ? 0.2 : (world == 3 ? 0.28 : (world == 1 ? 0.1 : 0.05));
+            ecBoulders(uv, 0.006, 5.0, fp, chance, ej, L1, grad, sS, bright);
+            if (world != 2) ecBoulders(uv, 0.0024, 6.0, fp, chance, ej, L1, grad, sS, bright);
+            // broad swells, and darker and lighter provinces (old lava plains, fresh ejecta), so
+            // the plain isn't one even gray
+            grad += noise2(float3(uv * 7.0, 11.0)) * (world == 1 ? 0.1 : 0.18) + noise2(float3(uv * 26.0, 12.0)) * (world == 1 ? 0.05 : 0.1);
+            float prov = fbmLOD(float3(uv * 3.0, 13.0), fp * 3.0);
             // gentle undulation and grit (smoother on ice)
             float e2 = 0.0004;
             float n0 = fbmLOD(float3(uv * 90.0, 1.0), fp * 90.0);
@@ -601,29 +668,37 @@ fragment float4 eclipseFragment(FRAME_INPUTS)
             float nz = fbmLOD(float3((uv + float2(0.0, e2)) * 90.0, 1.0), fp * 90.0);
             grad += float2(nx - n0, nz - n0) / e2 * (world == 1 ? 0.0005 : 0.0012);
             float alb = (0.72 + 0.5 * (n0 - 0.5) + 0.35 * (fbmLOD(float3(uv * 14.0, 7.0), fp * 14.0) - 0.5)) * (1.0 + bright);
+            alb *= 0.84 + 0.32 * smoothstep(0.3, 0.7, prov);
             float3 tintG = float3(1.0);
             float3 glowG = float3(0.0);
-            float spec = 0.0;
+            float spec = 0.0, sparkle = 0.0;
             if (world == 2) {
-                // dunes: long asymmetric ridges (gentle windward, steep lee side), rippled
+                // dunes: long asymmetric ridges (gentle windward, steep lee side), rippled, in
+                // patchy fields whose crests wander, with paler crests and darker, coarser troughs
                 float2 wd = normalize(float2(0.8, 0.6));
                 float kd = 6.2831853 / 0.009;
-                float ph = dot(uv, wd) * kd + 3.0 * fbm(float3(uv * 25.0, 3.0));
-                float kf = smoothstep(0.7, 2.0, 0.009 / max(fp, 1e-6) / 2.0);
-                grad += wd * 0.00028 * kd * (cos(ph) + 0.45 * cos(2.0 * ph)) * kf;
+                float ph = dot(uv, wd) * kd + 5.0 * fbm(float3(uv * 12.0, 3.0));
+                float kf = smoothstep(0.7, 2.0, 0.009 / max(fp, 1e-6) / 2.0) * (0.5 + 0.5 * smoothstep(0.3, 0.6, prov));
+                grad += wd * 0.00022 * kd * (cos(ph) + 0.45 * cos(2.0 * ph)) * kf;
                 float kr = 6.2831853 / 0.0011;
                 float phr = dot(uv, float2(-0.5, 0.86)) * kr + 2.0 * noise3(float3(uv * 300.0, 1.0));
                 grad += float2(-0.5, 0.86) * 0.00002 * kr * cos(phr) * smoothstep(0.7, 2.0, 0.0011 / max(fp, 1e-6) / 2.0);
-                alb *= 0.9 + 0.15 * sin(ph + 0.8) * kf;
+                alb *= 0.93 + 0.12 * sin(ph + 0.8) * kf;
                 tintG = mix(float3(1.0), float3(1.08, 0.92, 0.85), smoothstep(0.4, 0.7, n0));
+                tintG *= mix(float3(0.88, 0.8, 0.78), float3(1.05, 1.0, 0.95), 0.5 + 0.5 * sin(ph + 0.8) * kf);
             } else if (world == 1) {
-                // ice plates broken by reddish-brown cracks and ridges, glinting in the sun
+                // ice plates broken by reddish-brown cracks with pale ridges either side, frost
+                // sparkling where the sun glances off it
                 float ce = ecCellEdge(uv * 70.0, 6.0), ce2 = ecCellEdge(uv * 22.0, 9.0);
                 float w1 = max(0.05, fp * 70.0 * 1.2), w2 = max(0.03, fp * 22.0 * 1.2);
                 float line = exp(-sq(ce / w1)) * (0.05 / w1) + exp(-sq(ce2 / w2)) * (0.03 / w2) * 1.3;
+                float flank = exp(-sq((ce2 - 2.2 * w2) / (1.2 * w2))) * (0.03 / w2);
                 tintG = mix(float3(1.0), float3(0.62, 0.36, 0.3), saturate(line) * 0.8);
-                alb = 0.8 + 0.25 * (n0 - 0.5);
+                // older plates are stained and dusty, younger ones bluer and cleaner
+                tintG *= mix(float3(1.02, 0.97, 0.9), float3(0.92, 0.98, 1.06), smoothstep(0.35, 0.65, prov));
+                alb = (0.8 + 0.25 * (n0 - 0.5) + 0.12 * saturate(flank)) * (1.0 + bright);
                 spec = 1.0;
+                sparkle = smoothstep(0.9, 0.97, noise3(float3(uv * 2500.0, 2.0))) * (1.0 - smoothstep(0.3, 0.8, fp * 2500.0));
             } else if (world == 3) {
                 // lava glowing through cracks in the cooled crust: faint in sunlight, plain at totality
                 // the cracks wander, and only some stretches of them are still hot
@@ -635,8 +710,14 @@ fragment float4 eclipseFragment(FRAME_INPUTS)
                 float flick = 0.7 + 0.3 * noise3(float3(uv * 30.0, T * 0.3));
                 glowG = float3(1.0, 0.3, 0.05) * crack * hot * flick * 0.025 * adapt * (1.0 - smoothstep(0.0004, 0.0015, fp));
                 alb *= 1.0 - 0.4 * saturate(crack);
+                // ropy folds on the crust where it flowed and set, in lobes, with a glassy sheen
+                float2 fd = normalize(float2(0.3, 1.0) + 1.5 * noise2(float3(uv * 15.0, 5.0)));
+                float kw = 6.2831853 / 0.0008;
+                float phw = dot(uv, fd) * kw + 3.0 * noise3(float3(uv * 500.0, 6.0));
+                float lobe = smoothstep(0.35, 0.65, noise3(float3(uv * 30.0, 9.0)));
+                grad += fd * 0.00003 * kw * sin(phw) * lobe * smoothstep(0.7, 2.0, 0.0008 / max(fp, 1e-6) / 2.0);
+                spec = 0.3;
             }
-            alb *= 0.85 + 0.3 * noise3(float3(uv * 900.0, 3.0)) * (1.0 - smoothstep(0.3, 0.8, fp * 900.0)) * (world == 1 ? 0.3 : 1.0);
             float3 ex = normalize(float3(1.0, 0.0, 0.0) - Ns * Ns.x), ez = normalize(float3(0.0, 0.0, 1.0) - Ns * Ns.z);
             float3 N = normalize(Ns - grad.x * ex - grad.y * ez);
             float muV = saturate(dot(N, -rd));
@@ -645,10 +726,15 @@ fragment float4 eclipseFragment(FRAME_INPUTS)
             float ls = saturate(nlS) * (0.55 + 0.9 / (saturate(nlS) + muV + 0.3));
             float lp = saturate(nlP) * (0.55 + 0.9 / (saturate(nlP) + muV + 0.3));
             float2 oG = o - float2(dot(G, sx), dot(G, sy)) * S.i.z;
-            float frac = max(ecUncovered(length(oG), Ro) + resid, 0.0);
-            float glint = spec * pow(saturate(dot(reflect(rd, N), sunD)), 40.0) * 2.0;
-            // light bounced off the sunlit plains around fills the shadows a little
-            float3 light = sunTint * gain * frac * (ls * sS * 0.75 + 0.07 * (0.6 + 0.4 * Ns.y) + glint * sS)
+            float frac = max(ecUncovered(length(oG), Ro) + resid, 0.0) * bodyShare;
+            // a soft sheen toward the sun, and on ice a few frost grains catching it
+            float rs = saturate(dot(reflect(rd, N), sunD));
+            float glint = spec * (0.3 * pow(rs, 12.0) + 2.5 * sparkle * pow(rs, 60.0));
+            // light bounced off the sunlit plains around fills the shadows a little, less down in
+            // the bowls; under ice it scatters blue
+            float fill = 0.07 * (0.6 + 0.4 * Ns.y) * (1.0 - 0.35 * occ);
+            float3 sub = world == 1 ? float3(0.45, 0.75, 1.1) * 0.06 * (1.0 - saturate(ls * sS)) : float3(0.0);
+            float3 light = sunTint * gain * frac * (ls * sS * 0.75 + fill + glint * sS + sub)
                          + plCol * plI * lp * sP
                          + coCol * coI * (0.4 + 0.6 * saturate(nlS + 0.3))
                          + skyAmb * (0.5 + 0.5 * N.y);
@@ -662,7 +748,7 @@ fragment float4 eclipseFragment(FRAME_INPUTS)
             // the far rims: their faces toward us in shadow, crests catching the light
             float3 G = float3(sin(az), 0.0, cos(az)) * sqrt(2.0 * EC_HEIGHT) + float3(0.0, -EC_HEIGHT, 0.0);
             float2 oG = o - float2(dot(G, sx), dot(G, sy)) * S.i.z;
-            float frac = max(ecUncovered(length(oG), Ro) + resid, 0.0);
+            float frac = max(ecUncovered(length(oG), Ro) + resid, 0.0) * bodyShare;
             float below = sky_top - el;
             float crest = exp(-below / (pixA * 3.0 + 0.001));
             float face = 0.12 + 0.2 * fbm(float3(az * 40.0, below * 400.0, 3.0));

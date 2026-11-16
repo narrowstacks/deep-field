@@ -241,7 +241,14 @@ fragment float4 protoDiskFragment(FRAME_INPUTS)
     if (t1 > t0) {
         // step limits from the looser bounds, which vary smoothly from pixel to pixel
         float dsMin = span / 130.0, dsMax = span / 8.0;
-        float t = t0 + dsMin * 2.0 * hash13(float3(float(p.x), float(p.y), 7.3));
+        // jitter the start (against banding), but by no more than a step at the entry point: near
+        // the star the ray's path through the disk is short, and a full jitter skipped some of it
+        // on some pixels and not others (dark speckle on the star when the disk is thin)
+        float3 X0 = ro + rd * t0;
+        float z0 = dot(X0, ax);
+        float H0 = hR * R * pdP125(max(length(X0 - ax * z0) / R, 0.08));
+        float j0 = min(dsMin * 2.0, max(0.45 * H0, 0.8 * (abs(z0) - 4.0 * H0)));
+        float t = t0 + j0 * hash13(float3(float(p.x), float(p.y), 7.3));
         for (int i = 0; i < 40; i++) {
             if (t >= t1 || Tr * max(wScat, 0.15) < 0.003) break;
             float3 X = ro + rd * t;

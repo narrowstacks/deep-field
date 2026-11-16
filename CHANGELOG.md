@@ -2,6 +2,13 @@
 
 All notable changes to Deep Field. Versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+- Protoplanetary Disk: with low flaring, the star no longer shows dark speckles.
+- Eclipse: a planet placed in front of the sun now blocks its light and glare, and the corona comes out around it.
+- Eclipse: the ground looks more natural on every world. Craters no longer overlap, big craters are shallower, and boulders lie scattered around them. Rock has broad swells and lighter and darker regions, ice has softer frost glints, dunes are gentler and patchier, and basalt has ropy folds.
+- Dragging Tilt (and the galaxy's viewing angle) now turns the view smoothly. Before, the scene drifted up or down, then jumped to the new angle.
+
 ## [0.3.0] - 2026-11-15
 
 - Every scene with its own colors now has one-click color presets, shown as swatches like the black hole's. Choosing a black hole palette no longer changes the galaxy scene's colors.
