@@ -46,8 +46,8 @@ scale to any size without blurring.
 A black hole render from the app, its center placed right of the middle, fades to black toward
 the left edge cell by cell along a Bayer threshold, so the fade is dithered like the scene
 itself. The icon, wordmark and tagline sit on the black side, with a one-dot black outline so
-they stay readable where the disk reaches them. The README banner has rounded, transparent
-corners, so it sits well on GitHub's light and dark themes. The taller heroes and social cards
+they stay readable where the disk reaches them. The README banner sets the wordmark and tagline
+in plain white, a size larger, and has rounded, transparent corners, so it sits well on GitHub's light and dark themes. The taller heroes and social cards
 pull the camera back with the app's phone framing zoom.
 
 ## Loops
