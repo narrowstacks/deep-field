@@ -140,6 +140,15 @@ struct SceneTab: View {
                     SliderRow(title: "Stars", value: $store.config.earthStars, range: 0...3)
                         .help("The real stars, where they are in the sky at the moment shown")
                     SliderRow(title: "Milky Way", value: $store.config.earthMilkyWay, range: 0...3)
+                    Toggle("Planets", isOn: $store.config.earthPlanets)
+                        .help("Mercury to Neptune where they really are, at their real brightness")
+                    if store.config.earthPlanets {
+                        SliderRow(title: "Planet size", value: $store.config.earthPlanetSize, range: 1...300) {
+                            $0 < 1.5 ? "true" : String(format: "%.0fx", $0)
+                        }
+                        .help("At true size they're points of light, as you'd see them. Larger shows their disks, phases, bands and Saturn's rings")
+                        Toggle("Label planets", isOn: $store.config.earthPlanetLabels)
+                    }
                     Toggle("Hide the sun at night", isOn: $store.config.earthHideSunAtNight)
                         .help("While it's night at the chosen place the sun sits behind Earth; this hides its disk and glare but keeps its light")
                     Toggle("Mark the place", isOn: $store.config.earthMarker)

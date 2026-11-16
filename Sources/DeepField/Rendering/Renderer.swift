@@ -49,6 +49,8 @@ final class Renderer {
     private let transitionPipeline: MTLRenderPipelineState
     private var bloomTargets: [SIMD2<Int>: BloomTargets] = [:]
     private let bloomLock = NSLock()
+    /// Text over finished frames (`labelFragment`), one pipeline per target format, built on first use.
+    private var labelPipelines: [MTLPixelFormat: MTLRenderPipelineState] = [:]
     /// Fills the aurora's per-frame table of its curtains along the oval (`auroraLUT`).
     private let auroraLUTPipeline: MTLComputePipelineState
     /// The aurora's table, built on first use and shared by every view (guarded by `bloomLock`).
@@ -285,7 +287,16 @@ final class Renderer {
             enc.setFragmentTexture(earth?.ground ?? placeholder, index: 11)
             enc.setFragmentTexture(lut ?? placeholder, index: 12)
         }
-        if c.scene == .liveEarth { bindLiveEarth(enc, c, &sceneParams) }
+        var labels: [SIMD4<Float>] = []
+        if c.scene == .liveEarth {
+            bindLiveEarth(enc, c, &sceneParams)
+            var planets = SceneParams.liveEarthPlanets(c, elapsed: elapsed, sceneParams)
+            labels = SceneParams.liveEarthLabels(c, planets, sceneParams, camera: cam,
+                                                 width: target.width, height: target.height)
+            sceneParams.o.x = Float(planets.count)
+            if planets.isEmpty { planets = [SkyPlanetGPU(dir: .zero, color: .zero, light: .zero, pole: .zero)] }
+            enc.setFragmentBytes(&planets, length: MemoryLayout<SkyPlanetGPU>.stride * planets.count, index: 8)
+        }
         enc.setFragmentBytes(&f, length: MemoryLayout<FrameParams>.stride, index: 0)
         enc.setFragmentBytes(&planets, length: MemoryLayout<PlanetGPU>.stride * planets.count, index: 1)
         enc.setFragmentBytes(&ev, length: MemoryLayout<EventsGPU>.stride, index: 2)
@@ -297,6 +308,41 @@ final class Renderer {
         enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         enc.endEncoding()
         if let bloom { encodeBloom(cb, bloom.targets, target: target, frame: &f) }
+        if !labels.isEmpty { encodeLabels(cb, target: target, labels: labels) }
+    }
+
+    /// Draws labels over the finished frame in `target`: solid letters and a soft shadow blended
+    /// over it, after the tone map and dither, so the text stays clean. Each label is (left edge,
+    /// vertical center, name, font pixel size), in target pixels.
+    func encodeLabels(_ cb: MTLCommandBuffer, target: MTLTexture, labels: [SIMD4<Float>]) {
+        bloomLock.lock()
+        if labelPipelines[target.pixelFormat] == nil {
+            let desc = MTLRenderPipelineDescriptor()
+            desc.vertexFunction = library.makeFunction(name: "fullscreenVertex")
+            desc.fragmentFunction = library.makeFunction(name: "labelFragment")
+            let att = desc.colorAttachments[0]!
+            att.pixelFormat = target.pixelFormat
+            att.isBlendingEnabled = true
+            att.sourceRGBBlendFactor = .sourceAlpha
+            att.destinationRGBBlendFactor = .oneMinusSourceAlpha
+            att.sourceAlphaBlendFactor = .zero
+            att.destinationAlphaBlendFactor = .one
+            labelPipelines[target.pixelFormat] = try? device.makeRenderPipelineState(descriptor: desc)
+        }
+        let pipeline = labelPipelines[target.pixelFormat]
+        bloomLock.unlock()
+        let rp = MTLRenderPassDescriptor()
+        rp.colorAttachments[0].texture = target
+        rp.colorAttachments[0].loadAction = .load
+        rp.colorAttachments[0].storeAction = .store
+        guard let pipeline, let pass = cb.makeRenderCommandEncoder(descriptor: rp) else { return }
+        var list = labels
+        var info = SIMD4<Float>(Float(labels.count), 0.82, 0.55, 0)
+        pass.setRenderPipelineState(pipeline)
+        pass.setFragmentBytes(&list, length: MemoryLayout<SIMD4<Float>>.stride * list.count, index: 0)
+        pass.setFragmentBytes(&info, length: MemoryLayout<SIMD4<Float>>.stride, index: 1)
+        pass.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        pass.endEncoding()
     }
 
     /// Mixes two finished frames into `target` with a transition (`transitionFragment`):

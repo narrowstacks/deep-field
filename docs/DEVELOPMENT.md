@@ -48,6 +48,12 @@ which fetches them while the scene shows and keeps the last good copy in
 in `Resources/Earth` stand in. Command-line renders never fetch and read the bundled copies, so
 they come out the same every time (`--live-earth-cache` reads the downloaded ones instead).
 
+The real planets are reusable by any scene that draws the real sky: `Scenes/SkyPlanets.swift`
+works out where they are, how bright and how big (JPL's approximate elements, about 0.1 degree
+against Horizons), `SkyPlanets.gpu` turns them into the scene's frame as `SkyPlanetGPU` for
+fragment buffer 8, and the shader's `skyPlanets()` draws them. Their names go on afterward in
+`Renderer.encodeLabels`, a pass over the finished frame, so the text isn't dithered.
+
 An older nebula scene (pillars, dark clouds) is in the code but hidden from the scene list; see
 `SceneKind.isListed`.
 

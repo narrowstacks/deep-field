@@ -36,9 +36,12 @@
 //   10 to 19        live Earth: city lights, night ground, January and July surface, open water,
 //                   the Moon (EarthMaps), the cloud map and the aurora forecast (LiveEarthFeeds),
 //                   the star catalog and the Milky Way (EarthMaps.skyTextures)
+//
+// Fragment buffer 8 (beyond FRAME_INPUTS): the real planets (SkyPlanetGPU), for scenes that draw
+// the real sky; Live Earth binds it.
 
 enum ShaderSource {
     static var full: String {
-        [common, bake, sky, planets, lensed, stars, galaxy, pulsar, comet, nebula, planetary, ringed, aurora, liveEarth, gasGiant, protoDisk, neutronMerger, blackHoleMerger, dyson, roguePlanet, eclipse, quasar].joined(separator: "\n\n")
+        [common, bake, sky, planets, lensed, stars, galaxy, pulsar, comet, nebula, planetary, ringed, aurora, skyPlanets, liveEarth, labels, gasGiant, protoDisk, neutronMerger, blackHoleMerger, dyson, roguePlanet, eclipse, quasar].joined(separator: "\n\n")
     }
 }

@@ -18,6 +18,7 @@ extension ShaderSource {
 // S.j = atmosphere, the Moon's true radius, star maps bound (0/1), a solar eclipse is on (0/1)
 // S.k, S.l, S.m = rows of the turn from Earth-fixed directions to the star catalog's (J2000)
 // S.n = star brightness, Milky Way brightness
+// S.o = planets bound (count, buffer 8), their size (times true); their labels are a later pass
 //
 // Textures: 10 city lights, 11 night ground, 12 and 13 the January and July surface,
 // 14 open water, 15 the Moon, 16 the cloud map, 17 the aurora forecast, 18 the star catalog
@@ -206,7 +207,8 @@ fragment float4 liveEarthFragment(FRAME_INPUTS,
                                   texture2d<float> cloudTex [[texture(16)]],
                                   texture2d<float> auroraTex [[texture(17)]],
                                   texture2d<float> starTex [[texture(18)]],
-                                  texture2d<float> milkyTex [[texture(19)]])
+                                  texture2d<float> milkyTex [[texture(19)]],
+                                  constant SkyPlanet* skyP [[buffer(8)]])
 {
     constexpr sampler sm(filter::linear, mip_filter::linear, s_address::repeat, t_address::clamp_to_edge);
     uint2 p = uint2(in.pos.xy);
@@ -288,6 +290,7 @@ fragment float4 liveEarthFragment(FRAME_INPUTS,
     } else {
         // stars, and the Moon where it really is, unless Earth is in front of it
         col = S.j.z > 0.5 ? leSky(rd, S, F.pixelAngle, starTex, milkyTex) : SKY(p, rdw, false);
+        col = skyPlanets(col, rd, F.pixelAngle, skyP, int(S.o.x), S.o.y);
         float2 mh = leSphere(ro, rd, moonC, S.f.w);
         if (mh.x < mh.y && mh.x > 0.0) {
             float3 q = ro + rd * mh.x;

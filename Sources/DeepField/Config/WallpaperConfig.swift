@@ -170,6 +170,9 @@ struct WallpaperConfig: Codable, Equatable {
     var earthAtmosphere = 1.0
     var earthStars = 1.0               // the real night sky behind Earth
     var earthMilkyWay = 1.0
+    var earthPlanets = true            // the real planets where they are
+    var earthPlanetSize = 1.0          // times their true size; 1 shows them as points of light
+    var earthPlanetLabels = false
     var earthHideSunAtNight = true     // don't draw the sun's disk and glare while it's night below
     var earthMarker = false            // a small ring round the chosen place
     var earthFreezeTime = false        // hold the view at earthFrozenTime instead of now

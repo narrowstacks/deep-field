@@ -217,6 +217,67 @@ enum SceneParams {
         return base.addingTimeInterval(earthTimeLapse * t)
     }
 
+    /// Live Earth's planets for the shader (buffer 8), in its Earth-fixed frame, from the frame's
+    /// scene parameters: the sky turn in rows k, l, m, the camera at a, the Moon at f. A label
+    /// shows only while its planet isn't behind Earth or the Moon.
+    static func liveEarthPlanets(_ c: WallpaperConfig, elapsed t: Double, _ p: SceneParamsGPU) -> [SkyPlanetGPU] {
+        guard c.earthPlanets else { return [] }
+        let rows = [p.k, p.l, p.m].map { SIMD3<Double>(Double($0.x), Double($0.y), Double($0.z)) }
+        // the rows take Earth-fixed to J2000; their transpose takes J2000 back
+        func toScene(_ j: SIMD3<Double>) -> SIMD3<Double> { rows[0] * j.x + rows[1] * j.y + rows[2] * j.z }
+        let cam = SIMD3<Double>(Double(p.a.x), Double(p.a.y), Double(p.a.z))
+        let moon = SIMD3<Double>(Double(p.f.x), Double(p.f.y), Double(p.f.z)), moonR = Double(p.f.w)
+        func clear(_ dir: SIMD3<Double>) -> Bool {
+            func blocked(_ center: SIMD3<Double>, _ r: Double) -> Bool {
+                let oc = cam - center, b = simd_dot(oc, dir)
+                return b < 0 && simd_length_squared(oc) - b * b < r * r
+            }
+            return !blocked(.zero, 1.02) && !blocked(moon, moonR)
+        }
+        return SkyPlanets.gpu(SkyPlanets.planets(liveEarthDate(c, elapsed: t)), toScene: toScene, labelVisible: clear)
+    }
+
+    /// Where the planets' labels go, for Renderer.encodeLabels: each name's left edge and vertical
+    /// center in target pixels, which name, and the font's pixel size. Found by projecting each
+    /// planet through the same camera the frame was drawn with (Camera.ray, run backward from
+    /// the scene's view turn in b, c, d). The font is scaled to look about the same size on
+    /// screen at any pixel size.
+    static func liveEarthLabels(_ c: WallpaperConfig, _ planets: [SkyPlanetGPU], _ p: SceneParamsGPU,
+                                camera cam: Camera, width: Int, height: Int) -> [SIMD4<Float>] {
+        guard c.earthPlanetLabels else { return [] }
+        let font = max(1, (3.0 / Double(max(c.pixelSize, 1))).rounded())
+        let pixelAngle = 2 * cam.tanHalf / Double(height)
+        let axes = [p.b, p.c, p.d].map { SIMD3<Double>(Double($0.x), Double($0.y), Double($0.z)) }
+        let placed: [SIMD4<Float>] = planets.compactMap { pl in
+            guard pl.light.w > 0.5 else { return nil }
+            let w = SIMD3<Double>(Double(pl.dir.x), Double(pl.dir.y), Double(pl.dir.z))
+            let l = SIMD3(simd_dot(w, axes[0]), simd_dot(w, axes[1]), simd_dot(w, axes[2]))
+            guard l.z > 0 else { return nil }
+            let rx = l.x / l.z / cam.tanHalf, ry = l.y / l.z / cam.tanHalf
+            let x = cos(cam.roll) * rx + sin(cam.roll) * ry, y = -sin(cam.roll) * rx + cos(cam.roll) * ry
+            let px = (x / cam.aspect + 1) / 2 * Double(width), py = (1 - y) / 2 * Double(height)
+            guard px > -10, px < Double(width), py > -10, py < Double(height) + 10 else { return nil }
+            // clear of the planet's drawn disk (and Saturn's rings)
+            let saturn = pl.pole.w == 4
+            let drawn = Double(pl.dir.w) * c.earthPlanetSize * (saturn ? 2.3 : 1) / pixelAngle
+            let left = px + max(drawn, 1) + 2 * font
+            return SIMD4(Float(left.rounded()), Float(py.rounded()), pl.pole.w, Float(font))
+        }
+        // Planets close together in the sky (Mars passing Jupiter) would print their names over
+        // each other: going down the screen, move a label below any earlier one it would hit.
+        let lineHeight = Float(9 * font), widthPerChar = Float(6 * font)
+        var out: [SIMD4<Float>] = []
+        for var l in placed.sorted(by: { $0.y < $1.y }) {
+            let width = Float(SkyPlanets.names[Int(l.z)].count) * widthPerChar
+            for o in out {
+                let ow = Float(SkyPlanets.names[Int(o.z)].count) * widthPerChar
+                if l.x < o.x + ow && o.x < l.x + width && abs(l.y - o.y) < lineHeight { l.y = o.y + lineHeight }
+            }
+            out.append(l)
+        }
+        return out
+    }
+
     private static func liveEarth(_ c: WallpaperConfig, _ t: Double, _ cam: Camera, width: Int, height: Int) -> SceneParamsGPU {
         var p = SceneParamsGPU()
         let date = liveEarthDate(c, elapsed: t)
@@ -268,6 +329,8 @@ enum SceneParams {
         p.l = SIMD4(SIMD3<Float>(sky[1]), 0)
         p.m = SIMD4(SIMD3<Float>(sky[2]), 0)
         p.n = SIMD4(Float(c.earthStars), Float(c.earthMilkyWay), 0, 0)
+        // the planets: how many are bound (the renderer sets it), their size, labels on
+        p.o = SIMD4(0, Float(c.earthPlanetSize), c.earthPlanetLabels ? 1 : 0, 0)
         return p
     }
 
