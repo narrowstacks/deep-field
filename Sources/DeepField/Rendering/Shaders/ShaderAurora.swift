@@ -15,6 +15,7 @@ extension ShaderSource {
 // S.e = city light color, city brightness
 // S.f = clouds, moonlight, Earth's spin (rad/s), lightning (0..)
 // S.g = sunrise glow, seed, real Earth maps bound (0/1), the view's longitude (rad)
+// S.h = how far a substorm has pushed the folds ahead (seconds of their clock), unused x3
 //
 // The ground is the real Earth at night (NASA Black Marble, see Design/Earth), seen from above
 // 43 N looking north: that latitude passes over the great cities of North America, Europe and
@@ -33,13 +34,16 @@ constant float AU_TEXEL = 7.6699e-4;    // 2 pi / 8192: a city-light texel, radi
 
 // How far the oval's edge is pushed out at angle psi round the pole: a slow meander, folds that
 // travel along it, and the surge of a substorm.
-static float auWiggle(float psi, float T, float act, float sub, float seed) {
+static float auWiggle(float psi, float T, float act, float sub, float storm, float seed) {
     float slow = (noise3(float3(psi * 4.0, T * 0.02 * act, seed)) - 0.5) * 0.06
                + (noise3(float3(psi * 11.0, T * 0.05 * act, seed + 3.0)) - 0.5) * 0.025;
     // folds running along the curtain, and tighter curls riding on them
-    float speed = act * (1.0 + 2.0 * sub);
-    float folds = sin(psi * 26.0 - T * 0.3 * speed + 3.0 * noise3(float3(psi * 9.0, T * 0.03 * act, 2.0))) * 0.006
-                + sin(psi * 70.0 + T * 0.55 * speed + 2.0 * noise3(float3(psi * 20.0, seed, T * 0.05 * act))) * 0.0018;
+    // A substorm speeds them up through `storm`, worked out on the CPU as the running total of
+    // the extra speed, so they gather pace smoothly. Scaling the clock itself by the storm's
+    // strength would move them by T times its rate of change, a frantic race hours into a run.
+    float clock = T * act + storm;
+    float folds = sin(psi * 26.0 - clock * 0.3 + 3.0 * noise3(float3(psi * 9.0, T * 0.03 * act, 2.0))) * 0.006
+                + sin(psi * 70.0 + clock * 0.55 + 2.0 * noise3(float3(psi * 20.0, seed, T * 0.05 * act))) * 0.0018;
     return slow + folds * (1.8 + 1.2 * sub);
 }
 
@@ -60,7 +64,7 @@ kernel void auroraLUT(texture2d<float, access::write> dst [[texture(0)]],
     patches *= 0.8 + 0.6 * smoothstep(0.0, 1.0, sin(psi * 12.0 - T * 0.45 * act + 2.0 * noise3(float3(psi * 3.0, T * 0.02, seed))));
     float topH = 0.03 + 0.012 * noise3(float3(psi * 16.0, T * 0.03 * act, seed + 6.0));
     float hue = smoothstep(0.25, 0.75, noise3(float3(psi * 5.0, T * 0.04 * act, seed + 12.0)));
-    dst.write(float4(auWiggle(psi, T, act, sub, seed), r1, r2, patches), uint2(gid.x, 0));
+    dst.write(float4(auWiggle(psi, T, act, sub, S.h.x, seed), r1, r2, patches), uint2(gid.x, 0));
     dst.write(float4(topH, hue, pow(r1, 2.5), pow(r2, 3.0)), uint2(gid.x, 1));
 }
 

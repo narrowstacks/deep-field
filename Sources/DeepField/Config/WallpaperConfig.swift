@@ -139,7 +139,7 @@ struct WallpaperConfig: Codable, Equatable {
 
     // Aurora from orbit
     var auroraBrightness = 1.0
-    var auroraActivity = 1.0           // how fast the curtains ripple and drift
+    var auroraActivity = 0.6           // how fast the curtains ripple and drift; 1 is the 0.4.5 pace
     var auroraDistance = 33.0          // the magnetic pole, degrees of arc ahead of the point below us
     var auroraOvalSize = 20.0          // the auroral oval's radius, degrees of arc
     var auroraGreen = Tuned.auroraGreen.color
