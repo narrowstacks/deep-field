@@ -47,7 +47,15 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
     static var listed: [SceneKind] { allCases.filter(\.isListed) }
 
     /// Glow added to the global bloom setting for scenes whose look leans on it.
-    var extraBloom: Double { self == .auroraOrbit ? 0.4 : 0 }
+    /// The eclipse takes most of it back: its bright inner corona would otherwise glow across the
+    /// moon's black disk.
+    var extraBloom: Double {
+        switch self {
+        case .auroraOrbit: 0.4
+        case .eclipse: -0.22
+        default: 0
+        }
+    }
 
     /// Scenes that show the orbiting planets.
     var hasPlanets: Bool { [.blackHole, .wormhole, .binary, .trinary].contains(self) }

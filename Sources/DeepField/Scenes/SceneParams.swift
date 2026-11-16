@@ -316,14 +316,18 @@ enum SceneParams {
             return SIMD3(r.x, r.y * cos(pitch) + r.z * sin(pitch), -r.y * sin(pitch) + r.z * cos(pitch))
         }
         let sunPos = cam.portrait ? SIMD2(0.05 * s, (cam.subjectY + 0.32) * s) : SIMD2(0.75, 0.3)
-        let planetPos = cam.portrait ? SIMD2(-0.55 * s, (cam.subjectY - 0.45) * s) : SIMD2(-1.45, -0.18)
+        let body = c.eclipseSkyBody
+        let planetPos = cam.portrait
+            ? SIMD2(c.eclipsePlanetX * 0.9 * s, (cam.subjectY - 0.27 + c.eclipsePlanetY) * s)
+            : SIMD2(c.eclipsePlanetX * cam.aspect, c.eclipsePlanetY)
         let sun = dir(sunPos.x, sunPos.y)
         let tanSun = 0.125 * th * s
         p.a = SIMD4(SIMD3<Float>(sun), Float(tanSun))
 
-        // the occluder's pass, its uncovered light, and the eye's adaptation to it
+        // the occluder's pass (or its parked spot), its uncovered light, and the eye's adaptation
+        let hold = c.eclipseMotion == .hold
         let cycle = max(c.eclipseCycleMinutes, 0.5) * 60
-        let u = (t / cycle + 0.12).truncatingRemainder(dividingBy: 1)
+        let u = hold ? 0.5 : (t / cycle + 0.12).truncatingRemainder(dividingBy: 1)
         let o = eclipseOffset(u)
         let ex = eclipseExposure(o)
         let e = ex.fraction
@@ -332,30 +336,46 @@ enum SceneParams {
         p.j = SIMD4(Float(ex.center.x), Float(ex.center.y), Float(gain), Float(log10(max(e, 1e-9))))
 
         typealias L = PickedColor.Level
+        // the ground and sky body colors tint each type's own surface color
+        func tint(_ pick: RGB, _ level: Float, _ tuned: WallpaperConfig.Tuned) -> SIMD3<Float> {
+            let d = tuned.light
+            return simd_clamp(pick.light3(level) / SIMD3(max(d.r, 0.05), max(d.g, 0.05), max(d.b, 0.05)),
+                              SIMD3(repeating: 0), SIMD3(repeating: 3))
+        }
         p.c = SIMD4(c.eclipseCoronaColor.light3(L.eclipseCorona), Float(c.eclipseCoronaSize))
         p.d = SIMD4(c.eclipseProminenceColor.light3(L.eclipseProminence), Float(c.eclipseProminences))
-        p.e = SIMD4(c.eclipseGroundColor.light3(L.eclipseGround), c.eclipseLandscape ? 1 : 0)
+        p.e = SIMD4(c.eclipseWorld.base * tint(c.eclipseGroundColor, L.eclipseGround, .eclipseGround), c.eclipseLandscape ? 1 : 0)
         var lit = 0.0
-        if c.eclipsePlanet {
+        if body != .none {
             let pd = dir(planetPos.x, planetPos.y)
-            let tanPlanet = 0.6 * th * s
+            let tanPlanet = 0.6 * th * s * c.eclipsePlanetSize * body.scale
             p.f = SIMD4(SIMD3<Float>(pd), Float(tanPlanet))
             lit = (1 + simd_dot(sun, -pd)) / 2         // the planet's sunlit share, seen from here
         }
-        p.g = SIMD4(c.eclipsePlanetColor.light3(L.eclipsePlanet), Float(c.eclipseCoronaBrightness))
+        p.g = SIMD4(body.base * tint(c.eclipsePlanetColor, L.eclipsePlanet, .eclipsePlanet), Float(c.eclipseCoronaBrightness))
         // shadow parallax: the occluder is near enough that its umbra on the ground is only a few
         // horizon-distances across, so the light comes back over the horizon first
         p.i = SIMD4(Float(th), Float(pitch), 0.25, Float(lit))
+        if c.eclipseAtmosphere {
+            // the sky's color as scattering strength per channel, brightest channel 1
+            let a = c.eclipseAirColor
+            var lin = SIMD3<Float>(pow(max(a.r, 0.02), 2.2), pow(max(a.g, 0.02), 2.2), pow(max(a.b, 0.02), 2.2))
+            lin /= max(lin.max(), 1e-3)
+            p.k = SIMD4(lin, Float(max(c.eclipseAirDensity, 0.01)))
+        }
+        p.l = SIMD4(Float(c.eclipseAirHaze), Float(c.eclipseClouds), body.shaderIndex, c.eclipseWorld.shaderIndex)
 
-        // Eruption: scheduled windows wait for the next totality, so it plays with the corona out.
+        // Eruptions. Cycling, a scheduled window waits for the next totality, so it plays with the
+        // corona out. Held at totality there's no waiting, and they come every few minutes.
         // A demo starts at once.
-        let k = EventSchedule.eclipseEruption
+        let k = hold ? EventSchedule.Kind(id: EventSchedule.eclipseEruption.id, slot: 200, chance: 0.75, duration: 150)
+                     : EventSchedule.eclipseEruption
         if case (let age, var rng)? = events.active(k, rate: c.eclipseEvents.rate, at: t, demo: demo) {
             let tot = eclipseTotality
             let totLength = (tot.end - tot.start) * cycle
-            var start = t - age, length = max(totLength, 60)
+            var start = t - age, length = hold ? k.duration : max(totLength, 60)
             let isDemo = demo[k.id].map { t >= $0 && t - $0 < k.duration } ?? false
-            if !isDemo {
+            if !isDemo && !hold {
                 // the first totality whose middle is still ahead when the window opens
                 let phase0 = (start / cycle + 0.12)
                 var n = floor(phase0)
@@ -365,10 +385,13 @@ enum SceneParams {
             }
             let f = (t - start) / length
             if f >= 0, f < 1 {
-                // leave the sun upward or sideways, into open sky
-                let ang = rng.range(0.9, 2.6)
+                // leave the sun upward or sideways, into open sky; held, anywhere off the horizon
+                let ang = hold ? rng.range(-0.4, 3.5) : rng.range(0.9, 2.6)
                 let bright = smoothstep(0, 0.04, f) * (1 - smoothstep(0.85, 1, f))
                 p.h = SIMD4(Float(ang), Float(f), Float(bright), Float(rng.range(0, 50)))
+                // most lift a big prominence; some are a bare, faster ejection with a small core
+                let style: Float = rng.next() < 0.65 ? 0 : 1
+                p.m = SIMD4(style, Float(rng.range(0.75, 1.25)), 0, 0)
             }
         }
         return p

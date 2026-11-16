@@ -98,4 +98,6 @@ struct SceneParamsGPU {
     var e = SIMD4<Float>(repeating: 0), f = SIMD4<Float>(repeating: 0)
     var g = SIMD4<Float>(repeating: 0), h = SIMD4<Float>(repeating: 0)
     var i = SIMD4<Float>(repeating: 0), j = SIMD4<Float>(repeating: 0)
+    var k = SIMD4<Float>(repeating: 0), l = SIMD4<Float>(repeating: 0)
+    var m = SIMD4<Float>(repeating: 0)
 }
