@@ -14,7 +14,7 @@ struct SceneTab: View {
     /// A short note under the scene's own controls, where one helps.
     private var note: String? {
         switch scene {
-        case .binary, .trinary, .stellarSurface: "Star colors follow the star type."
+        case .binary, .trinary, .stellarSurface, .dysonSwarm: "Star colors follow the star type."
         case .pulsar: "Slowed down from hundreds of turns a second so the beams don't strobe."
         case .galaxy: store.config.darkMatter
             ? "Outer stars orbit as fast as inner ones, as observed in real galaxies."
@@ -158,6 +158,14 @@ struct SceneTab: View {
                         .help("0° looks straight down onto the orbit")
                     Toggle("Jet", isOn: $store.config.mergerJet)
                         .help("A short jet punching out along the orbit's axis just after the merger")
+                case .dysonSwarm:
+                    StarPicker(title: "Star", star: $store.config.dysonStar)
+                    SliderRow(title: "Density", value: $store.config.dysonDensity, range: 0...1)
+                        .help("From a few sparse bands of panels to a swarm that nearly closes over the star")
+                    Stepper("Rings: \(store.config.dysonRings)", value: $store.config.dysonRings, in: 3...20)
+                    SliderRow(title: "Orbit speed", value: $store.config.dysonOrbitSpeed, range: 0...4)
+                    SliderRow(title: "Panel glints", value: $store.config.dysonGlint, range: 0...2.5)
+                        .help("How brightly panels flash as their mirrors swing through the line between the star and you")
                 case .comet:
                     SliderRow(title: "Tail length", value: $store.config.cometTailLength, range: 0.3...2)
                     SliderRow(title: "Activity", value: $store.config.cometActivity, range: 0.2...2.5)
@@ -291,6 +299,13 @@ struct SceneTab: View {
                 GroupHeader(title: "Events")
             } footer: {
                 GroupFooter("The merger ends every cycle; set how often with Cycle length.")
+            }
+        case .dysonSwarm:
+            Section {
+                FrequencyRow(title: "Reorientation waves", value: $store.config.dysonEvents)
+                DemoGrid(store: store, demos: [("Reorientation Wave", EventSchedule.swarmWave)])
+            } header: {
+                GroupHeader(title: "Events")
             }
         case .auroraOrbit:
             Section {

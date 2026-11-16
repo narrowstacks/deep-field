@@ -114,6 +114,10 @@ struct SceneColors: View {
                 }
                 .fixedSize()
             }
+        case .dysonSwarm:
+            ColorRow("Panels", store.color(\.dysonPanelA))
+            ColorRow("Panels, second finish", store.color(\.dysonPanelB))
+            ColorRow("Waste heat", store.color(\.dysonHeat))
         case .auroraOrbit:
             ColorRow("Aurora (oxygen, low)", store.color(\.auroraGreen))
             ColorRow("Aurora tops (oxygen, high)", store.color(\.auroraRed))
