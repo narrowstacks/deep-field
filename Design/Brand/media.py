@@ -156,9 +156,10 @@ def customizations():
 # ---------- loops ----------
 
 # The README's lead loop: no planets, so the disk has the frame to itself, and a strong but tight
-# glow (a high threshold keeps it off the black hole's shadow), a little brighter and richer.
+# glow (a high threshold keeps it off the black hole's shadow), a little brighter and richer,
+# and no twinkling stars, which flicker distractingly in a short loop.
 HERO_LOOK = {"planetCount": 0, "bloom": 1.2, "bloomRadius": 0.025, "bloomThreshold": 0.6,
-             "brightness": 1.3, "saturation": 1.5, "blackPoint": 0.02}
+             "brightness": 1.3, "saturation": 1.5, "blackPoint": 0.02, "twinkles": "off"}
 
 LOOP = (720, 450)      # GIF size; cells of 2 px, so 360x225 cells
 FPS = 12

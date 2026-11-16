@@ -788,10 +788,13 @@ enum SceneParams {
     /// The share of the sun left uncovered for offset o, and the middle of that light (sun radii),
     /// integrated round the occluder's (mountainous) limb: along each direction from its center,
     /// the uncovered stretch is from its limb, or where the ray enters the sun, to where it leaves.
-    static func eclipseExposure(_ o: SIMD2<Double>) -> (fraction: Double, center: SIMD2<Double>) {
+    /// A sky body in front of the sun (`body`: its center and radius, sun radii) also hides the
+    /// part of each stretch that crosses its disk.
+    static func eclipseExposure(_ o: SIMD2<Double>, body: SIMD3<Double>? = nil) -> (fraction: Double, center: SIMD2<Double>) {
         let n = 720
         var area = 0.0, moment = SIMD2<Double>(0, 0)
         let oo = simd_dot(o, o)
+        let w = body.map { o - SIMD2($0.x, $0.y) } ?? .zero
         for i in 0..<n {
             let a = Double(i) / Double(n) * 2 * .pi
             let u = SIMD2(cos(a), sin(a))
@@ -800,8 +803,18 @@ enum SceneParams {
             let t2 = -b + disc.squareRoot(), t1 = max(-b - disc.squareRoot(), 0)
             let t0 = max(t1, eclipseOccluder + eclipseMount * eclipseLimb(a))
             guard t2 > t0 else { continue }
-            let a2: Double = (t2 * t2 - t0 * t0) / 2
-            let a3: Double = (t2 * t2 * t2 - t0 * t0 * t0) / 3
+            var a2: Double = (t2 * t2 - t0 * t0) / 2
+            var a3: Double = (t2 * t2 * t2 - t0 * t0 * t0) / 3
+            if let body {
+                let bb = simd_dot(w, u), db = bb * bb - simd_dot(w, w) + body.z * body.z
+                if db > 0 {
+                    let c0 = max(t0, -bb - db.squareRoot()), c1 = min(t2, -bb + db.squareRoot())
+                    if c1 > c0 {
+                        a2 -= (c1 * c1 - c0 * c0) / 2
+                        a3 -= (c1 * c1 * c1 - c0 * c0 * c0) / 3
+                    }
+                }
+            }
             area += a2
             moment += o * a2 + u * a3
         }
@@ -851,8 +864,25 @@ enum SceneParams {
         let cycle = max(c.eclipseCycleMinutes, 0.5) * 60
         let u = hold ? 0.5 : (t / cycle + 0.12).truncatingRemainder(dividingBy: 1)
         let o = eclipseOffset(u)
-        let ex = eclipseExposure(o)
+        // the sky body hides the sun too when it's placed in front of it (it's far beyond our
+        // moon's occluder, so its shadow has no parallax across the ground)
+        var bodyDisk: SIMD3<Double>? = nil
+        if body != .none {
+            let pd = dir(planetPos.x, planetPos.y)
+            let sx = simd_normalize(simd_cross(SIMD3<Double>(0, 1, 0), sun)), sy = simd_cross(sun, sx)
+            let along = simd_dot(pd, sun)
+            let tanPlanet = 0.6 * th * s * c.eclipsePlanetSize * body.scale
+            if along > 0 {
+                let bc = SIMD2(simd_dot(pd, sx), simd_dot(pd, sy)) / along / tanSun
+                let br = tanPlanet / tanSun
+                if simd_length(bc) < 1 + br { bodyDisk = SIMD3(bc.x, bc.y, br) }
+            }
+        }
+        let exMoon = eclipseExposure(o)
+        let ex = bodyDisk == nil ? exMoon : eclipseExposure(o, body: bodyDisk)
         let e = ex.fraction
+        // what the body leaves of the light the occluder alone would let through
+        let bodyShare = exMoon.fraction > 1e-9 ? e / exMoon.fraction : 1
         let gain = 2.5 / (0.15 + 0.85 * e.squareRoot())
         p.b = SIMD4(Float(o.x), Float(o.y), Float(eclipseOccluder), Float(e))
         p.j = SIMD4(Float(ex.center.x), Float(ex.center.y), Float(gain), Float(log10(max(e, 1e-9))))
@@ -916,6 +946,8 @@ enum SceneParams {
                 p.m = SIMD4(style, Float(rng.range(0.75, 1.25)), 0, 0)
             }
         }
+        p.m.z = Float(exMoon.fraction)
+        p.m.w = Float(bodyShare)
         return p
     }
 

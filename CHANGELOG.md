@@ -19,6 +19,10 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Focus filters: in System Settings > Focus, have a Focus switch Deep Field to one of your presets or a scene, and switch back when it ends.
 - Shortcuts actions to apply a preset or set the scene.
 - Fixed: on macOS 14 and 15 the wallpaper showed only on the Space where Deep Field started. It now shows on every Space.
+- Protoplanetary Disk: with low flaring, the star no longer shows dark speckles.
+- Eclipse: a planet placed in front of the sun now blocks its light and glare, and the corona comes out around it.
+- Eclipse: the ground looks more natural on every world. Craters no longer overlap, big craters are shallower, and boulders lie scattered around them. Rock has broad swells and lighter and darker regions, ice has softer frost glints, dunes are gentler and patchier, and basalt has ropy folds.
+- Dragging Tilt (and the galaxy's viewing angle) now turns the view smoothly. Before, the scene drifted up or down, then jumped to the new angle.
 
 ## [0.3.0] - 2026-11-15
 
