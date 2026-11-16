@@ -63,7 +63,7 @@ guide again.
   <tr>
     <td><img src="docs/media/gallery/quasar.png" alt="Quasar"><br><b>Quasar</b><br><sub>A galaxy's blazing core firing jets out to glowing radio lobes.</sub></td>
     <td><img src="docs/media/gallery/blackHoleMerger.png" alt="Black Hole Merger"><br><b>Black Hole Merger</b><br><sub>Two black holes spiral together, bending the starlight behind them, and merge.</sub></td>
-    <td></td>
+    <td><img src="docs/media/gallery/liveEarth.png" alt="Live Earth"><br><b>Live Earth</b><br><sub>Earth right now over a place you pick, with the real Moon, stars, clouds and aurora forecast.</sub></td>
   </tr>
 </table>
 

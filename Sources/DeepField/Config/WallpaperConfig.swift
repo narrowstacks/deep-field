@@ -156,6 +156,34 @@ struct WallpaperConfig: Codable, Equatable {
     var auroraSunrise = 0.5
     var auroraEvents: Frequency = .normal
 
+    // Live Earth
+    var earthDistance = 4.2            // the camera from Earth's center, Earth radii
+    var earthCenterX = 0.0             // where Earth's center sits, in screen half-widths
+    var earthCenterY = 0.0             // and half-heights
+    var earthClouds = true             // the latest cloud map (fetched, cached for offline)
+    var earthCloudAmount = 1.0
+    var earthAurora = true             // NOAA's aurora forecast (fetched, cached for offline)
+    var earthAuroraBrightness = 1.0
+    var earthCityLights = 1.0
+    var earthMoonlight = 1.0
+    var earthMoonSize = 3.0            // 1 is true size
+    var earthAtmosphere = 1.0
+    var earthStars = 1.0               // the real night sky behind Earth
+    var earthMilkyWay = 1.0
+    var earthPlanets = true            // the real planets where they are
+    var earthPlanetSize = 1.0          // times their true size; 1 shows them as points of light
+    var earthPlanetLabels = false
+    var earthHideSunAtNight = true     // don't draw the sun's disk and glare while it's night below
+    var earthMarker = false            // a small ring round the chosen place
+    var earthFreezeTime = false        // hold the view at earthFrozenTime instead of now
+    var earthFrozenTime = 1_782_000_000.0   // seconds since 1970 (2026-06-21 00:00 UTC)
+
+    // The place Live Earth keeps in view. Not part of the scene's Reset: it's where you are,
+    // not a look.
+    var homeLatitude = 40.0
+    var homeLongitude = -30.0
+    var homeFromDevice = false         // follow this Mac's location
+
     // Gas giant storms
     var gasWind = 1.0
     var gasTurbulence = 1.0
@@ -413,6 +441,9 @@ struct WallpaperConfig: Codable, Equatable {
         clamp(\.starZoom, Self.starZoomRange)
         clamp(\.starCenterX, -1...1)
         clamp(\.starLimbY, -0.9...1)
+        clamp(\.homeLatitude, -90...90)
+        clamp(\.homeLongitude, -180...180)
+        clamp(\.earthDistance, 1.3...20)
         for (kp, range) in Self.imageRanges { clamp(kp, range) }
         return c
     }

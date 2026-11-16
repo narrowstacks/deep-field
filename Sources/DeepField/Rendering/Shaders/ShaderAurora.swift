@@ -28,7 +28,7 @@ constant float AU_BASE = 0.0155;   // the curtains' lower edge, ~100 km
 constant float AU_TOP = 0.08;      // ~510 km: well above where the tallest rays fade out
 constant float AU_AIRGLOW = 0.0148;
 constant float AU_VIEW_LAT = 0.75049;   // 43 deg: the latitude below the camera
-constant float AU_MAP_SOUTH = -0.24544; // -14.0625 deg: the maps' southern edge (make_earth_maps.py)
+constant float AU_MAP_SOUTH = -1.5707963; // the maps reach the south pole (make_earth_maps.py)
 constant float AU_TEXEL = 7.6699e-4;    // 2 pi / 8192: a city-light texel, radians of arc
 
 // How far the oval's edge is pushed out at angle psi round the pole: a slow meander, folds that

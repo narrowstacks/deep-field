@@ -9,6 +9,12 @@ import Foundation
 ///     --mobile-export outdir [--device 17-pro-max|WIDTHxHEIGHT] [--live] [--smooth]
 ///         [--phone-pixel N] [--zoom 1.0] [--shift 0.0] [--speed 2]
 ///     --check-live still.heic movie.mov     (pairing metadata, and whether it loads as a Live Photo)
+///     --fetch-live-earth                    (fetch Live Earth's cloud map and aurora forecast into the cache)
+///     --prefetch-history SECONDS --config ... (fetch real past clouds for a frozen moment and the span after it)
+///
+/// Live Earth renders never fetch, and read the bundled cloud and aurora maps so they come out the
+/// same every time; `--live-earth-cache` reads the last fetched ones instead. `--earth-timelapse N` runs its
+/// clock N times as fast from its frozen time (or now), for loops that show the day go by.
 ///
 /// Shared options: `--scene <SceneKind>`, `--preset <palette name>`, `--config '<json>'` (overrides
 /// any settings), `--defaults` (start from the default settings instead of the saved ones),
@@ -49,9 +55,29 @@ enum DevCommands {
         if args.has("--check-customization") {
             exit(CustomizationCheck.run() ? 0 : 1)
         }
+        if args.has("--fetch-live-earth") {
+            exit(LiveEarthFeeds.shared.fetchNow(Renderer.shared.device, Renderer.shared.queue) ? 0 : 1)
+        }
+        if let n = args.value("--earth-timelapse").flatMap(Double.init) { SceneParams.earthTimeLapse = n }
+        if let span = args.value("--prefetch-history").flatMap(Double.init) {
+            HistoricalClouds.shared.blocking = true
+            // fetch a span's real clouds (from the config's frozen moment) before rendering it in parallel
+            let c = args.config()
+            let start = SceneParams.liveEarthDate(c)
+            let home = Astronomy.point(latitude: c.homeLatitude, longitude: c.homeLongitude)
+            guard let source = HistoricalClouds.source(for: start, home: home, distance: c.earthDistance) else {
+                print("no past clouds for that moment"); exit(1)
+            }
+            HistoricalClouds.shared.prefetch(from: start, seconds: span, source: source)
+            exit(0)
+        }
         guard args.has("--list-events") || args.has("--snapshot") || args.has("--benchmark")
                 || args.has("--mobile-export") || args.has("--check-live") else { return }
 
+        LiveEarthFeeds.shared.allowNetwork = false
+        LiveEarthFeeds.shared.useCache = args.has("--live-earth-cache")
+        // renders of past moments wait for that day's clouds (they don't change, so it stays deterministic)
+        HistoricalClouds.shared.blocking = true
         let config = args.config()
         let eventsEnabled = !args.has("--no-events")
         if args.has("--list-events") {

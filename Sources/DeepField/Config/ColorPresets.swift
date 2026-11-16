@@ -152,7 +152,7 @@ extension ColorPreset {
             list([\.nebulaHa, \.nebulaOIII, \.nebulaSII], [
                 ("Hubble", [RGB(0.35, 1.0, 0.4), RGB(0.2, 0.45, 1.0), RGB(1.0, 0.35, 0.12)]),
             ], defaultName: "Natural")
-        case .blackHole, .wormhole, .tidalDisruption, .binary, .trinary, .stellarSurface:
+        case .blackHole, .wormhole, .tidalDisruption, .binary, .trinary, .stellarSurface, .liveEarth:
             []
         }
     }

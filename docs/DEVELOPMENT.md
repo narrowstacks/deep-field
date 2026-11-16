@@ -34,9 +34,35 @@ Everything is in `Sources/DeepField`:
 - `Mobile/`: the phone wallpaper export (portrait still, Live Photo pair, Photos library).
 - `Dev/`: the command line below (snapshot, benchmark, event list, UI capture).
 
-The Aurora scene's Earth at night comes from NASA's Black Marble city-light map, prepared into
-`Resources/Earth` by `Design/Earth/make_earth_maps.py`. `build.sh` copies that folder into the app,
-and a `swift build` binary finds it by walking up from its own path.
+The Earth and sky maps for Aurora from Orbit and Live Earth (NASA's Black Marble city lights,
+Blue Marble surface for January and July, the Moon, the Yale Bright Star Catalog and NASA's Milky
+Way map) are prepared into `Resources/Earth` by `Design/Earth/make_earth_maps.py`. `build.sh`
+copies that folder into the app, and a `swift build` binary finds it by walking up from its own
+path.
+
+Live Earth works out the sun and Moon on the CPU each frame (`Scenes/Astronomy.swift`: the
+almanac's sun and the main terms of Meeus' lunar theory, close enough that eclipses fall where
+they really do). Its live clouds and aurora forecast come from `Rendering/LiveEarthFeeds.swift`,
+which fetches them while the scene shows and keeps the last good copy in
+`~/Library/Application Support/DeepField/LiveEarth`; until the first download, the copies bundled
+in `Resources/Earth` stand in. Command-line renders never fetch and read the bundled copies, so
+they come out the same every time (`--live-earth-cache` reads the downloaded ones instead).
+
+A frozen moment in the past (and a time-lapse from one) shows that day's real clouds
+(`Rendering/HistoricalClouds.swift`): NASA GIBS's 10-minute GOES and Himawari infrared when the
+view is North America and the Pacific and the date is within its last ~2.5 months, otherwise
+NOAA's GridSat-B1 every 3 hours since 1980 (via NCEI's OPeNDAP server). Each frame is turned into
+a cloud cover map, the motion between consecutive frames is found by block matching, and the
+shader carries both frames along that motion so clouds drift between frames instead of fading.
+Everything is cached under `.../LiveEarth/history`. Command-line renders wait for the downloads;
+`--prefetch-history SECONDS --config ...` fetches a whole span first, so parallel renders of a
+time-lapse find it cached.
+
+The real planets are reusable by any scene that draws the real sky: `Scenes/SkyPlanets.swift`
+works out where they are, how bright and how big (JPL's approximate elements, about 0.1 degree
+against Horizons), `SkyPlanets.gpu` turns them into the scene's frame as `SkyPlanetGPU` for
+fragment buffer 8, and the shader's `skyPlanets()` draws them. Their names go on afterward in
+`Renderer.encodeLabels`, a pass over the finished frame, so the text isn't dithered.
 
 An older nebula scene (pillars, dark clouds) is in the code but hidden from the scene list; see
 `SceneKind.isListed`.
@@ -127,6 +153,9 @@ since, and puts your original pictures back when you turn the option off.
     [--phone-pixel 4] [--zoom 1.2] [--shift 0.05] [--speed 2] [--scene comet] [--defaults]
 .build/release/DeepField --check-live still.HEIC movie.MOV   # pairing metadata, loads as a Live Photo?
 build/DeepField.app/Contents/MacOS/DeepField --customize   # open the Customize window at launch
+.build/release/DeepField --fetch-live-earth                 # download Live Earth's clouds and aurora forecast now
+.build/release/DeepField --snapshot out.png --scene liveEarth --earth-timelapse 7200 --time 6 \
+    --config '{"earthFreezeTime": true, "earthFrozenTime": 1794787200}'   # 12 hours after the frozen moment
 build/DeepField.app/Contents/MacOS/DeepField --check-picker outdir -captureTab 0   # drive the color wells, check the preview follows
 build/DeepField.app/Contents/MacOS/DeepField --capture-ui out.png -captureTab N -captureScene name [--defaults]   # image of the window (N: 0 Scene, 1 Sky, 2 Image, 3 System, 4 Phone, 5 Schedule)
 defaults write com.narrowstacks.DeepField debug -bool true     # log bake times, fps, pause/resume

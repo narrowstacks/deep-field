@@ -25,6 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !Settings.capturingUI {
             LockScreenStill.shared.start()
             Scheduler.shared.start()
+            LocationProvider.shared.refreshIfFollowing()
+        } else {
+            LiveEarthFeeds.shared.allowNetwork = false
         }
         if let i = args.firstIndex(of: "--capture-ui"), i + 1 < args.count {
             CustomizeWindowController.shared.captureForDebug(to: args[i + 1])

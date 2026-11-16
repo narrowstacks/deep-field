@@ -126,6 +126,32 @@ struct SceneTab: View {
                     SliderRow(title: "Distance", value: $store.config.auroraDistance, range: 22...60) { String(format: "%.0f°", $0) }
                         .help("How far ahead the magnetic pole lies. Nearer brings the curtains in below you; farther puts them along the horizon")
                     SliderRow(title: "Oval size", value: $store.config.auroraOvalSize, range: 10...30) { String(format: "%.0f°", $0) }
+                case .liveEarth:
+                    SliderRow(title: "Distance", value: $store.config.earthDistance, range: 1.4...12) {
+                        let km = ($0 - 1) * 6371
+                        return km >= 10_000 ? String(format: "%.0fk km", km / 1000) : String(format: "%.0f km", km)
+                    }
+                    .help("Height above the chosen place. Geostationary satellites orbit at about 35,800 km")
+                    SliderRow(title: "Horizontal position", value: $store.config.earthCenterX, range: -1...1)
+                    SliderRow(title: "Vertical position", value: $store.config.earthCenterY, range: -1...1)
+                    SliderRow(title: "Atmosphere", value: $store.config.earthAtmosphere, range: 0...2)
+                    SliderRow(title: "Moon size", value: $store.config.earthMoonSize, range: 1...6) { String(format: "%.1fx", $0) }
+                        .help("1x is its true size. The Moon only shows when it's behind Earth from here")
+                    SliderRow(title: "Stars", value: $store.config.earthStars, range: 0...3)
+                        .help("The real stars, where they are in the sky at the moment shown")
+                    SliderRow(title: "Milky Way", value: $store.config.earthMilkyWay, range: 0...3)
+                    Toggle("Planets", isOn: $store.config.earthPlanets)
+                        .help("Mercury to Neptune where they really are, at their real brightness")
+                    if store.config.earthPlanets {
+                        SliderRow(title: "Planet size", value: $store.config.earthPlanetSize, range: 1...300) {
+                            $0 < 1.5 ? "true" : String(format: "%.0fx", $0)
+                        }
+                        .help("At true size they're points of light, as you'd see them. Larger shows their disks, phases, bands and Saturn's rings")
+                        Toggle("Label planets", isOn: $store.config.earthPlanetLabels)
+                    }
+                    Toggle("Hide the sun at night", isOn: $store.config.earthHideSunAtNight)
+                        .help("While it's night at the chosen place the sun sits behind Earth; this hides its disk and glare but keeps its light")
+                    Toggle("Mark the place", isOn: $store.config.earthMarker)
                 case .gasGiant:
                     SliderRow(title: "Wind", value: $store.config.gasWind, range: 0...4)
                         .help("How fast the bands flow and the storms spin")
@@ -292,6 +318,7 @@ struct SceneTab: View {
             }
             if scene == .ringedPlanet { ringedSections }
             if scene == .auroraOrbit { auroraSections }
+            if scene == .liveEarth { LiveEarthSections(store: store) }
             if scene == .eclipse { eclipseSections }
             if scene == .stellarSurface {
                 Section {

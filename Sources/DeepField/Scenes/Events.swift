@@ -85,7 +85,7 @@ struct EventSchedule {
     static func skyDirection(_ u: Double, _ v: Double, camera cam: Camera, config c: WallpaperConfig) -> SIMD3<Double>? {
         let d = cam.ray(u, v)
         switch c.scene {
-        case .binary, .trinary, .galaxy, .pulsar, .nebula, .planetaryNebula, .ringedPlanet, .auroraOrbit, .gasGiant, .protoplanetaryDisk, .neutronMerger, .blackHoleMerger, .dysonSwarm, .roguePlanet, .eclipse, .comet, .stellarSurface, .quasar:
+        case .binary, .trinary, .galaxy, .pulsar, .nebula, .planetaryNebula, .ringedPlanet, .auroraOrbit, .liveEarth, .gasGiant, .protoplanetaryDisk, .neutronMerger, .blackHoleMerger, .dysonSwarm, .roguePlanet, .eclipse, .comet, .stellarSurface, .quasar:
             return d
         case .wormhole:
             // lensing is mild away from the throat; just keep events clear of it

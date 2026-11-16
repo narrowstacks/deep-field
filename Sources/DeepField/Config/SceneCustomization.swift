@@ -103,6 +103,7 @@ extension WallpaperConfig {
         case .planetaryNebula: return (["planetary"], ["tilt"], [])
         case .ringedPlanet: return (["ringed"], ["tilt"], [])
         case .auroraOrbit: return (["aurora"], ["tilt"], [])
+        case .liveEarth: return (["earth"], [], [])
         case .gasGiant: return (["gas"], ["tilt"], [])
         case .protoplanetaryDisk: return (["proto"], ["tilt"], [])
         case .neutronMerger: return (["merger"], ["tilt"], [])

@@ -4,6 +4,15 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+- New scene: Live Earth. The whole Earth as it is right now, seen from high above a place you choose, which stays in the middle of the view. Sunlight, seasons and the day-night line are real, with city lights on the night side and the sun's glint on the oceans.
+- Pick the place by latitude and longitude, or let it follow your Mac's location.
+- The Moon is where it really is, in its real phase, and lights the night side by its phase. Eclipses happen when they really do: the Moon's shadow crosses Earth in a solar eclipse, and the Moon turns red in Earth's shadow in a lunar one.
+- The stars behind Earth are the real night sky (about 9,000 stars in their own colors, and the Milky Way), turned to where they are at that moment.
+- Optional live clouds from weather satellites and NOAA's aurora forecast, updated while the scene shows. The last ones downloaded are kept, so the view still works offline.
+- The planets are in the sky too, where they really are and as bright as they really look. Keep them at true size, as points of light, or enlarge them to see their disks, phases, Jupiter's bands and Saturn's rings, and turn on labels to name them.
+- Freeze Live Earth on a past date and it shows that day's real clouds, from weather satellite records going back to 1980. They're downloaded once and kept.
+- The sun's disk and glare can be hidden while it's night at your place (its light still reaches Earth), and the clock can be frozen at any date and time.
+
 ## [0.4.1] - 2026-11-15
 
 - Change scenes on a schedule: rotate through your presets and scenes every few minutes to once a day (in order or shuffled), or switch at set times on the days you choose. Set it up in the new Schedule section of Customize, and turn it on or skip ahead from the menu bar.

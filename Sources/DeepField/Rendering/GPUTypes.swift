@@ -92,6 +92,15 @@ struct GalaxyGPU {
                                  nebula: .zero, dust: .zero, misc: .zero)
 }
 
+/// One real planet for scenes that draw the real sky (SkyPlanets, the shader's `skyPlanets`),
+/// bound as fragment buffer 8.
+struct SkyPlanetGPU {
+    var dir: SIMD4<Float>      // direction in the scene's frame, w = true angular radius (rad)
+    var color: SIMD4<Float>    // rgb, w = brightness (from the magnitude, on the stars' scale)
+    var light: SIMD4<Float>    // toward the sun from the planet, w = label shows (0/1)
+    var pole: SIMD4<Float>     // north pole, w = which planet (0 Mercury ... 6 Neptune)
+}
+
 /// Per-scene uniforms for the scenes built in SceneParams; each fragment shader reads these
 /// slots its own way (documented above each shader).
 struct SceneParamsGPU {

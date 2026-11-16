@@ -17,6 +17,7 @@ enum SceneParams {
         case .planetaryNebula: return planetaryNebula(c, t, cam, events, demo)
         case .ringedPlanet: return ringedPlanet(c, t, cam, events, demo)
         case .auroraOrbit: return auroraOrbit(c, t, cam, events, demo)
+        case .liveEarth: return liveEarth(c, t, cam, width: width, height: height)
         case .gasGiant: return gasGiant(c, t, cam, events, demo)
         case .protoplanetaryDisk: return protoplanetaryDisk(c, t, cam, events, demo)
         case .neutronMerger: return neutronMerger(c, t, cam, demo)
@@ -202,6 +203,134 @@ enum SceneParams {
         p.f = SIMD4(Float(c.auroraClouds), Float(c.auroraMoonlight), Float(spin), Float(c.auroraLightning.rate))
         // z: whether the real Earth maps are bound (the renderer sets it), w: the view's longitude
         p.g = SIMD4(Float(c.auroraSunrise), 5.3, 0, Float(lon))
+        return p
+    }
+
+    // MARK: Live Earth
+
+    /// Dev only (`--earth-timelapse`): Earth seconds per second of the scene's clock, 0 for real time.
+    static var earthTimeLapse = 0.0
+
+    /// The moment Live Earth shows: now, or the time it's frozen at.
+    static func liveEarthDate(_ c: WallpaperConfig, elapsed t: Double = 0) -> Date {
+        let base = c.earthFreezeTime ? Date(timeIntervalSince1970: c.earthFrozenTime) : Date()
+        return base.addingTimeInterval(earthTimeLapse * t)
+    }
+
+    /// Live Earth's planets for the shader (buffer 8), in its Earth-fixed frame, from the frame's
+    /// scene parameters: the sky turn in rows k, l, m, the camera at a, the Moon at f. A label
+    /// shows only while its planet isn't behind Earth or the Moon.
+    static func liveEarthPlanets(_ c: WallpaperConfig, elapsed t: Double, _ p: SceneParamsGPU) -> [SkyPlanetGPU] {
+        guard c.earthPlanets else { return [] }
+        let rows = [p.k, p.l, p.m].map { SIMD3<Double>(Double($0.x), Double($0.y), Double($0.z)) }
+        // the rows take Earth-fixed to J2000; their transpose takes J2000 back
+        func toScene(_ j: SIMD3<Double>) -> SIMD3<Double> { rows[0] * j.x + rows[1] * j.y + rows[2] * j.z }
+        let cam = SIMD3<Double>(Double(p.a.x), Double(p.a.y), Double(p.a.z))
+        let moon = SIMD3<Double>(Double(p.f.x), Double(p.f.y), Double(p.f.z)), moonR = Double(p.f.w)
+        func clear(_ dir: SIMD3<Double>) -> Bool {
+            func blocked(_ center: SIMD3<Double>, _ r: Double) -> Bool {
+                let oc = cam - center, b = simd_dot(oc, dir)
+                return b < 0 && simd_length_squared(oc) - b * b < r * r
+            }
+            return !blocked(.zero, 1.02) && !blocked(moon, moonR)
+        }
+        return SkyPlanets.gpu(SkyPlanets.planets(liveEarthDate(c, elapsed: t)), toScene: toScene, labelVisible: clear)
+    }
+
+    /// Where the planets' labels go, for Renderer.encodeLabels: each name's left edge and vertical
+    /// center in target pixels, which name, and the font's pixel size. Found by projecting each
+    /// planet through the same camera the frame was drawn with (Camera.ray, run backward from
+    /// the scene's view turn in b, c, d). The font is scaled to look about the same size on
+    /// screen at any pixel size.
+    static func liveEarthLabels(_ c: WallpaperConfig, _ planets: [SkyPlanetGPU], _ p: SceneParamsGPU,
+                                camera cam: Camera, width: Int, height: Int) -> [SIMD4<Float>] {
+        guard c.earthPlanetLabels else { return [] }
+        let font = max(1, (3.0 / Double(max(c.pixelSize, 1))).rounded())
+        let pixelAngle = 2 * cam.tanHalf / Double(height)
+        let axes = [p.b, p.c, p.d].map { SIMD3<Double>(Double($0.x), Double($0.y), Double($0.z)) }
+        let placed: [SIMD4<Float>] = planets.compactMap { pl in
+            guard pl.light.w > 0.5 else { return nil }
+            let w = SIMD3<Double>(Double(pl.dir.x), Double(pl.dir.y), Double(pl.dir.z))
+            let l = SIMD3(simd_dot(w, axes[0]), simd_dot(w, axes[1]), simd_dot(w, axes[2]))
+            guard l.z > 0 else { return nil }
+            let rx = l.x / l.z / cam.tanHalf, ry = l.y / l.z / cam.tanHalf
+            let x = cos(cam.roll) * rx + sin(cam.roll) * ry, y = -sin(cam.roll) * rx + cos(cam.roll) * ry
+            let px = (x / cam.aspect + 1) / 2 * Double(width), py = (1 - y) / 2 * Double(height)
+            guard px > -10, px < Double(width), py > -10, py < Double(height) + 10 else { return nil }
+            // clear of the planet's drawn disk (and Saturn's rings)
+            let saturn = pl.pole.w == 4
+            let drawn = Double(pl.dir.w) * c.earthPlanetSize * (saturn ? 2.3 : 1) / pixelAngle
+            let left = px + max(drawn, 1) + 2 * font
+            return SIMD4(Float(left.rounded()), Float(py.rounded()), pl.pole.w, Float(font))
+        }
+        // Planets close together in the sky (Mars passing Jupiter) would print their names over
+        // each other: going down the screen, move a label below any earlier one it would hit.
+        let lineHeight = Float(9 * font), widthPerChar = Float(6 * font)
+        var out: [SIMD4<Float>] = []
+        for var l in placed.sorted(by: { $0.y < $1.y }) {
+            let width = Float(SkyPlanets.names[Int(l.z)].count) * widthPerChar
+            for o in out {
+                let ow = Float(SkyPlanets.names[Int(o.z)].count) * widthPerChar
+                if l.x < o.x + ow && o.x < l.x + width && abs(l.y - o.y) < lineHeight { l.y = o.y + lineHeight }
+            }
+            out.append(l)
+        }
+        return out
+    }
+
+    private static func liveEarth(_ c: WallpaperConfig, _ t: Double, _ cam: Camera, width: Int, height: Int) -> SceneParamsGPU {
+        var p = SceneParamsGPU()
+        let date = liveEarthDate(c, elapsed: t)
+        let home = Astronomy.point(latitude: c.homeLatitude, longitude: c.homeLongitude)
+        let pos = home * c.earthDistance
+        // looking straight down at the chosen place with north up: east is on the right
+        let fwd = -home
+        var north = SIMD3<Double>(0, 0, 1) - home * home.z
+        if simd_length(north) < 1e-6 { north = SIMD3(-1, 0, 0) - home * home.x }   // at a pole
+        let up = simd_normalize(north)
+        let right = simd_cross(fwd, up)
+        // turn the view so Earth's center lands where the settings put it on screen
+        let aspect = Double(width) / Double(max(height, 1))
+        let toCenter = simd_normalize(SIMD3(c.earthCenterX * cam.tanHalf * aspect, c.earthCenterY * cam.tanHalf, 1))
+        let q = simd_quatd(from: toCenter, to: SIMD3(0, 0, 1))
+        func world(_ v: SIMD3<Double>) -> SIMD4<Float> {
+            let r = q.act(v)
+            return SIMD4(SIMD3<Float>(r.x * right + r.y * up + r.z * fwd), 0)
+        }
+        let sun = Astronomy.sun(date)
+        let moon = Astronomy.moon(date)
+        let moonRadius = 1737.4 / 6371.0
+        let night = simd_dot(home, sun) < 0
+        p.a = SIMD4(SIMD3<Float>(pos), 0)
+        p.b = world(SIMD3(1, 0, 0))
+        p.c = world(SIMD3(0, 1, 0))
+        p.d = world(SIMD3(0, 0, 1))
+        p.e = SIMD4(SIMD3<Float>(sun), c.earthHideSunAtNight && night ? 0 : 1)
+        p.f = SIMD4(SIMD3<Float>(moon), Float(moonRadius * c.earthMoonSize))
+        p.g = SIMD4(Float(c.earthClouds ? c.earthCloudAmount : 0), Float(c.earthAurora ? c.earthAuroraBrightness : 0),
+                    Float(c.earthCityLights), Float(c.earthMoonlight))
+        // x, y, z: which maps are bound (the renderer sets them); w: the season, 0 mid-January to
+        // 1 mid-July, blending the two surface maps so snow comes and goes
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let dayOfYear = Double(utc.ordinality(of: .day, in: .year, for: date) ?? 1)
+        p.h = SIMD4(0, 0, 0, Float(0.5 - 0.5 * cos(2 * .pi * (dayOfYear - 15) / 365.25)))
+        p.i = SIMD4(SIMD3<Float>(home), c.earthMarker ? 1 : 0)
+        // z: whether the star maps are bound (the renderer sets it)
+        // w: the Moon is close enough to the sun for its shadow to touch Earth (within about 1.3
+        // degrees seen from Earth's center, allowing for the parallax of Earth's radius), so the
+        // shader only works out the shadow during a solar eclipse
+        let sunMoon = acos(min(max(simd_dot(sun, simd_normalize(moon)), -1), 1))
+        let eclipse = sunMoon < asin(1 / simd_length(moon)) + 0.012
+        p.j = SIMD4(Float(c.earthAtmosphere), Float(moonRadius), 0, eclipse ? 1 : 0)
+        // the turn from Earth-fixed directions to the stars' catalog frame (J2000), rows in k, l, m
+        let sky = Astronomy.earthFixedToJ2000(date)
+        p.k = SIMD4(SIMD3<Float>(sky[0]), 0)
+        p.l = SIMD4(SIMD3<Float>(sky[1]), 0)
+        p.m = SIMD4(SIMD3<Float>(sky[2]), 0)
+        p.n = SIMD4(Float(c.earthStars), Float(c.earthMilkyWay), 0, 0)
+        // the planets: how many are bound (the renderer sets it), their size, labels on
+        p.o = SIMD4(0, Float(c.earthPlanetSize), c.earthPlanetLabels ? 1 : 0, 0)
         return p
     }
 

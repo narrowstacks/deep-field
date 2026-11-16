@@ -11,7 +11,7 @@ import Foundation
 /// the hidden nebula scene shouldn't be offered there.
 enum SceneChoice: String, AppEnum {
     case blackHole, tidalDisruption, wormhole, binary, trinary, galaxy, pulsar, planetaryNebula, ringedPlanet,
-         auroraOrbit, gasGiant, protoplanetaryDisk, neutronMerger, blackHoleMerger, dysonSwarm, roguePlanet,
+         auroraOrbit, liveEarth, gasGiant, protoplanetaryDisk, neutronMerger, blackHoleMerger, dysonSwarm, roguePlanet,
          eclipse, quasar, comet, stellarSurface
 
     var kind: SceneKind { SceneKind(rawValue: rawValue) ?? .blackHole }
@@ -28,6 +28,7 @@ enum SceneChoice: String, AppEnum {
         .planetaryNebula: "Planetary Nebula",
         .ringedPlanet: "Ringed Planet",
         .auroraOrbit: "Aurora from Orbit",
+        .liveEarth: "Live Earth",
         .gasGiant: "Gas Giant Storms",
         .protoplanetaryDisk: "Protoplanetary Disk",
         .neutronMerger: "Neutron Star Merger",

@@ -41,7 +41,7 @@ struct SceneColors: View {
     /// False when the scene has no colors of its own to show, so the group can be left out.
     static func hasContent(_ c: WallpaperConfig) -> Bool {
         switch c.scene {
-        case .binary, .trinary, .stellarSurface: false
+        case .binary, .trinary, .stellarSurface, .liveEarth: false
         case .pulsar: c.pulsarBeams != .none || c.pulsarFieldLines || c.pulsarRing || c.pulsarNebula
         default: true
         }
@@ -152,7 +152,7 @@ struct SceneColors: View {
         case .quasar:
             ColorRow("Jets", store.color(\.quasarJetColor))
             ColorRow("Radio lobes", store.color(\.quasarLobeColor))
-        case .binary, .trinary, .stellarSurface:
+        case .binary, .trinary, .stellarSurface, .liveEarth:
             EmptyView()
         }
     }
