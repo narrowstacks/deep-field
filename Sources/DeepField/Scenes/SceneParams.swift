@@ -1081,6 +1081,8 @@ enum SceneParams {
         }
         p.m.z = Float(exMoon.fraction)
         p.m.w = Float(bodyShare)
+        // the ground's detail is judged in screen pixels, so it doesn't change with pixel size
+        p.n = SIMD4(Float(max(c.pixelSize, 1)), 0, 0, 0)
         return p
     }
 

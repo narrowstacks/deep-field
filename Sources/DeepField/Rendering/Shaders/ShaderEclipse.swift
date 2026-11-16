@@ -23,6 +23,7 @@ extension ShaderSource {
 // S.l = haze, clouds, sky body type (0 teal giant, 1 banded, 2 ringed, 3 ice giant, 4 cratered moon), ground type (0 rock, 1 ice, 2 desert, 3 basalt)
 // S.m = eruption style (0 a lifting prominence and its bubble, 1 a bare, fast ejection), eruption scale,
 //       sunlight our occluder alone lets through (0..1), the share of that the sky body leaves
+// S.n = pixel size (screen pixels per shaded pixel), unused x3
 
 constant float EC_HEIGHT = 0.0098;   // the camera above the ground, moon radii (the horizon dips 8 degrees)
 constant float EC_MOUNT = 0.012;     // the occluder's limb relief, sun radii
@@ -99,10 +100,12 @@ static float3 ecCorona(float2 d, float r, float T, float size, float3 tint) {
 // size never overlap; `occ` carries where bigger craters' walls and rims are, and smaller craters
 // fade out there instead of straddling them. Big craters have flatter floors and steeper walls,
 // fresh walls are brighter than the dusty floors, and `ej` collects their ejecta (for boulders).
-static void ecCraters(float2 uv, float cell, float seed, float fp, float depth, float4 L1, float4 L2,
+// Which craters show is judged by their size in screen pixels (`fps`), so a bigger pixel size
+// draws the same craters, coarser, and drops only those under about a shaded pixel (`fp`).
+static void ecCraters(float2 uv, float cell, float seed, float fp, float fps, float depth, float4 L1, float4 L2,
                       thread float& h, thread float2& g, thread float& sh1, thread float& sh2, thread float& alb,
                       thread float& occ, thread float& ej) {
-    if (cell * 0.12 < fp) return;     // the whole layer is under a pixel: just the albedo
+    if (cell * 0.12 < fps || cell * 2.1 < fp) return;   // the whole layer is too small to see: just the albedo
     float2 cid = floor(uv / cell);
     float occIn = occ;
     for (int j = -1; j <= 1; j++)
@@ -125,7 +128,8 @@ static void ecCraters(float2 uv, float cell, float seed, float fp, float depth, 
         float wob = noise3(float3(l / max(r0, 1e-4) * 1.8, seed * 3.0 + c.x * 0.37 + c.y));
         float rho = r0 * (1.0 + 0.14 * (wob - 0.5));
         if (rho > 2.1) continue;
-        float k = smoothstep(0.8, 2.5, rad / fp) * (1.0 - 0.9 * occIn);   // craters near a pixel across fade out
+        // craters a few screen pixels across fade out, and so do those under a shaded pixel
+        float k = smoothstep(0.8, 2.5, rad / fps) * smoothstep(0.2, 0.5, rad / fp) * (1.0 - 0.9 * occIn);
         // inner profile rho^p: a bowl when small, a flat floor and steep walls when big
         float pw = 2.0 + 2.0 * size;
         float rp = pow(max(rho, 1e-4), pw - 1.0);
@@ -162,9 +166,9 @@ static void ecCraters(float2 uv, float cell, float seed, float fp, float depth, 
 
 // Boulders `cell` apart: rounded blocks, more of them where `ej` says crater ejecta lies, each
 // lit on its sunward side and casting a short soft shadow away from the sun (L as for ecCraters).
-static void ecBoulders(float2 uv, float cell, float seed, float fp, float chance, float ej, float4 L,
+static void ecBoulders(float2 uv, float cell, float seed, float fp, float fps, float chance, float ej, float4 L,
                        thread float2& g, thread float& sh, thread float& alb) {
-    if (cell * 0.15 < fp) return;
+    if (cell * 0.15 < fps || cell * 1.1 < fp) return;
     float2 cid = floor(uv / cell);
     float2 perpL = float2(-L.y, L.x);
     float len = 0.7 / max(L.z, 0.15);                // shadow length, in boulder radii
@@ -176,7 +180,7 @@ static void ecBoulders(float2 uv, float cell, float seed, float fp, float chance
         float rad = cell * (0.06 + 0.16 * fract(hh.z * 13.7));
         float2 ctr = (c + 0.2 + 0.6 * hh.xy) * cell;
         float2 l = (uv - ctr) / rad;
-        float k = smoothstep(0.7, 2.0, rad / fp);
+        float k = smoothstep(0.7, 2.0, rad / fps) * smoothstep(0.2, 0.5, rad / fp);
         // a little irregular, flattened along a random direction
         float2 ax = float2(cos(hh.x * 6.28), sin(hh.x * 6.28));
         float2 le = l + ax * dot(l, ax) * 0.35;
@@ -636,6 +640,7 @@ fragment float4 eclipseFragment(FRAME_INPUTS)
             float3 Ns = normalize(G - Cm);
             float mu = saturate(dot(Ns, -rd));
             float fp = pixA * t / max(mu, 0.04);
+            float fps = fp / max(S.n.x, 1.0);   // the same, per screen pixel
             float2 uv = G.xz;
             // the lights' horizontal directions and elevations, with their penumbrae
             float2 sh2 = normalize(sunD.xz + 1e-5), ph2 = normalize(Lpl.xz + 1e-5);
@@ -646,17 +651,17 @@ fragment float4 eclipseFragment(FRAME_INPUTS)
             // each world wears its own relief: fresh craters on rock and basalt, shallow ones on
             // ice, a few worn ones between dunes on the desert
             float depth = world == 1 ? 0.45 : (world == 2 ? 0.35 : 1.0);
-            ecCraters(uv, 0.05, 1.0, fp, depth, L1, L2, hgt, grad, sS, sP, bright, occ, ej);
-            if (world != 2) ecCraters(uv, 0.016, 2.0, fp, depth, L1, L2, hgt, grad, sS, sP, bright, occ, ej);
+            ecCraters(uv, 0.05, 1.0, fp, fps, depth, L1, L2, hgt, grad, sS, sP, bright, occ, ej);
+            if (world != 2) ecCraters(uv, 0.016, 2.0, fp, fps, depth, L1, L2, hgt, grad, sS, sP, bright, occ, ej);
             if (world == 0 || world == 3) {
-                ecCraters(uv, 0.0055, 3.0, fp, depth, L1, L2, hgt, grad, sS, sP, bright, occ, ej);
-                ecCraters(uv, 0.0018, 4.0, fp, depth, L1, L2, hgt, grad, sS, sP, bright, occ, ej);
+                ecCraters(uv, 0.0055, 3.0, fp, fps, depth, L1, L2, hgt, grad, sS, sP, bright, occ, ej);
+                ecCraters(uv, 0.0018, 4.0, fp, fps, depth, L1, L2, hgt, grad, sS, sP, bright, occ, ej);
             }
             // boulders: blocks thrown out round the craters, a few weathered out of the plains;
             // ice has fewer (blocks of crust), sand buries all but a scattered few
             float chance = world == 0 ? 0.2 : (world == 3 ? 0.28 : (world == 1 ? 0.1 : 0.05));
-            ecBoulders(uv, 0.006, 5.0, fp, chance, ej, L1, grad, sS, bright);
-            if (world != 2) ecBoulders(uv, 0.0024, 6.0, fp, chance, ej, L1, grad, sS, bright);
+            ecBoulders(uv, 0.006, 5.0, fp, fps, chance, ej, L1, grad, sS, bright);
+            if (world != 2) ecBoulders(uv, 0.0024, 6.0, fp, fps, chance, ej, L1, grad, sS, bright);
             // broad swells, and darker and lighter provinces (old lava plains, fresh ejecta), so
             // the plain isn't one even gray
             grad += noise2(float3(uv * 7.0, 11.0)) * (world == 1 ? 0.1 : 0.18) + noise2(float3(uv * 26.0, 12.0)) * (world == 1 ? 0.05 : 0.1);
