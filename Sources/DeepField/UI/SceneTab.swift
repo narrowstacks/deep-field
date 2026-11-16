@@ -121,7 +121,7 @@ struct SceneTab: View {
                         .help("How fast the bands drift and shear past each other")
                 case .auroraOrbit:
                     SliderRow(title: "Brightness", value: $store.config.auroraBrightness, range: 0...2.5)
-                    SliderRow(title: "Activity", value: $store.config.auroraActivity, range: 0.1...4)
+                    SliderRow(title: "Speed", value: $store.config.auroraActivity, range: 0.05...4)
                         .help("How fast the curtains ripple, fold and drift")
                     SliderRow(title: "Distance", value: $store.config.auroraDistance, range: 22...60) { String(format: "%.0f°", $0) }
                         .help("How far ahead the magnetic pole lies. Nearer brings the curtains in below you; farther puts them along the horizon")
