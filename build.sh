@@ -32,7 +32,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Framewor
 cp "$PRODUCTS/DeepField" "$APP/Contents/MacOS/DeepField"
 SPARKLE=$(find "$PRODUCTS" .build/artifacts -maxdepth 6 -name Sparkle.framework -type d | head -1)
 ditto "$SPARKLE" "$APP/Contents/Frameworks/Sparkle.framework"
-# the Aurora scene's Earth maps (Design/Earth/make_earth_maps.py)
+# the Earth and sky maps for Aurora from Orbit and Live Earth (Design/Earth/make_earth_maps.py)
 ditto Resources/Earth "$APP/Contents/Resources/Earth"
 
 # App Intents metadata: without it macOS doesn't list the Focus filter or the Shortcuts actions.
@@ -83,6 +83,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSPhotoLibraryAddUsageDescription</key><string>Deep Field adds the phone wallpapers you export to Photos, so they sync to your iPhone.</string>
+    <key>NSLocationUsageDescription</key><string>Live Earth can keep your location in the middle of the view.</string>
+    <key>NSLocationWhenInUseUsageDescription</key><string>Live Earth can keep your location in the middle of the view.</string>
     <key>NSPhotoLibraryUsageDescription</key><string>Deep Field only adds the phone wallpapers you export to Photos; it doesn't read your library.</string>
     <key>SUFeedURL</key><string>https://github.com/narrowstacks/deep-field/releases/latest/download/appcast.xml</string>
     <key>SUPublicEDKey</key><string>zZlAdBsH5Y6Gn563Ep70h1K1jL8lw43UkvZDo0fV7c8=</string>

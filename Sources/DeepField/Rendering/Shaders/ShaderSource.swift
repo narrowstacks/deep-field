@@ -15,7 +15,7 @@
 //  2. A fragment shader per frame reads those lookups, animates on top of them, applies the
 //     palette, tone maps, and dithers: lensedFragment (black hole, tidal disruption, wormhole),
 //     systemFragment, galaxyFragment, pulsarFragment, cometFragment, stellarFragment,
-//     nebulaFragment, planetaryFragment, ringedFragment, auroraFragment,
+//     nebulaFragment, planetaryFragment, ringedFragment, auroraFragment, liveEarthFragment,
 //     gasGiantFragment, protoDiskFragment, neutronMergerFragment, blackHoleMergerFragment, dysonFragment, rogueFragment.
 //
 // Texture slots (Renderer.Slot). A scene allocates only the ones it uses (Renderer.formats);
@@ -33,9 +33,12 @@
 //   10, 11          aurora from orbit: the Earth maps (city lights, ground), see EarthMaps
 //   12              aurora from orbit: the per-frame table of the curtains along the oval
 //                   (8192x2, x = angle round the pole), filled by the auroraLUT kernel
+//   10 to 19        live Earth: city lights, night ground, January and July surface, open water,
+//                   the Moon (EarthMaps), the cloud map and the aurora forecast (LiveEarthFeeds),
+//                   the star catalog and the Milky Way (EarthMaps.skyTextures)
 
 enum ShaderSource {
     static var full: String {
-        [common, bake, sky, planets, lensed, stars, galaxy, pulsar, comet, nebula, planetary, ringed, aurora, gasGiant, protoDisk, neutronMerger, blackHoleMerger, dyson, roguePlanet, eclipse, quasar].joined(separator: "\n\n")
+        [common, bake, sky, planets, lensed, stars, galaxy, pulsar, comet, nebula, planetary, ringed, aurora, liveEarth, gasGiant, protoDisk, neutronMerger, blackHoleMerger, dyson, roguePlanet, eclipse, quasar].joined(separator: "\n\n")
     }
 }

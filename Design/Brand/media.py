@@ -38,6 +38,9 @@ SCENES = [
     ("planetaryNebula", "Planetary Nebula", 60, {}),
     ("ringedPlanet", "Ringed Planet", 60, {}),
     ("auroraOrbit", "Aurora from Orbit", 60, {}),
+    # dusk over the North Atlantic on 2026-11-16: daylight over the Americas, Europe's lights, the aurora oval
+    ("liveEarth", "Live Earth", 60, {"earthFreezeTime": True, "earthFrozenTime": 1794853800,
+                                     "homeLatitude": 50, "homeLongitude": -20}),
     ("gasGiant", "Gas Giant Storms", 60, {}),
     ("protoplanetaryDisk", "Protoplanetary Disk", 60, {}),
     ("neutronMerger", "Neutron Star Merger", 60, {}),

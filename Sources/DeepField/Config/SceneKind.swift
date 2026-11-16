@@ -1,7 +1,7 @@
 import Foundation
 
 enum SceneKind: String, Codable, CaseIterable, Identifiable {
-    case blackHole, tidalDisruption, wormhole, binary, trinary, galaxy, pulsar, nebula, planetaryNebula, ringedPlanet, auroraOrbit, gasGiant, protoplanetaryDisk, neutronMerger, blackHoleMerger, dysonSwarm, roguePlanet, eclipse, quasar, comet, stellarSurface
+    case blackHole, tidalDisruption, wormhole, binary, trinary, galaxy, pulsar, nebula, planetaryNebula, ringedPlanet, auroraOrbit, liveEarth, gasGiant, protoplanetaryDisk, neutronMerger, blackHoleMerger, dysonSwarm, roguePlanet, eclipse, quasar, comet, stellarSurface
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -16,6 +16,7 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
         case .planetaryNebula: "Planetary Nebula"
         case .ringedPlanet: "Ringed Planet"
         case .auroraOrbit: "Aurora from Orbit"
+        case .liveEarth: "Live Earth"
         case .gasGiant: "Gas Giant Storms"
         case .protoplanetaryDisk: "Protoplanetary Disk"
         case .neutronMerger: "Neutron Star Merger"
@@ -43,6 +44,7 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
         case .planetaryNebula: 10
         case .ringedPlanet: 11
         case .auroraOrbit: 12
+        case .liveEarth: 21
         case .gasGiant: 13
         case .protoplanetaryDisk: 14
         case .neutronMerger: 15

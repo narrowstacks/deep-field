@@ -5,5 +5,8 @@
     <!-- hardened runtime: the phone export can add Live Photos to the Photos library -->
     <key>com.apple.security.personal-information.photos-library</key>
     <true/>
+    <!-- Live Earth can follow this Mac's location -->
+    <key>com.apple.security.personal-information.location</key>
+    <true/>
 </dict>
 </plist>

@@ -17,6 +17,7 @@ enum SceneParams {
         case .planetaryNebula: return planetaryNebula(c, t, cam, events, demo)
         case .ringedPlanet: return ringedPlanet(c, t, cam, events, demo)
         case .auroraOrbit: return auroraOrbit(c, t, cam, events, demo)
+        case .liveEarth: return liveEarth(c, t, cam, width: width, height: height)
         case .gasGiant: return gasGiant(c, t, cam, events, demo)
         case .protoplanetaryDisk: return protoplanetaryDisk(c, t, cam, events, demo)
         case .neutronMerger: return neutronMerger(c, t, cam, demo)
@@ -202,6 +203,71 @@ enum SceneParams {
         p.f = SIMD4(Float(c.auroraClouds), Float(c.auroraMoonlight), Float(spin), Float(c.auroraLightning.rate))
         // z: whether the real Earth maps are bound (the renderer sets it), w: the view's longitude
         p.g = SIMD4(Float(c.auroraSunrise), 5.3, 0, Float(lon))
+        return p
+    }
+
+    // MARK: Live Earth
+
+    /// Dev only (`--earth-timelapse`): Earth seconds per second of the scene's clock, 0 for real time.
+    static var earthTimeLapse = 0.0
+
+    /// The moment Live Earth shows: now, or the time it's frozen at.
+    static func liveEarthDate(_ c: WallpaperConfig, elapsed t: Double = 0) -> Date {
+        let base = c.earthFreezeTime ? Date(timeIntervalSince1970: c.earthFrozenTime) : Date()
+        return base.addingTimeInterval(earthTimeLapse * t)
+    }
+
+    private static func liveEarth(_ c: WallpaperConfig, _ t: Double, _ cam: Camera, width: Int, height: Int) -> SceneParamsGPU {
+        var p = SceneParamsGPU()
+        let date = liveEarthDate(c, elapsed: t)
+        let home = Astronomy.point(latitude: c.homeLatitude, longitude: c.homeLongitude)
+        let pos = home * c.earthDistance
+        // looking straight down at the chosen place with north up: east is on the right
+        let fwd = -home
+        var north = SIMD3<Double>(0, 0, 1) - home * home.z
+        if simd_length(north) < 1e-6 { north = SIMD3(-1, 0, 0) - home * home.x }   // at a pole
+        let up = simd_normalize(north)
+        let right = simd_cross(fwd, up)
+        // turn the view so Earth's center lands where the settings put it on screen
+        let aspect = Double(width) / Double(max(height, 1))
+        let toCenter = simd_normalize(SIMD3(c.earthCenterX * cam.tanHalf * aspect, c.earthCenterY * cam.tanHalf, 1))
+        let q = simd_quatd(from: toCenter, to: SIMD3(0, 0, 1))
+        func world(_ v: SIMD3<Double>) -> SIMD4<Float> {
+            let r = q.act(v)
+            return SIMD4(SIMD3<Float>(r.x * right + r.y * up + r.z * fwd), 0)
+        }
+        let sun = Astronomy.sun(date)
+        let moon = Astronomy.moon(date)
+        let moonRadius = 1737.4 / 6371.0
+        let night = simd_dot(home, sun) < 0
+        p.a = SIMD4(SIMD3<Float>(pos), 0)
+        p.b = world(SIMD3(1, 0, 0))
+        p.c = world(SIMD3(0, 1, 0))
+        p.d = world(SIMD3(0, 0, 1))
+        p.e = SIMD4(SIMD3<Float>(sun), c.earthHideSunAtNight && night ? 0 : 1)
+        p.f = SIMD4(SIMD3<Float>(moon), Float(moonRadius * c.earthMoonSize))
+        p.g = SIMD4(Float(c.earthClouds ? c.earthCloudAmount : 0), Float(c.earthAurora ? c.earthAuroraBrightness : 0),
+                    Float(c.earthCityLights), Float(c.earthMoonlight))
+        // x, y, z: which maps are bound (the renderer sets them); w: the season, 0 mid-January to
+        // 1 mid-July, blending the two surface maps so snow comes and goes
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let dayOfYear = Double(utc.ordinality(of: .day, in: .year, for: date) ?? 1)
+        p.h = SIMD4(0, 0, 0, Float(0.5 - 0.5 * cos(2 * .pi * (dayOfYear - 15) / 365.25)))
+        p.i = SIMD4(SIMD3<Float>(home), c.earthMarker ? 1 : 0)
+        // z: whether the star maps are bound (the renderer sets it)
+        // w: the Moon is close enough to the sun for its shadow to touch Earth (within about 1.3
+        // degrees seen from Earth's center, allowing for the parallax of Earth's radius), so the
+        // shader only works out the shadow during a solar eclipse
+        let sunMoon = acos(min(max(simd_dot(sun, simd_normalize(moon)), -1), 1))
+        let eclipse = sunMoon < asin(1 / simd_length(moon)) + 0.012
+        p.j = SIMD4(Float(c.earthAtmosphere), Float(moonRadius), 0, eclipse ? 1 : 0)
+        // the turn from Earth-fixed directions to the stars' catalog frame (J2000), rows in k, l, m
+        let sky = Astronomy.earthFixedToJ2000(date)
+        p.k = SIMD4(SIMD3<Float>(sky[0]), 0)
+        p.l = SIMD4(SIMD3<Float>(sky[1]), 0)
+        p.m = SIMD4(SIMD3<Float>(sky[2]), 0)
+        p.n = SIMD4(Float(c.earthStars), Float(c.earthMilkyWay), 0, 0)
         return p
     }
 

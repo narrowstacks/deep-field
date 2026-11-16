@@ -18,6 +18,7 @@ extension SceneKind {
         case .roguePlanet: "A planet adrift between the stars with no sun, seen by the starlight it blocks, its aurorae glowing."
         case .eclipse: "A total eclipse of the sun over the horizon of another world, its corona and prominences coming out as the light fades."
         case .auroraOrbit: "Aurora curtains over the night side of Earth, seen from orbit, with the real city lights of Europe, Asia and North America turning by below."
+        case .liveEarth: "Earth right now, from far above a place you choose: real sunlight and seasons, city lights at night, the Moon in its true phase, and live clouds and aurora forecasts."
         case .ringedPlanet: "A banded gas giant and its rings, each shadowing the other, with small moons in orbit."
         case .planetaryNebula: "A dying star's shed shell, lit from inside by the white dwarf left behind."
         case .comet: "A coma with jets, a blue ion tail and a curved dust tail."

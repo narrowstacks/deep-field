@@ -34,9 +34,19 @@ Everything is in `Sources/DeepField`:
 - `Mobile/`: the phone wallpaper export (portrait still, Live Photo pair, Photos library).
 - `Dev/`: the command line below (snapshot, benchmark, event list, UI capture).
 
-The Aurora scene's Earth at night comes from NASA's Black Marble city-light map, prepared into
-`Resources/Earth` by `Design/Earth/make_earth_maps.py`. `build.sh` copies that folder into the app,
-and a `swift build` binary finds it by walking up from its own path.
+The Earth and sky maps for Aurora from Orbit and Live Earth (NASA's Black Marble city lights,
+Blue Marble surface for January and July, the Moon, the Yale Bright Star Catalog and NASA's Milky
+Way map) are prepared into `Resources/Earth` by `Design/Earth/make_earth_maps.py`. `build.sh`
+copies that folder into the app, and a `swift build` binary finds it by walking up from its own
+path.
+
+Live Earth works out the sun and Moon on the CPU each frame (`Scenes/Astronomy.swift`: the
+almanac's sun and the main terms of Meeus' lunar theory, close enough that eclipses fall where
+they really do). Its live clouds and aurora forecast come from `Rendering/LiveEarthFeeds.swift`,
+which fetches them while the scene shows and keeps the last good copy in
+`~/Library/Application Support/DeepField/LiveEarth`; until the first download, the copies bundled
+in `Resources/Earth` stand in. Command-line renders never fetch and read the bundled copies, so
+they come out the same every time (`--live-earth-cache` reads the downloaded ones instead).
 
 An older nebula scene (pillars, dark clouds) is in the code but hidden from the scene list; see
 `SceneKind.isListed`.
@@ -127,6 +137,9 @@ since, and puts your original pictures back when you turn the option off.
     [--phone-pixel 4] [--zoom 1.2] [--shift 0.05] [--speed 2] [--scene comet] [--defaults]
 .build/release/DeepField --check-live still.HEIC movie.MOV   # pairing metadata, loads as a Live Photo?
 build/DeepField.app/Contents/MacOS/DeepField --customize   # open the Customize window at launch
+.build/release/DeepField --fetch-live-earth                 # download Live Earth's clouds and aurora forecast now
+.build/release/DeepField --snapshot out.png --scene liveEarth --earth-timelapse 7200 --time 6 \
+    --config '{"earthFreezeTime": true, "earthFrozenTime": 1794787200}'   # 12 hours after the frozen moment
 build/DeepField.app/Contents/MacOS/DeepField --check-picker outdir -captureTab 0   # drive the color wells, check the preview follows
 build/DeepField.app/Contents/MacOS/DeepField --capture-ui out.png -captureTab N -captureScene name [--defaults]   # image of the window (N: 0 Scene, 1 Sky, 2 Image, 3 System, 4 Phone, 5 Schedule)
 defaults write com.narrowstacks.DeepField debug -bool true     # log bake times, fps, pause/resume

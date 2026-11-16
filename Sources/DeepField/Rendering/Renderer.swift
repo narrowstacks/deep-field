@@ -36,7 +36,7 @@ final class Renderer {
         .blackHole: "lensedFragment", .wormhole: "lensedFragment", .tidalDisruption: "tdeFragment",
         .binary: "systemFragment", .trinary: "systemFragment", .galaxy: "galaxyFragment",
         .pulsar: "pulsarFragment", .nebula: "nebulaFragment", .comet: "cometFragment",
-        .stellarSurface: "stellarFragment", .planetaryNebula: "planetaryFragment", .ringedPlanet: "ringedFragment", .auroraOrbit: "auroraFragment", .gasGiant: "gasGiantFragment",
+        .stellarSurface: "stellarFragment", .planetaryNebula: "planetaryFragment", .ringedPlanet: "ringedFragment", .auroraOrbit: "auroraFragment", .liveEarth: "liveEarthFragment", .gasGiant: "gasGiantFragment",
         .protoplanetaryDisk: "protoDiskFragment",
         .neutronMerger: "neutronMergerFragment", .blackHoleMerger: "blackHoleMergerFragment", .dysonSwarm: "dysonFragment", .roguePlanet: "rogueFragment", .eclipse: "eclipseFragment", .quasar: "quasarFragment",
     ]
@@ -85,7 +85,7 @@ final class Renderer {
             let flat = try compute("bakeFlat"), blackHole = try compute("bakeBlackHole")
             bakePipelines = [.blackHole: blackHole, .tidalDisruption: blackHole, .wormhole: try compute("bakeWormhole"),
                              .binary: flat, .trinary: flat, .galaxy: flat, .pulsar: flat, .comet: flat,
-                             .stellarSurface: flat, .planetaryNebula: flat, .ringedPlanet: flat, .auroraOrbit: flat, .gasGiant: flat,
+                             .stellarSurface: flat, .planetaryNebula: flat, .ringedPlanet: flat, .auroraOrbit: flat, .liveEarth: flat, .gasGiant: flat,
                              .protoplanetaryDisk: flat, .neutronMerger: flat, .blackHoleMerger: flat, .dysonSwarm: flat, .roguePlanet: flat, .eclipse: flat, .quasar: flat, .nebula: try compute("bakeNebula")]
             skyPipeline = try compute("skyPass")
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: 1, height: 1, mipmapped: false)
@@ -285,6 +285,7 @@ final class Renderer {
             enc.setFragmentTexture(earth?.ground ?? placeholder, index: 11)
             enc.setFragmentTexture(lut ?? placeholder, index: 12)
         }
+        if c.scene == .liveEarth { bindLiveEarth(enc, c, &sceneParams) }
         enc.setFragmentBytes(&f, length: MemoryLayout<FrameParams>.stride, index: 0)
         enc.setFragmentBytes(&planets, length: MemoryLayout<PlanetGPU>.stride * planets.count, index: 1)
         enc.setFragmentBytes(&ev, length: MemoryLayout<EventsGPU>.stride, index: 2)
@@ -318,6 +319,24 @@ final class Renderer {
         pass.setFragmentBytes(&params, length: MemoryLayout<SIMD4<Float>>.stride * 2, index: 0)
         pass.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         pass.endEncoding()
+    }
+
+    /// Live Earth's maps (slots 10 to 19, see ShaderSource) and the live layers that are on; the
+    /// flags in S.h tell the shader which ones it got.
+    private func bindLiveEarth(_ enc: MTLRenderCommandEncoder, _ c: WallpaperConfig, _ s: inout SceneParamsGPU) {
+        let night = EarthMaps.textures(device, queue)
+        let day = EarthMaps.dayTextures(device, queue)
+        let feeds = LiveEarthFeeds.shared
+        let clouds = c.earthClouds ? feeds.texture(.clouds, device, queue) : nil
+        let aurora = c.earthAurora ? feeds.texture(.aurora, device, queue) : nil
+        s.h.x = clouds == nil ? 0 : 1
+        s.h.y = aurora == nil ? 0 : 1
+        s.h.z = night == nil || day == nil ? 0 : 1
+        let sky = EarthMaps.skyTextures(device, queue)
+        s.j.z = sky == nil ? 0 : 1
+        let textures: [MTLTexture?] = [night?.lights, night?.ground, day?.january, day?.july, day?.water, day?.moon, clouds, aurora,
+                                       sky?.stars, sky?.milkyWay]
+        for (i, t) in textures.enumerated() { enc.setFragmentTexture(t ?? placeholder, index: 10 + i) }
     }
 
     /// Fills the aurora's per-frame table: everything about the curtains that depends only on the

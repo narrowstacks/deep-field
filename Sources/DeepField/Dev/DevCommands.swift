@@ -9,6 +9,11 @@ import Foundation
 ///     --mobile-export outdir [--device 17-pro-max|WIDTHxHEIGHT] [--live] [--smooth]
 ///         [--phone-pixel N] [--zoom 1.0] [--shift 0.0] [--speed 2]
 ///     --check-live still.heic movie.mov     (pairing metadata, and whether it loads as a Live Photo)
+///     --fetch-live-earth                    (fetch Live Earth's cloud map and aurora forecast into the cache)
+///
+/// Live Earth renders never fetch, and read the bundled cloud and aurora maps so they come out the
+/// same every time; `--live-earth-cache` reads the last fetched ones instead. `--earth-timelapse N` runs its
+/// clock N times as fast from its frozen time (or now), for loops that show the day go by.
 ///
 /// Shared options: `--scene <SceneKind>`, `--preset <palette name>`, `--config '<json>'` (overrides
 /// any settings), `--defaults` (start from the default settings instead of the saved ones),
@@ -49,9 +54,15 @@ enum DevCommands {
         if args.has("--check-customization") {
             exit(CustomizationCheck.run() ? 0 : 1)
         }
+        if args.has("--fetch-live-earth") {
+            exit(LiveEarthFeeds.shared.fetchNow(Renderer.shared.device, Renderer.shared.queue) ? 0 : 1)
+        }
+        if let n = args.value("--earth-timelapse").flatMap(Double.init) { SceneParams.earthTimeLapse = n }
         guard args.has("--list-events") || args.has("--snapshot") || args.has("--benchmark")
                 || args.has("--mobile-export") || args.has("--check-live") else { return }
 
+        LiveEarthFeeds.shared.allowNetwork = false
+        LiveEarthFeeds.shared.useCache = args.has("--live-earth-cache")
         let config = args.config()
         let eventsEnabled = !args.has("--no-events")
         if args.has("--list-events") {
