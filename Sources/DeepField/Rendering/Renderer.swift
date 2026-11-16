@@ -35,7 +35,7 @@ final class Renderer {
         .pulsar: "pulsarFragment", .nebula: "nebulaFragment", .comet: "cometFragment",
         .stellarSurface: "stellarFragment", .planetaryNebula: "planetaryFragment", .ringedPlanet: "ringedFragment", .auroraOrbit: "auroraFragment", .gasGiant: "gasGiantFragment",
         .protoplanetaryDisk: "protoDiskFragment",
-        .neutronMerger: "neutronMergerFragment", .dysonSwarm: "dysonFragment", .roguePlanet: "rogueFragment", .eclipse: "eclipseFragment", .quasar: "quasarFragment",
+        .neutronMerger: "neutronMergerFragment", .blackHoleMerger: "blackHoleMergerFragment", .dysonSwarm: "dysonFragment", .roguePlanet: "rogueFragment", .eclipse: "eclipseFragment", .quasar: "quasarFragment",
     ]
     /// Bloom: the scene passes writing linear light to a float target (built on first use), the
     /// bright pass, the blur, the composite, and the intermediate textures per target size.
@@ -78,7 +78,7 @@ final class Renderer {
             bakePipelines = [.blackHole: blackHole, .tidalDisruption: blackHole, .wormhole: try compute("bakeWormhole"),
                              .binary: flat, .trinary: flat, .galaxy: flat, .pulsar: flat, .comet: flat,
                              .stellarSurface: flat, .planetaryNebula: flat, .ringedPlanet: flat, .auroraOrbit: flat, .gasGiant: flat,
-                             .protoplanetaryDisk: flat, .neutronMerger: flat, .dysonSwarm: flat, .roguePlanet: flat, .eclipse: flat, .quasar: flat, .nebula: try compute("bakeNebula")]
+                             .protoplanetaryDisk: flat, .neutronMerger: flat, .blackHoleMerger: flat, .dysonSwarm: flat, .roguePlanet: flat, .eclipse: flat, .quasar: flat, .nebula: try compute("bakeNebula")]
             skyPipeline = try compute("skyPass")
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: 1, height: 1, mipmapped: false)
             d.usage = [.shaderRead, .shaderWrite]

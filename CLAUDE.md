@@ -29,6 +29,15 @@ ids must be unique; check the existing ones.
   out half a scene; keep the base of any other `pow` non-negative.
 - Picked colors go through `Tuned` and `PickedColor` so a pick shows as picked.
 - A scene can add or subtract glow with `SceneKind.extraBloom`.
+- Add the scene to `SCENES` in `Design/Brand/media.py` (a moment that shows it well) and a gallery
+  cell to the README; the media script stops if a listed scene is missing.
+
+## README media
+
+Every image and loop in the README is rendered by `Design/Brand/media.py` (see
+`Design/Brand/README.md`). When a scene's look or behavior changes substantially (new elements,
+colors, models, or a different default look), update its entries there, rerun the parts that
+show it, and commit the new media with the change. Check the output by eye before committing.
 
 ## Look and feel
 

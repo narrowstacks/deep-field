@@ -20,6 +20,7 @@ enum SceneParams {
         case .gasGiant: return gasGiant(c, t, cam, events, demo)
         case .protoplanetaryDisk: return protoplanetaryDisk(c, t, cam, events, demo)
         case .neutronMerger: return neutronMerger(c, t, cam, demo)
+        case .blackHoleMerger: return blackHoleMerger(c, t, cam, demo)
         case .dysonSwarm: return dysonSwarm(c, t, cam, events, demo)
         case .roguePlanet: return roguePlanet(c, t, cam, events, demo)
         case .eclipse: return eclipse(c, t, cam, events, demo)
@@ -305,33 +306,43 @@ enum SceneParams {
     }
 
     static func mergerClock(_ c: WallpaperConfig, _ t: Double, demo: [UInt64: Double]) -> MergerClock {
-        let cycle = max(c.mergerCycleMinutes * 60, 120)
+        cycleClock(minutes: c.mergerCycleMinutes, t, demoStart: demo[EventSchedule.neutronMerger.id])
+    }
+
+    private static func cycleClock(minutes: Double, _ t: Double, demoStart: Double?) -> MergerClock {
+        let cycle = max(minutes * 60, 120)
         var u = t + cycle * 0.3              // so a launch opens on the remnant, not a flash
-        if let s = demo[EventSchedule.neutronMerger.id], t >= s {
+        if let s = demoStart, t >= s {
             u = cycle - mergerLead + (t - s)
         }
         let index = floor(u / cycle)
         return MergerClock(u: u - index * cycle, cycle: cycle, index: index)
     }
 
-    /// The chirp's constant: orbital phase phi0 - K tau^(5/8) once the orbit is circular.
-    private static let mergerK = 4.5
-    /// The captured orbit: semi-major axis (its apoapsis lies beyond the frame) and eccentricity.
-    private static let mergerCapA = 14.5, mergerCapE = 0.8
+    /// A captured companion's inspiral: the chirp's constant K (orbital phase phi0 - K tau^(5/8)
+    /// once the orbit is circular), its separation A tau^(1/4), and the captured orbit's
+    /// semi-major axis (its apoapsis lies beyond the frame) and eccentricity.
+    struct Inspiral {
+        let K: Double, A: Double, capA: Double, capE: Double
+        /// Eccentricity kept through the chirp (0 rounds the orbit out), shed only at the end.
+        var eccEnd = 0.0
+    }
+
+    private static let neutronInspiral = Inspiral(K: 4.5, A: 1.55, capA: 14.5, capE: 0.8)
 
     /// The companion's orbit relative to the remnant at time-to-merger tau: semi-major axis and
     /// eccentricity. Gravitational waves shrink and circularize it; by tauC it has joined the
     /// circular chirp, whose separation goes as tau^(1/4).
-    private static func mergerOrbit(_ tau: Double, _ k: MergerClock) -> (a: Double, e: Double) {
+    private static func mergerOrbit(_ tau: Double, _ k: MergerClock, _ s: Inspiral) -> (a: Double, e: Double) {
         let w = smoothstep(k.tauC, k.tauA, tau)
-        let chirp = 1.55 * pow(max(tau, 0), 0.25)
-        return (chirp + (mergerCapA - chirp) * w, mergerCapE * w)
+        let chirp = s.A * pow(max(tau, 0), 0.25)
+        return (chirp + (s.capA - chirp) * w, s.capE * w + (1 - w) * s.eccEnd * smoothstep(0.3, 4, tau))
     }
 
     /// Mean anomaly at tau: pi (apoapsis) at tauA, then advanced at the Kepler rate for the
     /// shrinking orbit (omega^2 a^3 fixed, matching the chirp), in closed form once it's circular.
-    private static func mergerMeanAnomaly(_ tau: Double, _ k: MergerClock) -> Double {
-        func rate(_ x: Double) -> Double { 0.625 * mergerK * pow(mergerOrbit(x, k).a / 1.55, -1.5) }
+    private static func mergerMeanAnomaly(_ tau: Double, _ k: MergerClock, _ s: Inspiral) -> Double {
+        func rate(_ x: Double) -> Double { 0.625 * s.K * pow(mergerOrbit(x, k, s).a / s.A, -1.5) }
         let lo = max(tau, k.tauC), hi = k.tauA
         var m = Double.pi
         if hi > lo {
@@ -341,7 +352,7 @@ enum SceneParams {
             for i in 1..<steps { s += rate(lo + Double(i) * h) * (i % 2 == 1 ? 4 : 2) }
             m += s * h / 3
         }
-        if tau < k.tauC { m += mergerK * (pow(k.tauC, 0.625) - pow(max(tau, 0), 0.625)) }
+        if tau < k.tauC { m += s.K * (pow(k.tauC, 0.625) - pow(max(tau, 0), 0.625)) }
         return m
     }
 
@@ -362,9 +373,9 @@ enum SceneParams {
         let n = simd_normalize(cos(view) * toCam + sin(view) * lean)
         let e1 = simd_normalize(cam.right - n * simd_dot(cam.right, n))
         let e2 = simd_cross(n, e1)
-        let K = mergerK
+        let s = neutronInspiral, K = s.K
         // the circular chirp's phase constant for this cycle's pair, and for the last one
-        let mC = mergerMeanAnomaly(k.tauC, k) + K * pow(k.tauC, 0.625)
+        let mC = mergerMeanAnomaly(k.tauC, k, s) + K * pow(k.tauC, 0.625)
         let phi0Next = mC + mergerPeriapsis(k.index), phi0Last = mC + mergerPeriapsis(k.index - 1)
 
         // The companion: falls in from apoapsis beyond the frame at tauA, swings close past the
@@ -372,8 +383,8 @@ enum SceneParams {
         var rel = SIMD3<Double>(0, 0, 0)
         var presence = 0.0, stretch = 1.0
         if tau < k.tauA {
-            let (a, e) = mergerOrbit(tau, k)
-            let m = mergerMeanAnomaly(tau, k)
+            let (a, e) = mergerOrbit(tau, k, s)
+            let m = mergerMeanAnomaly(tau, k, s)
             var E = m + e * sin(m)
             for _ in 0..<12 { E -= (E - e * sin(E) - m) / (1 - e * cos(E)) }
             let r = a * (1 - e * cos(E))
@@ -415,6 +426,255 @@ enum SceneParams {
         p.h = SIMD4(SIMD3<Float>(magnetic(0.6, 1.7, 0)), c.mergerJet ? 1 : 0)
         p.i = SIMD4(SIMD3<Float>(magnetic(0.85, 2.6, 2)), Float(c.mergerGlow))
         p.j = SIMD4(Float(K), Float(phi0), Float(k.tauC), Float(flash))
+        return p
+    }
+
+    // MARK: Black hole merger
+
+    /// The black hole merger's cycle, laid out like the neutron star merger's.
+    /// The scene's own speed: every motion in it, the merger cycle included, runs this much faster.
+    static func bbhSpeed(_ c: WallpaperConfig) -> Double { min(max(c.bbhSpeed, 0.1), 4) }
+
+    static func bbhClock(_ c: WallpaperConfig, _ t: Double, demo: [UInt64: Double]) -> MergerClock {
+        let v = bbhSpeed(c)
+        let k = cycleClock(minutes: c.bbhCycleMinutes, t * v, demoStart: demo[EventSchedule.blackHoleMerger.id].map { $0 * v })
+        // Slow motion round the merger: the last second of the chirp and the ringdown play
+        // `slow` times slower, easing in and out, and the rest of the cycle runs a little
+        // shorter to make room. x is the time from the nearest merger, negative before it; the
+        // speed is 1 - (1 - 1/slow) times a smooth bump over the window, whose integral is a
+        // difference of softplus terms.
+        let slow = min(max(c.bbhRingdown, 1), 8)
+        guard slow > 1.001 else { return k }
+        let before = 1.0 * slow, after = 1.6 * slow, soft = 1.0
+        func softplus(_ v: Double) -> Double { v > 30 ? v : log(1 + exp(v)) }
+        func h(_ x: Double) -> Double { soft * (softplus((x + before) / soft) - softplus((x - after) / soft)) }
+        func warp(_ x: Double) -> Double { x - (1 - 1 / slow) * (h(x) - h(0)) }
+        let half = k.cycle / 2
+        let cycle = warp(half) - warp(-half)
+        let u = k.u < half ? warp(k.u) : cycle + warp(k.u - k.cycle)
+        return MergerClock(u: u, cycle: cycle, index: k.index)
+    }
+
+    /// The pair's chirp for mass ratio q, with the heavier hole's mass M setting the scale. With
+    /// eta the symmetric mass ratio, the phase left before the merger goes as eta^(-3/8) tau^(5/8)
+    /// and the separation as M (eta tau)^(1/4), so an unequal pair is tighter and winds through
+    /// more orbits in the same time.
+    private static func bbhInspiral(_ q: Double, _ M: Double, eccentric: Bool) -> Inspiral {
+        let eta4 = 4 * q / ((1 + q) * (1 + q))
+        return Inspiral(K: 4.5 * pow(eta4, -0.375), A: 2.6 * pow(eta4, 0.25) * M, capA: 24, capE: 0.8,
+                        eccEnd: eccentric ? 0.55 : 0)
+    }
+
+    /// The remnant of holes of mass m1 and m2: their sum less the energy the waves carried off,
+    /// about 5% for an equal pair and less for unequal ones.
+    private static func bbhRemnant(_ m1: Double, _ m2: Double) -> Double {
+        let eta4 = 4 * m1 * m2 / ((m1 + m2) * (m1 + m2))
+        return (m1 + m2) * (1 - 0.048 * eta4 * eta4)
+    }
+
+    /// Generations in a hierarchical chain: each remnant becomes the heavy partner of the next
+    /// merger, three times over, before the scene starts afresh.
+    private static let bbhGenerations = 3
+
+    /// How far the recoil kick throws the remnant, in scene units. Unequal masses beam the waves
+    /// unevenly (Gonzalez et al. 2007: at most about 175 km/s, near a 1 to 3 pair); spins tilted
+    /// into the orbital plane, which also drive precession, can add thousands of km/s.
+    private static func bbhKick(_ c: WallpaperConfig, _ q: Double) -> Double {
+        let eta = q / ((1 + q) * (1 + q))
+        let vm = 12000 * eta * eta * sqrt(max(1 - 4 * eta, 0)) * (1 - 0.93 * eta)
+        let v = vm / 175 + 1.5 * min(max(c.bbhPrecession, 0), 1)
+        return min(max(c.bbhKick, 0) * v * 1.8, 7)
+    }
+
+    private static func blackHoleMerger(_ c: WallpaperConfig, _ t: Double, _ cam: Camera,
+                                        _ demo: [UInt64: Double]) -> SceneParamsGPU {
+        var p = SceneParamsGPU()
+        let k = bbhClock(c, t, demo: demo)
+        let u = k.u, tau = k.tau
+        let q0 = min(max(c.bbhMassRatio, 0.05), 1)
+        let model = c.bbhModel
+
+        // In a chain the waiting hole is the last remnant, so each new companion is relatively
+        // lighter. Masses are in units of the first heavy hole.
+        func gen(_ index: Double) -> Int {
+            guard c.bbhChain else { return 0 }
+            let n = Double(bbhGenerations)
+            return Int(index - n * floor(index / n))
+        }
+        func heavy(_ g: Int) -> Double { (0..<g).reduce(1.0) { m, _ in bbhRemnant(m, q0) } }
+        let G = gen(k.index), M = heavy(G)
+        let mPrev = heavy(gen(k.index - 1)), peak = bbhRemnant(mPrev, q0)
+        let q = q0 / M
+        let s = bbhInspiral(q, M, eccentric: c.bbhEccentric), K = s.K
+        let eta4 = 4 * q / ((1 + q) * (1 + q))
+
+        // The total angular momentum J leans away from our line of sight by the viewing angle.
+        // Spins tilted off it make the orbit precess around J, faster as the orbit tightens: the
+        // precession rate goes as the orbital frequency to the 5/3, so its phase as tau^(3/8).
+        let view = c.bbhView / 180 * .pi
+        let toCam = simd_normalize(cam.pos)
+        let lean = simd_normalize(cos(0.25) * cam.up + sin(0.25) * cam.right)
+        let J = simd_normalize(cos(view) * toCam + sin(view) * lean)
+        let ja = simd_normalize(simd_cross(J, cam.right)), jb = simd_cross(J, ja)
+        let beta = 0.5 * min(max(c.bbhPrecession, 0), 1)
+        // (eased over the last moments, where the rate would otherwise run away and the plane
+        // would lurch between frames)
+        func normal(_ tau: Double, _ index: Double) -> SIMD3<Double> {
+            let ph = index * 2.4 - 2.2 * (pow(max(tau, 0) + 0.3, 0.375) - pow(0.3, 0.375))
+            return simd_normalize(cos(beta) * J + sin(beta) * (cos(ph) * ja + sin(ph) * jb))
+        }
+        let inspiralling = tau < k.tauA
+        // the plane of the coming pair's orbit, or, until the companion arrives, of the last one's
+        let n = inspiralling ? normal(tau, k.index) : normal(0, k.index - 1)
+        let e1 = simd_normalize(cam.right - n * simd_dot(cam.right, n))
+        let e2 = simd_cross(n, e1)
+        let mC = mergerMeanAnomaly(k.tauC, k, s) + K * pow(k.tauC, 0.625)
+        let phi0Next = mC + mergerPeriapsis(k.index), phi0Last = mC + mergerPeriapsis(k.index - 1)
+        // An eccentric orbit's periapsis advances each turn, more as it tightens (relativistic
+        // apsidal precession), so the path traces a rosette: zoom out, whirl round, zoom out.
+        let rosette = c.bbhEccentric ? 0.3 : 0.0
+
+        // The recoil kick: the remnant flies off from where the pair merged and coasts to a
+        // stop (slowed for looks), where the next companion finds it. The stops lie on a small
+        // circle round the frame's center, a golden angle apart, so it never wanders off.
+        let kick = bbhKick(c, q)
+        func stop(_ i: Double) -> SIMD3<Double> {
+            (cos(2.4 * i) * cam.right + sin(2.4 * i) * cam.up) * (kick / 1.864)
+        }
+        let coast = min((1 - exp(-u / 10)) / (1 - exp(-6.0)), 1)
+        let from = stop(k.index - 1), to = stop(k.index)
+        let center = from + (to - from) * coast
+        let velocity = (to - from) * (u < 60 ? exp(-u / 10) / (10 * (1 - exp(-6.0))) : 0)
+
+        // The companion, as in the neutron star merger: captured on a wide eccentric orbit and
+        // worn down into the chirp.
+        let r0 = 0.6
+        // The shadows meet before the holes do: the chirp's separation falls to zero at the
+        // merger, but what we see joins at contact, a little inside the two shadows' radii. The
+        // separation eases onto that contact distance instead of sliding to a point.
+        let contact = 0.8 * r0 * (M + q0)
+        var rel = SIMD3<Double>(repeating: 0)
+        var presence = 0.0, a = 0.0
+        var gasAngle = 0.0   // the binary's direction in the orbital plane, for the gas's streams
+        if inspiralling {
+            let (aa, e) = mergerOrbit(tau, k, s)
+            a = aa
+            let m = mergerMeanAnomaly(tau, k, s)
+            var E = m + e * sin(m)
+            for _ in 0..<12 { E -= (E - e * sin(E) - m) / (1 - e * cos(E)) }
+            let r = aa * (1 - e * cos(E))
+            let nu = 2 * atan2(sqrt(1 + e) * sin(E / 2), sqrt(1 - e) * cos(E / 2))
+            let w = smoothstep(k.tauC, k.tauA, tau)
+            let ang = nu + mergerPeriapsis(k.index) + rosette * (m - mC) * (1 - w)
+            rel = (cos(ang) * e1 + sin(ang) * e2) * pow(pow(r, 4) + pow(contact, 4), 0.25)
+            // The gas follows the orbit's mean motion until a second before the merger, then
+            // can't keep up (it decouples) and turns on at that rate.
+            gasAngle = tau >= 1 ? m + mergerPeriapsis(k.index) : phi0Next - K + 0.625 * K * (1 - tau)
+            presence = smoothstep(k.tauA, k.tauA - 4, tau)
+        }
+        // the heavier hole moves less: each sits opposite the other about their center of mass
+        let share = q / (1 + q) * (1 - smoothstep(k.tauC, k.tauA, tau))
+        var cA = center - rel * share, cB = center + rel * (1 - share)
+
+        // Shadow sizes go with mass. The remnant swells at the merger; outside a chain (and when
+        // a chain starts over) the frame then eases back out until it is the size of the next
+        // pair's heavier hole.
+        let settle = G == 0 ? smoothstep(0.12 * k.cycle, 0.34 * k.cycle, u) : 0
+        let g = (mPrev + (peak - mPrev) * smoothstep(0, 0.8, u)) * (1 - settle) + M * settle
+        let lens = 2.4 * max(c.bbhLensing, 0)
+        // The remnant bends light with the pair's whole mass from the start (less what the
+        // waves carry off during the ringdown), so the lensed sky doesn't jump at the merger.
+        let lensMass = (mPrev + q0 + (peak - mPrev - q0) * smoothstep(0, 0.8, u)) * (1 - settle) + M * settle
+        // the photon rings brighten through the merger, rising before it and fading after
+        let ringBoost = u < k.cycle / 2 ? 1 + 1.2 * exp(-u / 1.5) : 1 + 1.2 * exp(-(tau / 0.6) * (tau / 0.6))
+
+        // Ringdown: the remnant's fundamental quasinormal mode, a little above the pitch the
+        // chirp ends on. Faster spin rings higher and for longer (fits from Berti, Cardoso and
+        // Will 2006, relative to a 0.69 spin). Remnants deep in a chain spin a little faster.
+        let chi = min(max(c.bbhSpin, 0) + 0.05 * Double(gen(k.index - 1)), 0.98)
+        let qnmF = 1 - 0.63 * pow(1 - chi, 0.3), qnmQ = 2 * pow(1 - chi, -0.45)
+        let ringOmega = 4.65 * K * 1.2 * qnmF / 0.557   // 4.65 K: the chirp's last wave frequency
+
+        // A supermassive pair clears a cavity about twice its orbit in the gas disk. Late in the
+        // chirp the orbit shrinks faster than the gas can follow (decoupling), so the cavity
+        // stays wide through the merger and then slowly refills, feeding the remnant.
+        let aDec = s.A * pow(0.1 * k.tauC, 0.25)
+        let cavity: Double
+        if inspiralling {
+            let open = smoothstep(k.tauA, k.tauA - 40, tau)
+            cavity = 1.1 + 1.5 * min(max(a, aDec), 3.5) * open
+        } else {
+            cavity = 1.1 + 1.5 * min(aDec, 3.5) * (1 - smoothstep(0, 0.25 * k.cycle, u))
+        }
+        let glow: Double
+        if model == .agnDisk {
+            // In a quasar's disk the kicked remnant plows through dense gas and lights it up
+            // some time later (the flare candidate for GW190521 came about a month after).
+            glow = smoothstep(6, 16, u) * exp(-max(u - 16, 0) / 30) * (0.5 + 0.25 * kick)
+        } else {
+            glow = smoothstep(0.05 * k.cycle, 0.2 * k.cycle, u) * (1 - smoothstep(0.3 * k.cycle, 0.6 * k.cycle, u))
+        }
+        // The remnant's jets point along its spin, which the merger can flip: the old jets fade
+        // while the new ones grow, as in X-shaped radio galaxies.
+        let jets = model == .supermassive ? 1.0 : 0.0
+        let jetNew = jets * smoothstep(3, 25, u)
+        let jetOld = jets * (1 - smoothstep(0, 0.5 * k.cycle, u))
+        // A quasar's disk is far wider than the frame and lies at its own tilt; the others are
+        // in the plane of the binary's total angular momentum.
+        let diskNormal = model == .agnDisk ? simd_normalize(cos(0.9) * toCam + sin(0.9) * cam.up) : J
+
+        // After the merger the pair's two lobes don't vanish at once: they keep turning at the
+        // ringdown's pattern speed (half its wave frequency) while they slide together and the
+        // light partner's lobe is absorbed, fading over the damping time. That is the spinning
+        // peanut, and the shadow and the lensing carry straight on from the moment before.
+        var radiusB = inspiralling ? r0 * q0 : 0
+        var lensB = lens * sqrt(q0) * presence
+        var lensA = lens * sqrt(lensMass)
+        var lobes = 1.0      // how far the tidal stretch still shows: 1 for the pair, fading after
+        if !inspiralling {
+            // and after it the streams' turn winds down over about a second
+            gasAngle = phi0Last - K + 0.625 * K * (1 + (1 - exp(-u)))
+            let f = exp(-u / (2 * qnmQ / ringOmega))
+            if f > 0.003 {
+                let qPrev = q0 / mPrev, sharePrev = qPrev / (1 + qPrev)
+                let reach = 0.8 * r0 * (mPrev + q0) * f
+                let psi = phi0Last + 0.5 * ringOmega * u
+                let dir = cos(psi) * e1 + sin(psi) * e2
+                cA = center - dir * reach * sharePrev
+                cB = center + dir * reach * (1 - sharePrev)
+                radiusB = r0 * q0 * sqrt(f)
+                let wB = q0 / (mPrev + q0) * f
+                lensA = lens * sqrt(lensMass * (1 - wB))
+                lensB = lens * sqrt(lensMass * wB)
+                lobes = f
+            }
+        }
+
+        // (decided by the cycle's half, not tauW's sign: at the merger instant tauW is -0)
+        let afterMerger = u < k.cycle / 2
+        let tauW = afterMerger ? -u : tau
+        let phi0 = (afterMerger ? phi0Last : phi0Next).truncatingRemainder(dividingBy: 2 * .pi)
+        let peri = (afterMerger ? mergerPeriapsis(k.index - 1) : mergerPeriapsis(k.index)).truncatingRemainder(dividingBy: 2 * .pi)
+        typealias L = PickedColor.Level
+        p.a = SIMD4(SIMD3<Float>(cA), Float(r0 * g))
+        p.b = SIMD4(SIMD3<Float>(cB), Float(radiusB))
+        p.c = SIMD4(SIMD3<Float>(n), Float(c.bbhWaves * pow(eta4, 0.5)))
+        p.d = SIMD4(SIMD3<Float>(e1), Float(tauW))
+        // the gas's streams and second mini-disk outlast the companion by a few seconds
+        let gasPair = inspiralling ? presence : exp(-u / 4)
+        p.e = SIMD4(c.bbhRingColor.light3(L.bbhRing), Float(gasPair))
+        p.f = SIMD4(c.bbhHot.light3(L.bbhGas), Float(u))
+        p.g = SIMD4(c.bbhCool.light3(L.bbhGas), model.shaderIndex)
+        p.h = SIMD4(Float(K), Float(phi0), Float(k.tauC), Float((1 - q) / (1 + q)))
+        p.i = SIMD4(Float(lensA), Float(lensB), Float(chi), Float(ringBoost))
+        p.j = SIMD4(Float(ringOmega), Float(2 * qnmQ / ringOmega), Float(cavity), Float(glow))
+        p.k = SIMD4(SIMD3<Float>(normal(0, k.index - 1)), Float(jetNew))
+        p.l = SIMD4(SIMD3<Float>(normal(0, k.index - 2)), Float(jetOld))
+        p.m = SIMD4(SIMD3<Float>(diskNormal), Float(gasAngle.truncatingRemainder(dividingBy: 2 * .pi)))
+        p.n = SIMD4(Float(peri), Float(s.eccEnd), Float(rosette), Float(lobes))
+        p.o = SIMD4(SIMD3<Float>(center), (c.bbhTrace ? 1 : 0) + (c.bbhGalaxy ? 2 : 0))
+        // the scene's own clock, for the motions the shader runs on its own (gas, cluster, jets)
+        p.p = SIMD4(SIMD3<Float>(velocity), Float((t * bbhSpeed(c)).truncatingRemainder(dividingBy: 100_000)))
         return p
     }
 

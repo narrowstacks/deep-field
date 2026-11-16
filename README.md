@@ -62,7 +62,7 @@ guide again.
   </tr>
   <tr>
     <td><img src="docs/media/gallery/quasar.png" alt="Quasar"><br><b>Quasar</b><br><sub>A galaxy's blazing core firing jets out to glowing radio lobes.</sub></td>
-    <td></td>
+    <td><img src="docs/media/gallery/blackHoleMerger.png" alt="Black Hole Merger"><br><b>Black Hole Merger</b><br><sub>Two black holes spiral together, bending the starlight behind them, and merge.</sub></td>
     <td></td>
   </tr>
 </table>
@@ -118,6 +118,29 @@ Change the look itself: add bloom or a vignette, use bigger pixels, or turn dith
 The Galaxy scene has a dark matter switch. With it on, the outer stars orbit about as fast as
 the inner ones, which matches what astronomers measure. Turn it off and the outer disk falls
 behind, which is what we'd expect if visible matter were all there is.
+
+### Black hole mergers, as LIGO hears them
+
+<img src="docs/media/loops/black-hole-merger.gif" alt="Two black holes spiral together and merge, with the gravitational wave signal drawn along the bottom" width="100%">
+
+Gravitational waves carry off the pair's orbital energy, so the two black holes close in faster
+and faster, bending the starlight behind them into arcs and a ring. Their shadows stretch toward
+each other, join, and spin on as one lopsided hole that rings down into a sphere, slowed here so
+you can watch it. The line along the bottom is the signal a detector would record: the rising
+chirp, the merger and the ringdown.
+
+Load a real detection, from GW150914 (the first ever heard) to GW231123 (the most massive), to
+use its masses, spins and viewing angle. Then choose how big the black holes are, which sets
+what surrounds them:
+
+<img src="docs/media/black-hole-merger-models.png" alt="The black hole merger as a stellar pair in empty space, in a quasar's gas disk, in a star cluster, and as a supermassive pair in a gas disk" width="100%">
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/media/loops/black-hole-merger-cluster.gif" alt="Black holes merging inside a star cluster"><br>Intermediate black holes merging in a dense star cluster</td>
+    <td width="50%"><img src="docs/media/loops/black-hole-merger-disk.gif" alt="Supermassive black holes merging inside a gas disk"><br>Supermassive black holes in the gas disk they've cleared</td>
+  </tr>
+</table>
 
 ## Phone and lock screen
 

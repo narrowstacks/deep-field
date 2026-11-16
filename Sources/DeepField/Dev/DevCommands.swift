@@ -153,5 +153,12 @@ extension EventSchedule {
             t += 1
         }
         print(Self.neutronMerger.id, "neutronMerger", mergers)
+        var bbh: [Int] = []
+        t = 0
+        while t < minutes * 60 {
+            if SceneParams.bbhClock(c, t, demo: [:]).u < 1 { bbh.append(Int(t)) }
+            t += 1
+        }
+        print(Self.blackHoleMerger.id, "blackHoleMerger", bbh)
     }
 }

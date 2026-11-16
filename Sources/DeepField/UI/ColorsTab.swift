@@ -105,6 +105,13 @@ struct SceneColors: View {
             ColorRow("Lit surface", store.color(\.protoGasColor))
             ColorRow("Star", store.color(\.protoStarColor))
             if store.config.protoJets { ColorRow("Jets", store.color(\.protoJetColor)) }
+        case .blackHoleMerger:
+            ColorRow("Photon rings", store.color(\.bbhRingColor))
+            if store.config.bbhModel != .stellar {
+                let gas = store.config.bbhModel != .intermediate
+                ColorRow(gas ? "Gas, hot" : "Blue stars", store.color(\.bbhHot))
+                ColorRow(gas ? "Gas, cool" : "Red giants", store.color(\.bbhCool))
+            }
         case .neutronMerger:
             ColorRow("Stars", store.color(\.mergerStarColor))
             ColorRow("Kilonova, hot", store.color(\.mergerHot))

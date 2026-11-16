@@ -7,6 +7,7 @@ Pixel art stays crisp: every image is rendered at its final size (the app upscal
 with nearest neighbor), and loops are only ever scaled by whole numbers, nearest neighbor.
 """
 import os
+import re
 import subprocess
 import sys
 
@@ -22,7 +23,8 @@ ROOT = dfcli.ROOT
 MEDIA = os.path.join(ROOT, "docs/media")
 SITE = os.path.join(ROOT, "docs/site-assets")
 
-# Every listed scene, with the moment and any settings used for its stills.
+# Every listed scene, with the moment and any settings used for its stills. `check_scenes` stops
+# the run if the app lists a scene that isn't here.
 SCENES = [
     ("blackHole", "Black Hole", 60, {}),
     ("tidalDisruption", "Star Meets Black Hole", 60, {}),
@@ -33,7 +35,28 @@ SCENES = [
     ("pulsar", "Pulsar", 60.5, {}),
     ("comet", "Comet", 60, {}),
     ("stellarSurface", "Star Close-up", 60, {}),
+    ("planetaryNebula", "Planetary Nebula", 60, {}),
+    ("ringedPlanet", "Ringed Planet", 60, {}),
+    ("auroraOrbit", "Aurora from Orbit", 60, {}),
+    ("gasGiant", "Gas Giant Storms", 60, {}),
+    ("protoplanetaryDisk", "Protoplanetary Disk", 60, {}),
+    ("neutronMerger", "Neutron Star Merger", 60, {}),
+    ("blackHoleMerger", "Black Hole Merger", 163, {}),    # the pair close, the galaxy behind lensed into a ring
+    ("dysonSwarm", "Dyson Swarm", 60, {}),
+    ("roguePlanet", "Rogue Planet", 60, {}),
+    ("eclipse", "Eclipse", 60, {}),
+    ("quasar", "Quasar", 60, {}),
 ]
+
+
+def check_scenes():
+    """Every scene the app lists (SceneKind, less the parked nebula) needs an entry in SCENES."""
+    src = open(os.path.join(ROOT, "Sources/DeepField/Config/SceneKind.swift")).read()
+    cases = re.search(r"^\s*case (blackHole,[^\n]*)$", src, re.M).group(1)
+    listed = [c.strip() for c in cases.split(",") if c.strip() != "nebula"]
+    missing = [c for c in listed if c not in {s[0] for s in SCENES}]
+    if missing:
+        sys.exit(f"media.py: add these scenes to SCENES (and their README entries): {', '.join(missing)}")
 
 GAP = 8                                     # px between montage tiles (transparent)
 LABEL = (232, 236, 244)
@@ -168,6 +191,23 @@ def all_loops():
     loop("supernova", "binary", 99.5, 5, speed=10, demo={1: 100}, size=(720, 450))
 
 
+def black_hole_merger():
+    """The black hole merger's README section: its size models and three loops of the merger."""
+    # size models (GW190521's settings for the quasar disk)
+    gw190521 = {"bbhModel": "agnDisk", "bbhMassRatio": 0.78, "bbhSpin": 0.72, "bbhPrecession": 0.7,
+                "bbhView": 50, "bbhEccentric": True}
+    models = [("Stellar", 163, {}), ("In a quasar's disk", 190, gw190521),
+              ("Intermediate in a cluster", 163, {"bbhModel": "intermediate"}),
+              ("Supermassive with a gas disk", 160, {"bbhModel": "supermassive", "bbhView": 62})]
+    tiles = [label(still(f"bbh-model-{i}", "blackHoleMerger", t, (720, 450), 2, c), n)
+             for i, (n, t, c) in enumerate(models)]
+    save(montage(tiles, 2), os.path.join(MEDIA, "black-hole-merger-models.png"))
+    # the black hole merger runs through its merger at t = 168 s, in its own slow motion
+    loop("black-hole-merger", "blackHoleMerger", 164, 7, config={"bbhTrace": True})
+    loop("black-hole-merger-cluster", "blackHoleMerger", 164, 7, config={"bbhModel": "intermediate"})
+    loop("black-hole-merger-disk", "blackHoleMerger", 163, 7, config={"bbhModel": "supermassive", "bbhView": 62})
+
+
 # ---------- phone ----------
 
 PHONES = [("blackHole", {}), ("galaxy", {}), ("pulsar", {}), ("stellarSurface", {})]
@@ -220,10 +260,12 @@ def ui():
 
 
 def main():
+    check_scenes()
     gallery()
     customizations()
     phones()
     all_loops()
+    black_hole_merger()
     if "--skip-ui" not in sys.argv:
         ui()
 

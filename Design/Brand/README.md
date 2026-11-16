@@ -21,7 +21,7 @@ leaves desktop pictures alone).
 |---|---|
 | `make_media.sh` | Runs both scripts below. |
 | `brand.py` | Wordmark (PNG and SVG, dark and light), logo lockup, README banner, website heroes, Open Graph and Twitter cards, favicon set. |
-| `media.py` | README gallery, loops (GIF), customization montages, phone mockups, Customize window shots; the website gallery, MP4 loops with posters, and phone stills. |
+| `media.py` | README gallery, loops (GIF), customization montages, phone mockups, Customize window shots; the website gallery, MP4 loops with posters, and phone stills. Its `SCENES` list must hold every scene the app lists; the run stops naming any that are missing. |
 | `pixelfont.py` | The two pixel fonts (below). |
 | `loops.py` | Seamless loops from snapshots, GIF and MP4 encoding. |
 | `dfcli.py` | Calls the app's `--snapshot` with `--defaults`, in parallel. |
