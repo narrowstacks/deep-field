@@ -164,6 +164,7 @@ struct WallpaperConfig: Codable, Equatable {
     var earthCloudAmount = 1.0
     var earthAurora = true             // NOAA's aurora forecast (fetched, cached for offline)
     var earthAuroraBrightness = 1.0
+    var earthAuroraSpeed = 0.5         // how fast the curtains ripple and drift; 1 is the 0.4.5 pace
     var earthCityLights = 1.0
     var earthMoonlight = 1.0
     var earthMoonSize = 3.0            // 1 is true size

@@ -17,7 +17,7 @@ extension ShaderSource {
 // S.i = the chosen place (unit xyz), marker (0/1)
 // S.j = atmosphere, the Moon's true radius, star maps bound (0/1), a solar eclipse is on (0/1)
 // S.k, S.l, S.m = rows of the turn from Earth-fixed directions to the star catalog's (J2000)
-// S.n = star brightness, Milky Way brightness
+// S.n = star brightness, Milky Way brightness, aurora speed
 // S.p = real past clouds bound (0/1), how far the moment is between their two frames (0..1)
 // S.o = planets bound (count, buffer 8), their size (times true); their labels are a later pass
 //
@@ -337,6 +337,7 @@ fragment float4 liveEarthFragment(FRAME_INPUTS,
         // Rayleigh's phase, plus a forward lobe for the haze, which lights the rim from behind
         float phase = 0.75 * (1.0 + sq(cosTheta)) + 1.2 * exp((cosTheta - 1.0) * 12.0);
         bool auroraOn = S.h.y > 0.5 && S.g.y > 0.0;
+        float auroraT = T * S.n.z;
         for (int i = 0; i < N; i++) {
             float3 x = ro + rd * (t0 + (float(i) + jit) * dt);
             float r = length(x);
@@ -349,7 +350,7 @@ fragment float4 liveEarthFragment(FRAME_INPUTS,
             float3 light = sunHere * phase + float3(0.2, 0.25, 0.4) * moonlight * 0.004;
             scat += dens * light * exp(-depth * LE_RAYLEIGH * 1.6) * dt;
             depth += dens * dt;
-            if (auroraOn && a > 0.012) aur += leAuroraEmit(x, a, T, auroraTex, s) * dt;
+            if (auroraOn && a > 0.012) aur += leAuroraEmit(x, a, auroraT, auroraTex, s) * dt;
         }
         col *= exp(-depth * LE_RAYLEIGH * 0.9);
         col += scat * LE_RAYLEIGH * 9.0 * S.j.x;

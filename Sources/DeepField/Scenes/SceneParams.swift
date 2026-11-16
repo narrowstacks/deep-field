@@ -328,7 +328,7 @@ enum SceneParams {
         p.k = SIMD4(SIMD3<Float>(sky[0]), 0)
         p.l = SIMD4(SIMD3<Float>(sky[1]), 0)
         p.m = SIMD4(SIMD3<Float>(sky[2]), 0)
-        p.n = SIMD4(Float(c.earthStars), Float(c.earthMilkyWay), 0, 0)
+        p.n = SIMD4(Float(c.earthStars), Float(c.earthMilkyWay), Float(c.earthAuroraSpeed), 0)
         // the planets: how many are bound (the renderer sets it), their size, labels on
         p.o = SIMD4(0, Float(c.earthPlanetSize), c.earthPlanetLabels ? 1 : 0, 0)
         return p
