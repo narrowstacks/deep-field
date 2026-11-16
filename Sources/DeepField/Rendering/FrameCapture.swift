@@ -4,6 +4,8 @@ import Metal
 /// Offscreen rendering of a single frame into a CGImage: bakes the scene at the given shaded
 /// size, draws one frame, and reads it back. Used by `--snapshot` and the lock screen still.
 enum FrameCapture {
+    typealias Transition = (from: WallpaperConfig, progress: Double, style: TransitionStyle)
+
     /// Encodes and commits the bake, the frame and the readback. Call `image()` once `cb` has
     /// completed.
     private struct Pending {
@@ -22,8 +24,9 @@ enum FrameCapture {
         }
     }
 
+    /// With `transition`, the frame is that far (0 to 1) into a schedule transition from `from`.
     private static func encode(config: WallpaperConfig, width w: Int, height h: Int, time: Double,
-                               eventsEnabled: Bool) -> Pending? {
+                               eventsEnabled: Bool, transition: Transition? = nil) -> Pending? {
         let r = Renderer.shared
         guard let cb = r.queue.makeCommandBuffer(),
               let target = r.makeTexture(.bgra8Unorm, w, h, usage: [.renderTarget, .shaderRead]),
@@ -31,7 +34,18 @@ enum FrameCapture {
         // the bake textures are only referenced by the command buffer, so they're freed with it
         guard let baked = r.encodeBake(cb, width: w, height: h, config: config) else { return nil }
         let events = EventSchedule(seed: 1, enabled: eventsEnabled)
-        r.encodeFrame(cb, target: target, baked: baked, elapsed: time, config: config, events: events)
+        if let dissolve = transition {
+            let usage: MTLTextureUsage = [.renderTarget, .shaderRead]
+            guard let fromBaked = r.encodeBake(cb, width: w, height: h, config: dissolve.from),
+                  let a = r.makeTexture(.bgra8Unorm, w, h, usage: usage),
+                  let b = r.makeTexture(.bgra8Unorm, w, h, usage: usage) else { return nil }
+            r.encodeFrame(cb, target: a, baked: fromBaked, elapsed: time, config: dissolve.from, events: events)
+            r.encodeFrame(cb, target: b, baked: baked, elapsed: time, config: config, events: events)
+            r.encodeTransition(cb, target: target, from: a, to: b, progress: dissolve.progress, seed: 1,
+                               style: dissolve.style, fromConfig: dissolve.from, toConfig: config)
+        } else {
+            r.encodeFrame(cb, target: target, baked: baked, elapsed: time, config: config, events: events)
+        }
         guard let blit = cb.makeBlitCommandEncoder() else { return nil }
         blit.copy(from: target, sourceSlice: 0, sourceLevel: 0, sourceOrigin: MTLOrigin(),
                   sourceSize: MTLSize(width: w, height: h, depth: 1),
@@ -42,8 +56,9 @@ enum FrameCapture {
 
     /// Renders one frame of `w` x `h` shaded pixels and waits for it.
     static func render(config: WallpaperConfig, width w: Int, height h: Int, time: Double,
-                       eventsEnabled: Bool) -> CGImage? {
-        guard let p = encode(config: config, width: w, height: h, time: time, eventsEnabled: eventsEnabled) else { return nil }
+                       eventsEnabled: Bool, transition: Transition? = nil) -> CGImage? {
+        guard let p = encode(config: config, width: w, height: h, time: time, eventsEnabled: eventsEnabled,
+                             transition: transition) else { return nil }
         p.cb.commit()
         p.cb.waitUntilCompleted()
         return p.cb.status == .completed ? p.image() : nil

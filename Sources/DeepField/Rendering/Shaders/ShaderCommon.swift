@@ -307,5 +307,134 @@ fragment float4 imageFragment(VOut in [[stage_in]],
     float3 x = max(hdr.read(p).rgb, 0.0) * F.exposure + glow.sample(s, uv).rgb * F.bloom.x;
     return quantized(toneMapped(x, p, F), p, F);
 }
+
+// ---------- scene transitions between two finished frames ----------
+// T[0] = progress (eased, 0..1), seed, style, -; T[1] = levels and dither of the outgoing and
+// incoming looks. Positions are in units of the frame's height, x running 0..aspect.
+
+static float ditherAt(uint2 p, float kind) { return kind < 0.5 ? bayer8(p) : (kind < 1.5 ? bayer4(p) : 0.5); }
+
+// Dithers a blended color back onto the levels, so a transition stays on the wallpaper's
+// palette. A color already on a level comes back unchanged (the 0.02 margin absorbs its 8-bit
+// rounding), so the parts of a frame that aren't moving or mixing keep their exact pixels.
+static float3 requantize(float3 c, uint2 p, float levels, float dither) {
+    float L = max(levels - 1.0, 1.0);
+    return saturate(floor(c * L + 0.02 + 0.96 * ditherAt(p, dither)) / L);
+}
+
+// Bilinear, so a moved or scaled frame is smoothed before it's dithered again; mirrored, so a
+// soft edge that reaches past the frame shows something plausible rather than a smear.
+static float3 sampleAt(texture2d<float> tex, float2 pos, float aspect) {
+    constexpr sampler s(filter::linear, address::mirrored_repeat);
+    return tex.sample(s, pos / float2(aspect, 1.0)).rgb;
+}
+
+// A moved or scaled frame, averaged over a disk of `radius` source pixels first. Resampled as it
+// is, its dither cells beat against the new dither into blocky checks; averaged, the dither is
+// smoothed back toward the light it stood for. Radius 0 is a plain sample, so the end of a
+// transition lands on the exact frame.
+static float3 sampleSoft(texture2d<float> tex, float2 pos, float aspect, float radius) {
+    float3 sum = sampleAt(tex, pos, aspect);
+    if (radius < 0.05) return sum;
+    float px = radius / float(tex.get_height());
+    for (int i = 0; i < 8; i++) {
+        float a = float(i) * 0.785398 + 0.39;
+        sum += sampleAt(tex, pos + float2(cos(a), sin(a)) * px * (i % 2 == 0 ? 1.0 : 0.55), aspect);
+    }
+    return sum / 9.0;
+}
+
+fragment float4 transitionFragment(VOut in [[stage_in]],
+                                   texture2d<float> from [[texture(0)]],
+                                   texture2d<float> to [[texture(1)]],
+                                   constant float4* T [[buffer(0)]]) {
+    uint2 p = uint2(in.pos.xy);
+    float t = T[0].x, seed = T[0].y, style = T[0].z;
+    float2 size = float2(from.get_width(), from.get_height());
+    float aspect = size.x / size.y;
+    float2 q = (float2(p) + 0.5) / size.y;
+    float2 c = float2(aspect * 0.5, 0.5);
+
+    if (style < 0.5) {
+        // Dissolve: each pixel switches once the progress passes its own threshold, mostly a
+        // broad noise field (the new scene grows in from soft patches) plus a Bayer term that
+        // turns each patch's edge into a dithered gradient instead of a line.
+        float n = smoothstep(0.25, 0.75, fbm(float3(q * 2.2, seed)));
+        float threshold = 0.65 * n + 0.35 * bayer8(p);
+        return threshold < t * 1.02 - 0.01 ? to.read(p) : from.read(p);
+    }
+
+    float3 a, b;     // outgoing and incoming light at this pixel
+    float w;         // how much of the incoming look shows
+    if (style < 1.5) {
+        // Crossfade
+        a = from.read(p).rgb; b = to.read(p).rgb; w = t;
+    } else if (style < 2.5) {
+        // Pan: the camera slides along a strip with the old frame, a soft band, then the new
+        // frame, so the two meet in a wide blend rather than at a seam. The seed picks the side.
+        float band = 0.35, dir = fract(seed * 0.37) < 0.5 ? 1.0 : -1.0;
+        float u = q.x / aspect;
+        if (dir < 0.0) u = 1.0 - u;
+        float X = u + t * (1.0 + band);
+        float uo = X, un = X - (1.0 + band);
+        if (dir < 0.0) { uo = 1.0 - uo; un = 1.0 - un; }
+        float soft = 1.5 * sin(3.14159 * t);
+        a = sampleSoft(from, float2(uo * aspect, q.y), aspect, soft);
+        b = sampleSoft(to, float2(un * aspect, q.y), aspect, soft);
+        // past each frame's edge the mirrored sampling would show a reflection; it fades to the
+        // dark of space instead, so the gap between the scenes reads as empty sky
+        a *= 1.0 - smoothstep(1.0, 1.0 + 0.6 * band, X);
+        b *= smoothstep(1.0 + 0.4 * band, 1.0 + band, X);
+        w = smoothstep(1.0, 1.0 + band, X);
+    } else if (style < 3.5) {
+        // Drift away: the old scene recedes, shrinking toward a far corner, while its dark sky
+        // fades out first, so its bright objects float away over the new scene, which settles in
+        // from slightly closer as the camera arrives.
+        float ang = seed * 2.4;
+        float2 dir = float2(cos(ang) * aspect * 0.45, sin(ang) * 0.4);
+        float sc = mix(1.0, 0.25, t);
+        float2 P = c + (q - c - dir * t) / sc;
+        a = sampleSoft(from, P, aspect, min(t * 8.0, 1.0) * max(1.5, 0.8 / sc));
+        float edge = min(min(P.x, aspect - P.x), min(P.y, 1.0 - P.y));
+        float luma = dot(a, float3(0.2126, 0.7152, 0.0722));
+        float keep = max(smoothstep(0.08, 0.35, luma), 1.0 - smoothstep(0.0, 0.45, t));
+        // the frame's border softens only once it starts to shrink, so the first frame is exact
+        float border = mix(1.0, smoothstep(0.0, 0.08, edge), min(t * 10.0, 1.0));
+        float alpha = keep * border * (1.0 - smoothstep(0.6, 1.0, t));
+        b = sampleSoft(to, c + (q - c) * mix(0.85, 1.0, t), aspect, 2.0 * (1.0 - t));
+        w = 1.0 - alpha;
+    } else if (style < 4.5) {
+        // Warp: flying forward, the old scene streaks outward and a hole opens at the center onto
+        // the new one, which settles from a closer view.
+        float zoom = 1.0 + 2.5 * t * t;
+        a = float3(0.0);
+        float soft = min(t * 8.0, 1.0) * 1.5;
+        for (int i = 0; i < 4; i++) a += sampleSoft(from, c + (q - c) / (zoom * (1.0 + 0.05 * float(i) * t)), aspect, soft);
+        a *= 0.25;
+        b = sampleSoft(to, c + (q - c) * mix(0.7, 1.0, t), aspect, 2.0 * (1.0 - t));
+        float R = mix(-0.4, length(c), t);
+        w = 1.0 - smoothstep(R, R + 0.4, length(q - c));
+    } else {
+        // Black hole: a point mass sweeps across, and the new scene lies behind its path. Each
+        // pixel sees the source position of the lens equation, beta = theta - thetaE^2 theta/|theta|^2,
+        // so the boundary between the scenes bends into an Einstein ring around it.
+        float thE = 0.2 * sin(3.14159 * t);
+        float2 L = float2(mix(-0.5, aspect + 0.5, t), 0.5 + 0.12 * sin(seed * 1.7));
+        float2 d = q - L;
+        float r2 = max(dot(d, d), 1e-6), r = sqrt(r2);
+        float2 src = q - thE * thE * d / r2;
+        float soft = 1.5 * sin(3.14159 * t);
+        a = sampleSoft(from, src, aspect, soft);
+        b = sampleSoft(to, src, aspect, soft);
+        w = smoothstep(-0.15, 0.15, L.x - src.x);
+        float3 col = mix(a, b, w);
+        col *= smoothstep(0.45 * thE, 0.8 * thE, r);                                   // shadow
+        col += 0.25 * (thE / 0.2) * exp(-sq((r - thE) / (0.06 * thE + 0.002))) * float3(1.0, 0.85, 0.7);   // photon ring
+        bool late = w > 0.5;
+        return float4(requantize(col, p, late ? T[1].z : T[1].x, late ? T[1].w : T[1].y), 1.0);
+    }
+    bool late = w > 0.5;
+    return float4(requantize(mix(a, b, w), p, late ? T[1].z : T[1].x, late ? T[1].w : T[1].y), 1.0);
+}
 """
 }

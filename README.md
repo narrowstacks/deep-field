@@ -120,6 +120,16 @@ Change the look itself: add bloom or a vignette, use bigger pixels, or turn dith
 
 <img src="docs/media/image-controls.png" alt="The same scene with default settings, bloom and vignette, a coarse Bayer 4x4 look, and no dither" width="100%">
 
+### Change scenes on a schedule
+
+In the **Schedule** section of Customize, have Deep Field rotate through your presets and scenes
+every few minutes or hours (in order or shuffled), or switch at set times on the days you pick,
+like a calm scene for the workday and something brighter in the evening. Choose how each switch
+looks: a dithered dissolve, a crossfade, a camera pan, the old scene drifting off into the
+distance, a warp, a black hole sweeping across that bends one scene into the next, or a random
+one each time. Turn the schedule on and off, or skip ahead, from the menu bar icon. A Focus
+filter takes precedence while it's on.
+
 ### Focus modes and Shortcuts
 
 Deep Field can change with your Focus. In **System Settings > Focus**, choose a Focus, add a

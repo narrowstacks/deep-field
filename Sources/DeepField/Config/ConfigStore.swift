@@ -17,6 +17,27 @@ final class ConfigStore: ObservableObject {
         }
     }
 
+    /// A change that transitions in over `duration` seconds instead of cutting (the schedule's
+    /// switches). Views compare `id` to tell a new transition from one they've already started.
+    struct Transition {
+        let id: Int
+        let from: WallpaperConfig
+        let start: Double      // Renderer.elapsed when it began
+        let duration: Double
+        let style: TransitionStyle   // never .random; that's resolved when it starts
+    }
+    private(set) var transition: Transition?
+
+    /// Switches to `new`, transitioning from the current look over `seconds` (0 cuts straight over).
+    func transition(to new: WallpaperConfig, seconds: Double, style: TransitionStyle = .dissolve) {
+        guard new != config else { return }
+        if seconds > 0 {
+            transition = Transition(id: (transition?.id ?? 0) + 1, from: config,
+                                    start: Renderer.shared.elapsed, duration: seconds, style: style.resolved)
+        }
+        config = new
+    }
+
     /// Transient "show me now" requests from the customize window: event kind id -> start time.
     @Published var demoEvents: [UInt64: Double] = [:]
 

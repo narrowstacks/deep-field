@@ -7,11 +7,15 @@ import SwiftUI
 struct CustomizeView: View {
     @ObservedObject private var store = ConfigStore.shared
     @StateObject private var thumbnails = SceneThumbnails(reference: CustomizeView.reference)
-    /// Normally Scene; `-captureTab N` picks another for `--capture-ui`.
-    @State private var section = CustomizeSection(rawValue: Settings.captureTab) ?? .scene
+    /// Normally Scene; `-captureTab N` picks another for `--capture-ui`, and the menu bar can ask for one.
+    @State private var section: CustomizeSection
     /// Owned here so the stage's phone preview and the Phone section share it.
     @State private var showPhoneClock = true
     @State private var actualPixels = false
+
+    init(initialSection: CustomizeSection? = nil) {
+        _section = State(initialValue: initialSection ?? CustomizeSection(rawValue: Settings.captureTab) ?? .scene)
+    }
 
     /// The main screen's size in pixels: the preview renders exactly what it would show.
     static var reference: CGSize {
@@ -48,12 +52,15 @@ struct CustomizeView: View {
         .preferredColorScheme(.dark)
         .background { shortcuts }
         .onChange(of: section) { if section == .phone { actualPixels = false } }
+        .onReceive(NotificationCenter.default.publisher(for: CustomizeWindowController.showSection)) {
+            if let s = $0.object as? CustomizeSection { section = s }
+        }
         .onAppear { thumbnails.start() }
         .onDisappear { thumbnails.stop() }
     }
 
     /// The app has no main menu (it's a menu bar app), so the window's keys live here: Cmd-1 to
-    /// Cmd-5 pick a section, Cmd-[ and Cmd-] step through the scenes, Cmd-W closes. Invisible
+    /// Cmd-6 pick a section, Cmd-[ and Cmd-] step through the scenes, Cmd-W closes. Invisible
     /// buttons rather than `.hidden()`, which can drop the shortcut.
     private var shortcuts: some View {
         ZStack {
@@ -84,6 +91,7 @@ struct CustomizeView: View {
         case .image: ImageTab(store: store)
         case .system: SystemTab(store: store)
         case .phone: PhoneTab(store: store, showClock: $showPhoneClock)
+        case .schedule: ScheduleTab()
         }
     }
 }

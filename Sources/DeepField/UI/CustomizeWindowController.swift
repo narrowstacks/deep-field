@@ -8,9 +8,15 @@ final class CustomizeWindowController {
     private(set) var window: NSWindow?
     private var closeObserver: NSObjectProtocol?
 
-    func show() {
+    static let showSection = Notification.Name("DeepFieldShowSection")
+
+    /// Opens the window, on `section` if given (the open window switches to it).
+    func show(section: CustomizeSection? = nil) {
+        if let section, window != nil {
+            NotificationCenter.default.post(name: Self.showSection, object: section)
+        }
         if window == nil {
-            let w = NSWindow(contentViewController: NSHostingController(rootView: CustomizeView()))
+            let w = NSWindow(contentViewController: NSHostingController(rootView: CustomizeView(initialSection: section)))
             w.title = "Customize Deep Field"
             // resizable: a taller window shows more of the gallery, a wider one a wider inspector
             w.styleMask = [.titled, .closable, .miniaturizable, .resizable]
