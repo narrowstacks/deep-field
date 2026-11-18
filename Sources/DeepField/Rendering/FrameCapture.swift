@@ -76,7 +76,7 @@ enum FrameCapture {
         p.cb.commit()
     }
 
-    /// Many frames of one config from a single bake (the phone loop). Encoding runs on the main
+    /// Many frames of one config from a single bake (the phone loop, command-line videos). Encoding runs on the main
     /// thread, like the live views (the scene state caches aren't thread-safe); call `frame` from
     /// any thread, and it waits for the GPU there.
     final class Sequence {
@@ -85,15 +85,16 @@ enum FrameCapture {
         private let target: MTLTexture
         private let buffer: MTLBuffer
         private let width: Int, height: Int
-        private let events = EventSchedule(seed: 1, enabled: false)
+        private let events: EventSchedule
 
-        init?(config: WallpaperConfig, width w: Int, height h: Int) {
+        init?(config: WallpaperConfig, width w: Int, height h: Int, eventsEnabled: Bool = false) {
             let r = Renderer.shared
             guard let target = r.makeTexture(.bgra8Unorm, w, h, usage: [.renderTarget, .shaderRead]),
                   let buffer = r.device.makeBuffer(length: w * 4 * h, options: .storageModeShared),
                   let baked = onMain({ r.bake(width: w, height: h, config: config, wait: true) }) else { return nil }
             self.config = config
             self.baked = baked
+            events = EventSchedule(seed: 1, enabled: eventsEnabled)
             self.target = target
             self.buffer = buffer
             width = w

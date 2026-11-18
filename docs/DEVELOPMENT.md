@@ -32,7 +32,8 @@ Everything is in `Sources/DeepField`:
   `ShaderSource.full` and compiled at runtime, so the build needs no Metal toolchain.
 - `UI/`: the SwiftUI Customize window, one file per section, plus the stage, gallery and theme.
 - `Mobile/`: the phone wallpaper export (portrait still, Live Photo pair, Photos library).
-- `Dev/`: the command line below (snapshot, benchmark, event list, UI capture).
+- `CLI/`: the user-facing `deepfield` command (see below).
+- `Dev/`: the dev command line below (snapshot, benchmark, event list, UI capture).
 
 The Earth and sky maps for Aurora from Orbit and Live Earth (NASA's Black Marble city lights,
 Blue Marble surface for January and July, the Moon, the Yale Bright Star Catalog and NASA's Milky
@@ -139,7 +140,30 @@ Deep Field keeps a still of the current scene as each screen's desktop picture. 
 when the scene's look or your displays change, leaves alone a screen whose picture you've changed
 since, and puts your original pictures back when you turn the option off.
 
-## Command line
+## The `deepfield` command
+
+`CLI/` holds the command users run (`deepfield help` lists it). It's the app's own executable:
+`main.swift` hands over to `CLI.runIfRequested()` when the process was started as `deepfield` (the
+link `deepfield install` makes) or its first argument is a command name, and the app never starts.
+Started through the link, it re-executes the real path so `Bundle.main` and the defaults domain
+are the app's.
+
+Commands that read or change state (`CLIService`) are sent as JSON to the running app over a
+`CFMessagePort` (`CLIServer`, started at launch) and run on its main thread, so changes show at
+once and `--fade` can use the schedule's transitions. When nothing answers, the same code runs
+in the command's own process on the saved settings, and commands that need the live wallpaper
+(pause, event) fail. `ConfigKeys` maps `KEY=VALUE` onto the saved format: values are parsed as
+the type the key already holds (hex for colors), decoded by the lenient decoder, and a value it
+rejects is an error. `scene` goes through the scene switch, so a scene's own image settings come
+with it. `render` runs offscreen in the command's process (`RenderCommand`) and writes stills
+through ImageIO, videos through AVFoundation, GIFs and PNG sequences; Live Earth's clock follows
+the scene's in videos, so `--speed` time-lapses its day.
+
+Try it from a build without installing: `build/DeepField.app/Contents/MacOS/DeepField status`
+(a command as the first argument works too). Testing `set` and friends changes your real
+settings, so `defaults export com.narrowstacks.DeepField backup.plist` first.
+
+## Dev command line
 
 ```bash
 .build/release/DeepField --snapshot out.png --time 444 [--size 3440x1440] [--scene wormhole] \

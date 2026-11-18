@@ -251,3 +251,22 @@ private final class SkyPlacements {
     }
     var entries: [UInt64: (key: Key, dirs: [SIMD3<Double>], after: Rng)] = [:]
 }
+
+extension EventSchedule {
+    /// Every event kind by name, with the scene it belongs to (nil for the shared sky events), for
+    /// the command line's `deepfield event`.
+    static let named: [(name: String, kind: Kind, scene: SceneKind?)] = [
+        ("supernova", supernova, nil), ("comet", comet, nil),
+        ("farSupernova", farSupernova, .wormhole), ("throatFlare", throatFlare, .wormhole),
+        ("infall", infall, .wormhole), ("emergence", emergence, .wormhole),
+        ("cometOutburst", cometOutburst, .comet), ("tailDisconnect", tailDisconnect, .comet),
+        ("stellarFlare", stellarFlare, .stellarSurface), ("coronalEjection", coronalEjection, .stellarSurface),
+        ("prominenceEruption", prominenceEruption, .stellarSurface), ("surge", surge, .stellarSurface),
+        ("shellEjection", shellEjection, .planetaryNebula), ("whiteStorm", whiteStorm, .ringedPlanet),
+        ("substorm", substorm, .auroraOrbit), ("cometImpact", cometImpact, .gasGiant),
+        ("accretionOutburst", accretionOutburst, .protoplanetaryDisk), ("neutronMerger", neutronMerger, .neutronMerger),
+        ("blackHoleMerger", blackHoleMerger, .blackHoleMerger), ("swarmWave", swarmWave, .dysonSwarm),
+        ("starGlint", starGlint, .roguePlanet), ("eclipseEruption", eclipseEruption, .eclipse),
+        ("quasarFlare", quasarFlare, .quasar),
+    ]
+}
