@@ -203,6 +203,55 @@ static float bayer4(uint2 p) {
     return (float(v) + 0.5) / 16.0;
 }
 
+static float bayer2(uint2 p) {
+    uint x = p.x & 1u, y = p.y & 1u;
+    return (float(((x ^ y) << 1) | y) + 0.5) / 4.0;
+}
+
+// Void-and-cluster blue noise: no grid and no clumps, so gradients read as fine, even grain.
+static float blueNoise(uint2 p) {
+    return (float(blueNoise64[(p.y & 63u) * 64u + (p.x & 63u)]) + 0.5) / 256.0;
+}
+
+// Clustered-dot halftone on a 45 degree screen, like print: thresholds follow a spot function,
+// so dots grow from each cell's center and merge into a checkerboard at mid tones.
+static float halftone(uint2 p) {
+    float2 q = (float2(p) + 0.5) * (M_PI_F / 3.0);       // a dot every 3 pixels along each diagonal
+    float spot = cos(q.x + q.y) + cos(q.x - q.y);          // -2 (between dots) .. 2 (dot center)
+    return 0.5 - 0.245 * spot;
+}
+
+// A diagonal line screen in a 4x4 tile: each line's center row fills first, then the rows on
+// either side, so tones become stripes of varying weight.
+static float diagonalLines(uint2 p) {
+    uint across = (p.x + p.y) & 3u;                        // 0 = line center
+    uint acrossRank = across == 0u ? 0u : (across == 1u ? 1u : (across == 3u ? 2u : 3u));
+    uint along = p.x & 3u;
+    uint alongRank = (along & 1u) * 2u + (along >> 1);     // 0, 2, 1, 3: spread along the line
+    return (float(acrossRank * 4u + alongRank) + 0.5) / 16.0;
+}
+
+// Uncorrelated per-pixel noise, fixed in place: film-grain-like, with visible clumps.
+static float whiteNoise(uint2 p) {
+    uint h = p.x * 0x8da6b343u ^ p.y * 0xd8163841u;
+    h ^= h >> 15; h *= 0x2c1b3c6du; h ^= h >> 12; h *= 0x297a2d39u; h ^= h >> 15;
+    return (float(h >> 8) + 0.5) / 16777216.0;
+}
+
+// The threshold for each DitherPattern.shaderIndex; 2 (none) is a flat 0.5, plain rounding.
+static float ditherAt(uint2 p, float kind) {
+    switch (int(kind + 0.5)) {
+        case 0: return bayer8(p);
+        case 1: return bayer4(p);
+        case 3: return bayer2(p);
+        case 4: return blueNoise(p);
+        case 5: return halftone(p);
+        case 6: return diagonalLines(p);
+        case 7: return whiteNoise(p);
+        default: return 0.5;
+    }
+}
+
 // The image controls, on light already scaled by the exposure: contrast around a mid gray,
 // highlight rolloff and vignette, then the tone map and black point. Each is skipped at its
 // neutral value, so the defaults leave the output exactly as it was.
@@ -222,14 +271,13 @@ static float3 toneMapped(float3 x, uint2 p, constant FrameParams& F) {
     return col;
 }
 
-// Saturate, gamma encode, and posterize with the ordered dither.
+// Saturate, gamma encode, and posterize with the chosen dither pattern.
 static float4 quantized(float3 col, uint2 p, constant FrameParams& F) {
     float luma = dot(col, float3(0.2126, 0.7152, 0.0722));
     col = max(mix(float3(luma), col, F.saturation), 0.0);
     col = pow(col, float3(1.0 / 2.2));
     float L = F.levels - 1.0;
-    float d = F.dither < 0.5 ? bayer8(p) : (F.dither < 1.5 ? bayer4(p) : 0.5);
-    col = floor(col * L + d) / L;
+    col = floor(col * L + ditherAt(p, F.dither)) / L;
     return float4(saturate(col), 1.0);
 }
 
@@ -342,8 +390,6 @@ fragment float4 imageFragment(VOut in [[stage_in]],
 // ---------- scene transitions between two finished frames ----------
 // T[0] = progress (eased, 0..1), seed, style, -; T[1] = levels and dither of the outgoing and
 // incoming looks. Positions are in units of the frame's height, x running 0..aspect.
-
-static float ditherAt(uint2 p, float kind) { return kind < 0.5 ? bayer8(p) : (kind < 1.5 ? bayer4(p) : 0.5); }
 
 // Dithers a blended color back onto the levels, so a transition stays on the wallpaper's
 // palette. A color already on a level comes back unchanged (the 0.02 margin absorbs its 8-bit
