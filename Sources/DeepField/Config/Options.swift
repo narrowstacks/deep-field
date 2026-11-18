@@ -68,16 +68,34 @@ enum RingStyle: String, Codable, CaseIterable, Identifiable {
 }
 
 enum DitherPattern: String, Codable, CaseIterable, Identifiable {
-    case bayer8, bayer4, none
+    case bayer8, bayer4, bayer2, blueNoise, halftone, lines, noise, none
     var id: String { rawValue }
     var title: String {
         switch self {
         case .bayer8: "Bayer 8×8 (fine)"
         case .bayer4: "Bayer 4×4 (chunky)"
+        case .bayer2: "Bayer 2×2 (coarse)"
+        case .blueNoise: "Blue noise (organic)"
+        case .halftone: "Halftone dots (print)"
+        case .lines: "Diagonal lines (engraved)"
+        case .noise: "White noise (grainy)"
         case .none: "None (posterized)"
         }
     }
-    var shaderIndex: Float { self == .bayer8 ? 0 : self == .bayer4 ? 1 : 2 }
+    /// The pattern's case in the shader's `ditherAt`. Saved settings use the raw value, so these
+    /// stay fixed when cases are added or reordered.
+    var shaderIndex: Float {
+        switch self {
+        case .bayer8: 0
+        case .bayer4: 1
+        case .none: 2
+        case .bayer2: 3
+        case .blueNoise: 4
+        case .halftone: 5
+        case .lines: 6
+        case .noise: 7
+        }
+    }
 }
 
 enum Frequency: String, Codable, CaseIterable, Identifiable {
