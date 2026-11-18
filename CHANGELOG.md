@@ -4,6 +4,8 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+- Color levels in Customize now go up to 32 and 64. The welcome guide's Smooth look uses 64, which you couldn't pick again in Customize after changing it.
+
 ## [0.4.6] - 2026-11-16
 
 - Live Earth: a new Aurora speed slider sets how fast the aurora ripples and drifts. It now moves at half its old pace by default.
