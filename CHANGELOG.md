@@ -4,6 +4,8 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-11-17
+
 - Five new dither patterns under Image: Bayer 2×2, Blue noise, Halftone dots, Diagonal lines and White noise.
 - Color levels in Customize now go up to 32 and 64. The welcome guide's Smooth look uses 64, which you couldn't pick again in Customize after changing it.
 
