@@ -419,7 +419,9 @@ fragment float4 eclipseFragment(FRAME_INPUTS)
         float h = r - 1.0;
         float ang = atan2(d.y, d.x);
         float3 promCol = S.d.rgb;
-        float promVis = mix(0.1, 1.0, sqrt(coronaVis));
+        // the chromosphere and prominences are drowned by the photosphere's glare until only a
+        // thin crescent is left (they show at the very start and end of totality), so none at full sun
+        float promVis = smoothstep(-1.8, -3.4, logE);
         float amt = S.d.w;
         // the chromosphere: a thin pink shell, a fringe of spicules over it
         if (h > -px && h < 0.08) {
@@ -578,9 +580,12 @@ fragment float4 eclipseFragment(FRAME_INPUTS)
                 if (gap <= 0.0) continue;
                 float2 pt = o + u2 * (Rk + gap * 0.5);
                 float dist2 = length_squared(d - pt);
-                glow += saturate(gap / 0.012) * (exp(-dist2 / 0.0012) * 3.0 + exp(-dist2 / 0.015) * 0.6);
+                // only thin gaps make beads: where the crescent is thicker it's plain photosphere,
+                // and summing glow over it piles up a lumpy, hard-edged blob beside the crescent
+                glow += saturate(gap / 0.012) * smoothstep(0.07, 0.025, gap) * (exp(-dist2 / 0.0012) * 3.0 + pow(1.0 + dist2 / 0.0075, -1.5) * 0.6);
             }
-            sky += sunCol * glow * smoothstep(-5.6, -4.0, logE);
+            // beads show only in the last moments before and after totality
+            sky += sunCol * glow * smoothstep(-5.6, -4.0, logE) * smoothstep(-2.0, -3.0, logE);
         }
     }
     col += sky * (1.0 - pHit);
@@ -776,8 +781,10 @@ fragment float4 eclipseFragment(FRAME_INPUTS)
         // with only a bead or two left the light is one point: a tight, hot core (the diamond)
         float size = 0.4 + 0.6 * smoothstep(-4.0, 0.0, logE);
         float diamond = 1.0 - smoothstep(-3.6, -2.4, logE);
-        float gl = 0.8 * exp(-g2 / (0.05 * size)) + 0.1 / (1.0 + g2 / (0.3 * size)) + 0.004 / (1.0 + g2 / (5.0 * size));
-        float dg2 = diamond * smoothstep(-5.6, -4.0, logE) * (4.0 * exp(-g2 / 0.03) + 1.2 * exp(-g2 / 0.25) + 0.25 / (1.0 + g2 / 1.2));
+        // power-law cores (same light as a Gaussian of twice the width parameter) fall off gradually; a
+        // Gaussian's steep shoulder clips to a flat white blob with a hard rim at high brightness
+        float gl = 0.8 * pow(1.0 + g2 / (0.025 * size), -1.5) + 0.1 / (1.0 + g2 / (0.3 * size)) + 0.004 / (1.0 + g2 / (5.0 * size));
+        float dg2 = diamond * smoothstep(-5.6, -4.0, logE) * (4.0 * pow(1.0 + g2 / 0.015, -1.5) + 1.2 * pow(1.0 + g2 / 0.125, -1.5) + 0.25 / (1.0 + g2 / 1.2));
         col += sunCol * sunT * (gl * glareAmp + dg2);
     }
     return finalize(col, p, F);

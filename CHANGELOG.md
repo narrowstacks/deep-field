@@ -5,6 +5,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 ## [Unreleased]
 
 - A `deepfield` command for the terminal: switch scenes and presets, change any setting of the running wallpaper, trigger events, control the schedule, and render stills, videos, time-lapses, GIFs and frame sequences. Install it with `DeepField.app/Contents/MacOS/DeepField install`, and see `deepfield help`.
+- Eclipse: the sunlight no longer swells into a lumpy, hard-edged blob as totality nears, and its glare fades off gradually. Baily's beads now appear only in the last moments, and prominences only show once the sun is almost covered.
 
 ## [0.4.7] - 2026-11-17
 
