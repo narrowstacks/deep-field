@@ -4,6 +4,8 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+- Five new dither patterns under Image: Bayer 2×2, Blue noise, Halftone dots, Diagonal lines and White noise.
+
 ## [0.4.6] - 2026-11-16
 
 - Live Earth: a new Aurora speed slider sets how fast the aurora ripples and drifts. It now moves at half its old pace by default.
