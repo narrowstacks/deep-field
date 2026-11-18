@@ -138,6 +138,30 @@ Focus turns on and goes back to how it was when the Focus ends. The same choices
 the Shortcuts app (**Apply Deep Field Preset** and **Set Deep Field Scene**), for any automation
 you like.
 
+### Command line
+
+Everything above also works from a terminal. Link the `deepfield` command onto your PATH once:
+
+```bash
+/Applications/DeepField.app/Contents/MacOS/DeepField install
+```
+
+Then change the wallpaper, its settings and presets, and render stills, videos and time-lapses:
+
+```bash
+deepfield scene galaxy galaxyType=barred --fade 4 --style warp   # switch, with a transition
+deepfield set bloom=0.6 dither=blueNoise palette.core=#ffd27a     # tweak what's showing
+deepfield keys                                                    # this scene's settings
+deepfield preset apply "Late Night"; deepfield event supernova
+deepfield render shot.png --size 5120x2880
+deepfield render video loop.mp4 --duration 8 --loop
+deepfield render timelapse earth.mp4 --scene liveEarth --speed 3600
+```
+
+Changes go to the running app and show at once; when it isn't running they're saved for its next
+launch. `deepfield help` lists every command, and `deepfield completion zsh|bash|fish` prints
+tab completion for your shell.
+
 ### A galaxy with and without dark matter
 
 <img src="docs/media/loops/dark-matter.gif" alt="The same galaxy with and without a dark matter halo, sped up" width="100%">

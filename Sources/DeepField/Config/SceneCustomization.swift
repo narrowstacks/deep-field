@@ -149,6 +149,12 @@ extension WallpaperConfig {
         return c
     }
 
+    /// `kind`'s own saved keys, with its palette colors as `palette.<color>`, for the command line.
+    static func sceneKeys(_ kind: SceneKind) -> [String] {
+        let keys = WallpaperConfig().jsonObject().keys.filter { owns(kind, key: $0) }.sorted()
+        return keys + ownKeys(kind).palette.map { "palette.\($0)" }
+    }
+
     /// True when any of `kind`'s own settings differ from their defaults.
     func isCustomized(_ kind: SceneKind) -> Bool { resettingScene(kind) != self }
 }

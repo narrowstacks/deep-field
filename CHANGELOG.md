@@ -4,6 +4,8 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+- A `deepfield` command for the terminal: switch scenes and presets, change any setting of the running wallpaper, trigger events, control the schedule, and render stills, videos, time-lapses, GIFs and frame sequences. Install it with `DeepField.app/Contents/MacOS/DeepField install`, and see `deepfield help`.
+
 ## [0.4.7] - 2026-11-17
 
 - Five new dither patterns under Image: Bayer 2×2, Blue noise, Halftone dots, Diagonal lines and White noise.

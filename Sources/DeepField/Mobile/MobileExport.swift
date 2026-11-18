@@ -187,7 +187,7 @@ enum MobileExport {
         return ok ? data : nil
     }
 
-    private static func dissolve(_ a: CGImage, _ b: CGImage, weight: Double, cells: Bool) -> CGImage? {
+    static func dissolve(_ a: CGImage, _ b: CGImage, weight: Double, cells: Bool) -> CGImage? {
         guard var pa = pixels(a), let pb = pixels(b) else { return nil }
         let w = a.width, h = a.height
         if cells {
