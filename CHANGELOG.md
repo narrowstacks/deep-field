@@ -5,6 +5,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 ## [Unreleased]
 
 - Five new dither patterns under Image: Bayer 2×2, Blue noise, Halftone dots, Diagonal lines and White noise.
+- Eclipse: the sunlight no longer swells into a lumpy, hard-edged blob as totality nears, and its glare fades off gradually. Baily's beads now appear only in the last moments, and prominences only show once the sun is almost covered.
 
 ## [0.4.6] - 2026-11-16
 
