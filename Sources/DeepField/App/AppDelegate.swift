@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         buildStatusItem()
         NSApp.mainMenu = MainMenu.build(target: self)
         if !Settings.capturingUI {
+            CLIServer.start()
             LockScreenStill.shared.start()
             Scheduler.shared.start()
             LocationProvider.shared.refreshIfFollowing()
@@ -108,7 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    private func setWallpaper(_ on: Bool) {
+    func setWallpaper(_ on: Bool) {
         Settings.wallpaperEnabled = on
         buildWindows()
     }
@@ -243,6 +244,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc private func skipSchedule() { Scheduler.shared.skip() }
     @objc private func togglePause() { userPaused.toggle(); applyPause() }
+
+    /// The menu bar's Pause Animation, for the command line.
+    var animationPaused: Bool {
+        get { userPaused }
+        set { userPaused = newValue; applyPause() }
+    }
     @objc func showCustomize() { CustomizeWindowController.shared.show() }
     @objc private func toggleLockScreen() { ConfigStore.shared.config.lockScreenStill.toggle() }
 

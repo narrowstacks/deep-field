@@ -61,7 +61,11 @@ struct ImageTab: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Color levels per channel")
                     Picker("Color levels per channel", selection: $store.config.levels) {
-                        ForEach([2, 3, 4, 5, 6, 8, 16], id: \.self) { Text("\($0)").tag($0) }
+                        // 32 and 64 match the welcome guide's Smooth look. The current value is
+                        // always listed so a level set elsewhere (a preset, Shortcuts) stays selectable.
+                        ForEach(Set([2, 3, 4, 5, 6, 8, 16, 32, 64, store.config.levels]).sorted(), id: \.self) {
+                            Text("\($0)").tag($0)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
