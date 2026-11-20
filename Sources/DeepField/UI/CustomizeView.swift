@@ -30,22 +30,20 @@ struct CustomizeView: View {
                 .frame(minWidth: Theme.stageWidth, maxWidth: .infinity)
                 .background(Theme.stageBackground)
             Divider()
-            VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    Picker("Section", selection: $section) {
-                        ForEach(CustomizeSection.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    PresetsMenu()
+            VStack(alignment: .trailing, spacing: 12) {
+                Picker("Section", selection: $section) {
+                    ForEach(CustomizeSection.allCases) { Text($0.title).tag($0) }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .padding(.bottom, 4)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                PresetsMenu()
                 inspector
             }
+            .padding(.top, 12)
+            .padding(.horizontal, 20)
             .frame(width: Theme.inspectorWidth)
             .background(Theme.inspectorBackground)
+            .padding(.bottom, 12)
         }
         .frame(minWidth: Theme.windowSize.width, maxWidth: .infinity,
                minHeight: Theme.minWindowHeight, maxHeight: .infinity)
