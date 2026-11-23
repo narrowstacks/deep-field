@@ -69,7 +69,8 @@ fn config(o: &Opts) -> Result<WallpaperConfig, String> {
         c.scene = s;
     }
     if !c.scene.is_ported() {
-        return Err(format!("the {} scene isn't ported to Windows yet", c.scene.raw()));
+        // still rendered, so a scene can be checked while it's being ported
+        eprintln!("deepfield: note: the {} scene isn't marked as ported yet", c.scene.raw());
     }
     Ok(c)
 }

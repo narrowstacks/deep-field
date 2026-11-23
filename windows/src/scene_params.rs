@@ -18,30 +18,30 @@ use crate::palette::level;
 #[allow(clippy::too_many_arguments)]
 pub fn build(c: &WallpaperConfig, elapsed: f64, cam: &Camera, width: u32, height: u32,
              events: &EventSchedule, demo: &DemoMap) -> SceneParamsGpu {
-    let _ = (width, height);
+    use crate::scenes::*;
     let t = elapsed;
+    let (w, h) = (width, height);
     match c.scene {
         SceneKind::GasGiant => gas_giant(c, t, cam, events, demo),
-        // TODO: port these builders from SceneParams.swift as their scenes are ported.
-        SceneKind::TidalDisruption => SceneParamsGpu::default(), // tidalDisruption(c)
-        SceneKind::Pulsar => SceneParamsGpu::default(),          // pulsar(c, t, cam)
-        SceneKind::Nebula => SceneParamsGpu::default(),          // nebula(c)
-        SceneKind::PlanetaryNebula => SceneParamsGpu::default(), // planetaryNebula(c, t, cam, events, demo)
-        SceneKind::RingedPlanet => SceneParamsGpu::default(),    // ringedPlanet(c, t, cam, events, demo)
-        SceneKind::AuroraOrbit => SceneParamsGpu::default(),     // auroraOrbit(c, t, cam, events, demo)
-        SceneKind::LiveEarth => SceneParamsGpu::default(),       // liveEarth(c, t, cam, width, height)
-        SceneKind::ProtoplanetaryDisk => SceneParamsGpu::default(), // protoplanetaryDisk(c, t, cam, events, demo)
-        SceneKind::NeutronMerger => SceneParamsGpu::default(),   // neutronMerger(c, t, cam, demo)
-        SceneKind::BlackHoleMerger => SceneParamsGpu::default(), // blackHoleMerger(c, t, cam, demo)
-        SceneKind::DysonSwarm => SceneParamsGpu::default(),      // dysonSwarm(c, t, cam, events, demo)
-        SceneKind::RoguePlanet => SceneParamsGpu::default(),     // roguePlanet(c, t, cam, events, demo)
-        SceneKind::Eclipse => SceneParamsGpu::default(),         // eclipse(c, t, cam, events, demo)
-        SceneKind::Comet => SceneParamsGpu::default(),           // comet(c, t, cam, events, demo)
-        SceneKind::StellarSurface => SceneParamsGpu::default(),  // stellarSurface(c, t, cam, events, demo)
-        SceneKind::Quasar => SceneParamsGpu::default(),          // quasar(c, t, cam, events, demo)
+        SceneKind::TidalDisruption => tidal_disruption::build(c, t, cam, w, h, events, demo),
+        SceneKind::Pulsar => pulsar::build(c, t, cam, w, h, events, demo),
+        SceneKind::PlanetaryNebula => planetary_nebula::build(c, t, cam, w, h, events, demo),
+        SceneKind::RingedPlanet => ringed_planet::build(c, t, cam, w, h, events, demo),
+        SceneKind::ProtoplanetaryDisk => protoplanetary_disk::build(c, t, cam, w, h, events, demo),
+        SceneKind::NeutronMerger => neutron_merger::build(c, t, cam, w, h, events, demo),
+        SceneKind::BlackHoleMerger => black_hole_merger::build(c, t, cam, w, h, events, demo),
+        SceneKind::DysonSwarm => dyson_swarm::build(c, t, cam, w, h, events, demo),
+        SceneKind::RoguePlanet => rogue_planet::build(c, t, cam, w, h, events, demo),
+        SceneKind::Eclipse => eclipse::build(c, t, cam, w, h, events, demo),
+        SceneKind::Comet => comet::build(c, t, cam, w, h, events, demo),
+        SceneKind::StellarSurface => stellar_surface::build(c, t, cam, w, h, events, demo),
+        SceneKind::Quasar => quasar::build(c, t, cam, w, h, events, demo),
+        SceneKind::Galaxy => galaxy::build(c, t, cam, w, h, events, demo),
+        // not ported yet: they need the Earth maps and live feeds (aurora, live Earth) or are
+        // hidden in the macOS app too (nebula)
+        SceneKind::Nebula | SceneKind::AuroraOrbit | SceneKind::LiveEarth => SceneParamsGpu::default(),
         // no CPU-side scene state in Swift either
-        SceneKind::BlackHole | SceneKind::Wormhole | SceneKind::Binary | SceneKind::Trinary
-        | SceneKind::Galaxy => SceneParamsGpu::default(),
+        SceneKind::BlackHole | SceneKind::Wormhole | SceneKind::Binary | SceneKind::Trinary => SceneParamsGpu::default(),
     }
 }
 

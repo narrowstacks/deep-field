@@ -386,7 +386,21 @@ impl Renderer {
             SceneKind::Binary | SceneKind::Trinary => "systemFragment",
             SceneKind::StellarSurface => "stellarFragment",
             SceneKind::GasGiant => "gasGiantFragment",
-            _ => "lensedFragment",
+            SceneKind::Galaxy => "galaxyFragment",
+            SceneKind::Pulsar => "pulsarFragment",
+            SceneKind::Nebula => "nebulaFragment",
+            SceneKind::Comet => "cometFragment",
+            SceneKind::PlanetaryNebula => "planetaryFragment",
+            SceneKind::RingedPlanet => "ringedFragment",
+            SceneKind::AuroraOrbit => "auroraFragment",
+            SceneKind::LiveEarth => "liveEarthFragment",
+            SceneKind::ProtoplanetaryDisk => "protoDiskFragment",
+            SceneKind::NeutronMerger => "neutronMergerFragment",
+            SceneKind::BlackHoleMerger => "blackHoleMergerFragment",
+            SceneKind::DysonSwarm => "dysonFragment",
+            SceneKind::RoguePlanet => "rogueFragment",
+            SceneKind::Eclipse => "eclipseFragment",
+            SceneKind::Quasar => "quasarFragment",
         }
     }
 
@@ -475,7 +489,7 @@ impl Renderer {
             cam_elev: (c.camera_tilt() / 180.0 * std::f64::consts::PI) as f32,
             tan_half_fov: cam.tan_half as f32,
             disk_in: SceneGeometry::DISK_IN,
-            disk_out: if c.scene == SceneKind::TidalDisruption { 15.0 * 1.2 } else { c.disk_size as f32 },
+            disk_out: if c.scene == SceneKind::TidalDisruption { (crate::scene_params::TDE_DISK_OUTER * 1.2) as f32 } else { c.disk_size as f32 },
             roll: SceneGeometry::ROLL as f32,
             shell_r0: SceneGeometry::shell_radii()[0],
             shell_r1: SceneGeometry::shell_radii()[1],
@@ -493,7 +507,11 @@ impl Renderer {
             pad: [0.0; 3],
         };
         let pbuf = self.uniform(bytemuck::bytes_of(&p));
-        let tde = SceneParamsGpu::default();
+        let tde = if c.scene == SceneKind::TidalDisruption {
+            crate::scenes::tidal_disruption::bake_params(c)
+        } else {
+            SceneParamsGpu::default()
+        };
         let tbuf = self.uniform(bytemuck::bytes_of(&tde));
         let views: Vec<wgpu::TextureView> = (0..SLOTS.len())
             .map(|i| textures[i].as_ref().unwrap_or(&self.placeholders[i]).create_view(&Default::default()))
@@ -615,7 +633,7 @@ impl Renderer {
         };
         let palette = crate::palette::palette_gpu(c);
         let ev = events.gpu(elapsed, c, &cam, th);
-        let galaxy = GalaxyGpu::default();
+        let galaxy = if c.scene == SceneKind::Galaxy { crate::scenes::galaxy::galaxy_gpu(c, elapsed) } else { GalaxyGpu::default() };
         let scene = crate::scene_params::build(c, elapsed, &cam, tw, th, events, demo);
 
         let fbuf = self.uniform(bytemuck::bytes_of(&f));

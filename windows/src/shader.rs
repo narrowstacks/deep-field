@@ -30,6 +30,18 @@ pub const FRAME: &[Part] = &[
     wgsl!("lensed.wgsl"),
     wgsl!("stars.wgsl"),
     wgsl!("gas_giant.wgsl"),
+    wgsl!("comet.wgsl"),
+    wgsl!("pulsar.wgsl"),
+    wgsl!("galaxy.wgsl"),
+    wgsl!("quasar.wgsl"),
+    wgsl!("planetary.wgsl"),
+    wgsl!("ringed.wgsl"),
+    wgsl!("proto_disk.wgsl"),
+    wgsl!("dyson.wgsl"),
+    wgsl!("rogue.wgsl"),
+    wgsl!("neutron_merger.wgsl"),
+    wgsl!("black_hole_merger.wgsl"),
+    wgsl!("eclipse.wgsl"),
 ];
 
 /// Bloom's bright pass, downsample and blur, and the composite that tone maps after it.
@@ -45,11 +57,27 @@ pub const PRESENT: &[Part] = &[
     wgsl!("present.wgsl"),
 ];
 
+/// Each part's source: the copy built into the binary, or with DEEPFIELD_SHADERS set to a
+/// folder (usually `shaders`), the file there, so a shader edit shows up without a rebuild.
+fn load(parts: &[Part]) -> Vec<(&'static str, String)> {
+    let dir = std::env::var_os("DEEPFIELD_SHADERS").map(std::path::PathBuf::from);
+    parts
+        .iter()
+        .map(|(name, built_in)| {
+            let src = dir
+                .as_ref()
+                .and_then(|d| std::fs::read_to_string(d.join(name)).ok())
+                .unwrap_or_else(|| built_in.to_string());
+            (*name, src)
+        })
+        .collect()
+}
+
 pub fn join(parts: &[Part]) -> String {
     let mut s = String::new();
-    for (name, src) in parts {
+    for (name, src) in load(parts) {
         s.push_str(&format!("// ===== {name} =====\n"));
-        s.push_str(src);
+        s.push_str(&src);
         s.push('\n');
     }
     s
@@ -58,7 +86,7 @@ pub fn join(parts: &[Part]) -> String {
 /// Which file and line a line of the joined source came from.
 fn locate(parts: &[Part], line: usize) -> (String, usize) {
     let mut start = 1;
-    for (name, src) in parts {
+    for (name, src) in load(parts) {
         let n = src.lines().count() + 2; // header + trailing newline
         if line < start + n {
             return (name.to_string(), line.saturating_sub(start));

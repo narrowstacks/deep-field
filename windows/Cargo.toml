@@ -5,9 +5,19 @@ edition = "2021"
 description = "Deep Field for Windows: animated, pixel-dithered space scenes as the desktop wallpaper"
 license-file = "../LICENSE"
 
+[lib]
+name = "deepfield"
+path = "src/lib.rs"
+
+# the command line (console)
 [[bin]]
 name = "deepfield"
 path = "src/main.rs"
+
+# the live wallpaper and tray icon (windowed)
+[[bin]]
+name = "deepfield-wallpaper"
+path = "src/wallpaper_main.rs"
 
 [dependencies]
 wgpu = "23"
@@ -37,4 +47,10 @@ windows = { version = "0.58", features = [
 
 [profile.release]
 opt-level = 3
+# thin LTO only for builds handed out (cargo build --profile dist); plain release builds
+# stay quick to iterate on
+lto = false
+
+[profile.dist]
+inherits = "release"
 lto = "thin"

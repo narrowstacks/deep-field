@@ -127,7 +127,9 @@ impl SceneKind {
     /// Scenes the Windows port draws so far.
     pub fn is_ported(self) -> bool {
         use SceneKind::*;
-        matches!(self, BlackHole | Binary | GasGiant)
+        matches!(self, BlackHole | Wormhole | Binary | Trinary | GasGiant | PlanetaryNebula | RingedPlanet | Galaxy | Quasar
+            | TidalDisruption | StellarSurface | Comet | Pulsar | NeutronMerger | BlackHoleMerger | Eclipse
+            | ProtoplanetaryDisk | DysonSwarm | RoguePlanet)
     }
 
     /// How a scene bends light: 0 not at all, 1 black hole (with a shadow), 2 wormhole
