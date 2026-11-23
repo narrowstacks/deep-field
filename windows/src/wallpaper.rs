@@ -270,6 +270,8 @@ pub fn run() -> Result<(), String> {
     let r = Renderer::new()?;
     eprintln!("deepfield: rendering on {} ({:?})", r.adapter_info.name, r.adapter_info.backend);
     let mut store = ConfigStore::load();
+    // every scene ready before it is picked, the current one first
+    r.warm(store.config.scene, &[Renderer::scene_format(&store.config)], 6);
     let tray = Tray::new(&store.config);
     let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(1);
     let events = EventSchedule::new(seed);

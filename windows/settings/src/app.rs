@@ -101,7 +101,7 @@ impl Settings {
         let jobs = render::spawn(out_tx);
         // a steady tick: picks up rendered frames, saves pending changes, notices outside edits
         cx.spawn_in(window, async move |this, cx| loop {
-            cx.background_executor().timer(Duration::from_millis(30)).await;
+            cx.background_executor().timer(Duration::from_millis(15)).await;
             if this.update_in(cx, |this, window, cx| this.tick(window, cx)).is_err() {
                 break;
             }

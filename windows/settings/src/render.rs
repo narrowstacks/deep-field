@@ -32,8 +32,9 @@ pub enum Output {
     Failed(String),
 }
 
-/// Frames a second the preview animates at: enough to see motion, cheap next to the wallpaper.
-const PREVIEW_FPS: f64 = 8.0;
+/// The fastest the preview animates: the wallpaper's own frame rate up to this. A frame costs
+/// about a millisecond on the GPU plus a few to read it back and hand it to the window.
+const PREVIEW_MAX_FPS: f64 = 30.0;
 
 pub fn spawn(out: Sender<Output>) -> Sender<Job> {
     let (tx, rx) = mpsc::channel::<Job>();
@@ -74,6 +75,7 @@ fn worker(rx: Receiver<Job>, out: Sender<Output>) {
     let demo = HashMap::new();
     let mut thumbs: Vec<Job> = Vec::new();
     let mut next_frame = Instant::now();
+    let mut warmed = false;
 
     loop {
         // wait for work, or for the next preview frame
@@ -93,6 +95,12 @@ fn worker(rx: Receiver<Job>, out: Sender<Output>) {
         for job in first.into_iter().chain(rx.try_iter()) {
             match job {
                 Job::Preview { config, screen, shown, actual } => {
+                    if !warmed {
+                        // every scene's shader at once, so the gallery fills in about two
+                        // seconds and picking a scene doesn't wait for a compile
+                        warmed = true;
+                        r.warm(config.scene, &[Renderer::scene_format(&config)], 8);
+                    }
                     preview = Some(PreviewState { config, screen, shown, actual });
                     next_frame = Instant::now();
                 }
@@ -130,7 +138,12 @@ fn worker(rx: Receiver<Job>, out: Sender<Output>) {
                 if out.send(Output::Preview(frame)).is_err() {
                     return;
                 }
-                next_frame = Instant::now() + Duration::from_secs_f64(1.0 / PREVIEW_FPS);
+                let fps = (p.config.fps.max(1) as f64).min(PREVIEW_MAX_FPS);
+                next_frame += Duration::from_secs_f64(1.0 / fps);
+                // after a stall (a long thumbnail, a rebake) pick up from now rather than racing
+                if next_frame < Instant::now() {
+                    next_frame = Instant::now();
+                }
             }
         }
 

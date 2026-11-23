@@ -3,6 +3,7 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Instant;
 
 use wgpu::util::DeviceExt;
@@ -71,7 +72,7 @@ struct BloomTargets {
 }
 
 pub struct Renderer {
-    pub device: wgpu::Device,
+    pub device: Arc<wgpu::Device>,
     pub queue: wgpu::Queue,
     pub adapter_info: wgpu::AdapterInfo,
     pub instance: wgpu::Instance,
@@ -94,9 +95,7 @@ pub struct Renderer {
     bloom_blur: wgpu::ComputePipeline,
     image_pipeline: wgpu::RenderPipeline,
 
-    frame_module: wgpu::ShaderModule,
-    frame_pipeline_layout: wgpu::PipelineLayout,
-    frame_pipelines: RefCell<HashMap<(&'static str, wgpu::TextureFormat), wgpu::RenderPipeline>>,
+    frames: Arc<FrameCompiler>,
     present_module: wgpu::ShaderModule,
     present_pipeline_layout: wgpu::PipelineLayout,
     present_pipelines: RefCell<HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>>,
@@ -209,6 +208,7 @@ impl Renderer {
         trace("validated");
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::util::backend_bits_from_env().unwrap_or(wgpu::Backends::DX12),
+            dx12_shader_compiler: dx12_compiler(),
             ..Default::default()
         });
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
@@ -245,6 +245,7 @@ impl Renderer {
             None,
         ))
         .map_err(|e| format!("could not open the GPU: {e}"))?;
+        let device = Arc::new(device);
 
         let module = |label: &str, parts| {
             device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -436,7 +437,7 @@ impl Renderer {
             label_layout,
             label_pipeline,
             earth: EarthState::default(),
-            frame_pipeline_layout: pipeline_layout(&frame_layout),
+            frames: Arc::new(FrameCompiler { device: device.clone(), module: frame_module, layout: pipeline_layout(&frame_layout), state: Mutex::new(HashMap::new()), done: Condvar::new() }),
             present_pipeline_layout: pipeline_layout(&present_layout),
             device,
             queue,
@@ -458,8 +459,6 @@ impl Renderer {
             bloom_down,
             bloom_blur,
             image_pipeline,
-            frame_module,
-            frame_pipelines: RefCell::new(HashMap::new()),
             present_module,
             present_pipelines: RefCell::new(HashMap::new()),
             placeholders,
@@ -525,13 +524,46 @@ impl Renderer {
         }
     }
 
-    fn frame_pipeline(&self, scene: SceneKind, format: wgpu::TextureFormat) -> std::cell::Ref<'_, wgpu::RenderPipeline> {
-        let name = Self::fragment_name(scene);
-        if !self.frame_pipelines.borrow().contains_key(&(name, format)) {
-            let p = Self::render_pipeline(&self.device, &self.frame_module, &self.frame_pipeline_layout, name, format);
-            self.frame_pipelines.borrow_mut().insert((name, format), p);
+    fn frame_pipeline(&self, scene: SceneKind, format: wgpu::TextureFormat) -> Arc<wgpu::RenderPipeline> {
+        self.frames.get((Self::fragment_name(scene), format))
+    }
+
+    /// The format a config's scene pass draws to: linear float light when bloom follows.
+    pub fn scene_format(c: &WallpaperConfig) -> wgpu::TextureFormat {
+        if c.bloom + c.scene.extra_bloom() > 0.0 { HDR_FORMAT } else { CELL_FORMAT }
+    }
+
+    /// Compiles every listed scene's pipeline on `threads` background threads, `first` first, so
+    /// switching scenes or drawing a gallery doesn't wait about half a second per scene for
+    /// shader translation. Returns at once; a scene asked for meanwhile waits only for its own.
+    pub fn warm(&self, first: SceneKind, formats: &[wgpu::TextureFormat], threads: usize) {
+        let mut scenes: Vec<SceneKind> = SceneKind::listed().into_iter().filter(|s| s.is_ported()).collect();
+        scenes.sort_by_key(|s| *s != first);
+        let mut keys: Vec<(&'static str, wgpu::TextureFormat)> = Vec::new();
+        for f in formats {
+            for s in &scenes {
+                let k = (Self::fragment_name(*s), *f);
+                if !keys.contains(&k) {
+                    keys.push(k);
+                }
+            }
         }
-        std::cell::Ref::map(self.frame_pipelines.borrow(), |m| &m[&(name, format)])
+        let frames = self.frames.clone();
+        let threads = threads.max(1);
+        let _ = std::thread::Builder::new().name("shader warmup".into()).spawn(move || {
+            let next = std::sync::atomic::AtomicUsize::new(0);
+            std::thread::scope(|s| {
+                for _ in 0..threads {
+                    // shader translation recurses deeply, past a default thread stack
+                    let _ = std::thread::Builder::new().stack_size(64 << 20).spawn_scoped(s, || loop {
+                        let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(k) = keys.get(i) else { break };
+                        frames.get(*k);
+                    });
+                }
+            });
+            trace("shaders warm");
+        });
     }
 
     /// How a scene bends light: 0 not at all, 1 black hole (with a shadow), 2 wormhole.
@@ -1152,6 +1184,59 @@ impl Renderer {
         }
         out
     }
+}
+
+type FrameKey = (&'static str, wgpu::TextureFormat);
+
+/// The scene pipelines, compiled on first use or ahead of it by `Renderer::warm`, shared with
+/// the warm-up threads.
+struct FrameCompiler {
+    device: Arc<wgpu::Device>,
+    module: wgpu::ShaderModule,
+    layout: wgpu::PipelineLayout,
+    /// None while a thread is compiling it
+    state: Mutex<HashMap<FrameKey, Option<Arc<wgpu::RenderPipeline>>>>,
+    done: Condvar,
+}
+
+impl FrameCompiler {
+    fn get(&self, key: FrameKey) -> Arc<wgpu::RenderPipeline> {
+        let mut state = self.state.lock().unwrap();
+        loop {
+            match state.get(&key) {
+                Some(Some(p)) => return p.clone(),
+                // another thread is on it: wait rather than compile it twice
+                Some(None) => state = self.done.wait(state).unwrap(),
+                None => break,
+            }
+        }
+        state.insert(key, None);
+        drop(state);
+        let p = Arc::new(Renderer::render_pipeline(&self.device, &self.module, &self.layout, key.0, key.1));
+        self.state.lock().unwrap().insert(key, Some(p.clone()));
+        self.done.notify_all();
+        p
+    }
+}
+
+/// DXC when its two DLLs are found, beside the program or (while developing) in the Windows
+/// SDK; without them wgpu uses FXC, which ships with Windows but is far slower on big shaders.
+fn dx12_compiler() -> wgpu::Dx12Compiler {
+    let mut dirs: Vec<std::path::PathBuf> =
+        std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.to_path_buf())).into_iter().collect();
+    if let Ok(versions) = std::fs::read_dir(r"C:\Program Files (x86)\Windows Kits\10\bin") {
+        let mut v: Vec<_> = versions.filter_map(|e| e.ok()).map(|e| e.path().join("x64")).collect();
+        v.sort();
+        dirs.extend(v.into_iter().rev());
+    }
+    for d in dirs {
+        if d.join("dxcompiler.dll").exists() && d.join("dxil.dll").exists() {
+            trace(&format!("DXC from {}", d.display()));
+            return wgpu::Dx12Compiler::Dxc { dxil_path: Some(d.clone()), dxc_path: Some(d) };
+        }
+    }
+    trace("FXC (no dxcompiler.dll found)");
+    wgpu::Dx12Compiler::Fxc
 }
 
 /// Startup progress on stderr when DEEPFIELD_TRACE is set.

@@ -87,6 +87,13 @@ shader edits show up without a rebuild. `DEEPFIELD_TRACE=1` prints startup progr
 `WGPU_BACKEND=vulkan` picks Vulkan instead of Direct3D 12 (at the time of writing NVIDIA's Vulkan
 driver crashed building a pipeline here).
 
+Shaders compile with DXC when `dxcompiler.dll` and `dxil.dll` sit beside the program or in a
+Windows SDK (`C:\Program Files (x86)\Windows Kits\10\bin\<version>\x64`), and with the much
+slower FXC otherwise (Eclipse alone takes about 10 seconds), so a packaged build should ship
+both DLLs. Each scene's pipeline still takes about half a second to translate, so the wallpaper
+and the Customize window compile every scene in parallel at startup (`Renderer::warm`), the
+current one first: all of them are ready in about two seconds.
+
 ## How it fits together
 
 - `src/renderer.rs` follows `Rendering/Renderer.swift`: the one-time ray bake and sky pass
