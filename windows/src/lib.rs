@@ -3,12 +3,16 @@
 //! `deepfield-wallpaper` (a windowed program: the live wallpaper and its tray icon), the way the
 //! macOS app pairs DeepField.app with its `deepfield` command.
 
+pub mod astronomy;
 pub mod blue_noise;
 pub mod camera;
 pub mod capture;
 pub mod config;
 pub mod config_store;
+pub mod earth_maps;
 pub mod events;
+pub mod historical_clouds;
+pub mod live_earth_feeds;
 pub mod gpu_types;
 pub mod math;
 pub mod palette;
@@ -17,6 +21,7 @@ pub mod renderer;
 pub mod scene_params;
 pub mod scenes;
 pub mod shader;
+pub mod sky_planets;
 pub mod star_system;
 pub mod tray;
 pub mod wallpaper;
@@ -28,6 +33,11 @@ Deep Field for Windows
   deepfield --snapshot OUT.png   render one frame to a PNG
       [--scene KIND] [--size WxH] [--time SECONDS] [--defaults | --config FILE]
       [--no-events] [--demo ID:START]
+      [--live-earth-cache]       Live Earth: the last fetched clouds and aurora, not the bundled ones
+      [--earth-timelapse N]      Live Earth: its clock runs N times as fast from its moment
+  deepfield --fetch-live-earth   fetch Live Earth's cloud map and aurora forecast into the cache
+  deepfield --prefetch-history SECONDS --config FILE
+                                 fetch real past clouds for a frozen Live Earth moment and after it
   deepfield --benchmark          time frames of a scene  [--scene KIND] [--size WxH] [--frames N]
   deepfield --quit               stop a running wallpaper
   deepfield --list-scenes        scene kinds (ported ones marked)

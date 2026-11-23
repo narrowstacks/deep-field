@@ -3,10 +3,18 @@
 A port of Deep Field to Windows 10 and 11: the same scenes, drawn live behind the desktop icons
 on every monitor. Rust and wgpu (Direct3D 12), with the Metal shaders translated to WGSL.
 
-This is an early port. 19 of the 21 listed scenes run, and their snapshots match the macOS
-reference renders in `docs/media/gallery`. Still to come: Aurora from Orbit and Live Earth (they
-need the Earth maps and live feeds), the Customize window, schedules, transitions, the lock
-screen still and phone exports (`deepfield --list-scenes` shows what's ported).
+This is an early port. All 21 listed scenes run, and their snapshots match the macOS reference
+renders in `docs/media/gallery`. Still to come: schedules, transitions, the lock screen still
+and phone exports, and Live Earth following the device's location (it uses the home latitude
+and longitude from the settings).
+
+Aurora from Orbit and Live Earth read the Earth maps in `Resources\Earth`: from an `Earth`
+folder beside the executable, or, for a build in the repo, found by walking up from it. Live
+Earth fetches the latest cloud map and aurora forecast in the background while it shows, and a
+frozen moment in the past fetches that day's real clouds; all of it is cached in
+`%APPDATA%\DeepField\LiveEarth`. Command-line renders never fetch the live maps (they use the
+bundled copies, or the cached ones with `--live-earth-cache`), but do wait for a past moment's
+clouds.
 
 ## Build and run
 
@@ -30,6 +38,36 @@ up within a second.
 
 The wallpaper pauses while a full-screen app has the focus, and drops to 12 fps with battery
 saver on.
+
+## Customize window
+
+`deepfield-settings.exe` is the Customize window, after the macOS one: a live preview of the
+current look with the scene gallery under it, and Scene, Sky, Image and System sections beside
+it. It's built with [GPUI](https://www.gpui.rs) through
+[gpui-kit](https://github.com/longbridge/gpui-kit), in its own crate so GPUI's dependencies stay
+out of the wallpaper's build:
+
+```powershell
+cd windows\settings
+cargo build --release
+.\target\release\deepfield-settings.exe
+```
+
+It edits `%APPDATA%\DeepField\config.json` (written whole and renamed into place, so the
+wallpaper never reads half a file), and picks up changes made there by the tray menu or by hand.
+The preview renders with the same library as the wallpaper, on a thread of its own. Only one
+copy runs; opening it again brings the window forward. Ctrl+1 to Ctrl+4 pick a section and
+Ctrl+[ and Ctrl+] step through the scenes.
+
+The tray menu's Customize item starts `deepfield-settings.exe` from the wallpaper's own folder,
+falling back to `..\..\settings\target\<profile>` while developing. A packaged build should put
+`deepfield.exe`, `deepfield-wallpaper.exe` and `deepfield-settings.exe` side by side. The
+System section's start-at-login switch adds a `Deep Field` value under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` pointing at `deepfield-wallpaper.exe`
+(found the same way).
+
+Not there yet: presets (save, import, export), Phone, Schedule, the lock screen still, and the
+Show Me buttons that start an event in the running wallpaper.
 
 ## Command line
 

@@ -33,6 +33,29 @@
 @group(0) @binding(18) var<storage, read> blueNoise64: array<u32>;
 @group(0) @binding(19) var linearClamp: sampler;
 
+// Earth maps and live layers, filterable (the Metal texture slots 10 to 22, at bindings 20 to
+// 32), for Aurora from Orbit (20, 21) and Live Earth (all of them); see live_earth.wgsl.
+// Unbound ones hold a 1x1 placeholder, and the scene parameters say which are real.
+@group(0) @binding(20) var earthLights: texture_2d<f32>;
+@group(0) @binding(21) var earthGround: texture_2d<f32>;
+@group(0) @binding(22) var dayJan: texture_2d<f32>;
+@group(0) @binding(23) var dayJul: texture_2d<f32>;
+@group(0) @binding(24) var waterTex: texture_2d<f32>;
+@group(0) @binding(25) var moonTex: texture_2d<f32>;
+@group(0) @binding(26) var cloudTex: texture_2d<f32>;
+@group(0) @binding(27) var auroraTex: texture_2d<f32>;
+@group(0) @binding(28) var starTex: texture_2d<f32>;
+@group(0) @binding(29) var milkyTex: texture_2d<f32>;
+@group(0) @binding(30) var pastA: texture_2d<f32>;
+@group(0) @binding(31) var pastB: texture_2d<f32>;
+@group(0) @binding(32) var pastFlow: texture_2d<f32>;
+// Aurora from Orbit's per-frame table of its curtains (Metal slot 12), filled by auroraLUT
+@group(0) @binding(33) var auLut: texture_2d<f32>;
+// the real planets (Metal fragment buffer 8), for scenes that draw the real sky
+@group(0) @binding(34) var<storage, read> skyP: array<SkyPlanet>;
+// linear with linear mips, wrapping east-west and clamped at the poles (the Earth maps' sampler)
+@group(0) @binding(35) var mipRepeat: sampler;
+
 // Texel read with Metal's tex.read(uint2) semantics.
 fn readTex(t: texture_2d<f32>, p: vec2<u32>) -> vec4<f32> { return textureLoad(t, vec2<i32>(p), 0); }
 fn readId(p: vec2<u32>) -> u32 { return textureLoad(idTex, vec2<i32>(p), 0).x; }

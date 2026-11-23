@@ -129,7 +129,7 @@ impl SceneKind {
         use SceneKind::*;
         matches!(self, BlackHole | Wormhole | Binary | Trinary | GasGiant | PlanetaryNebula | RingedPlanet | Galaxy | Quasar
             | TidalDisruption | StellarSurface | Comet | Pulsar | NeutronMerger | BlackHoleMerger | Eclipse
-            | ProtoplanetaryDisk | DysonSwarm | RoguePlanet)
+            | ProtoplanetaryDisk | DysonSwarm | RoguePlanet | AuroraOrbit | LiveEarth)
     }
 
     /// How a scene bends light: 0 not at all, 1 black hole (with a shadow), 2 wormhole

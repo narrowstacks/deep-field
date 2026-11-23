@@ -135,3 +135,18 @@ pub struct SceneParamsGpu {
     pub i: V4, pub j: V4, pub k: V4, pub l: V4,
     pub m: V4, pub n: V4, pub o: V4, pub p: V4,
 }
+
+/// One of the real planets for scenes that draw the real sky (SkyPlanet in sky_planets.wgsl,
+/// SkyPlanetGPU in the macOS app).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
+pub struct SkyPlanetGpu {
+    /// direction, w = true angular radius (rad)
+    pub dir: V4,
+    /// rgb, w = brightness (the stars' magnitude scale)
+    pub color: V4,
+    /// toward the sun from the planet, w = label shows (0/1)
+    pub light: V4,
+    /// north pole, w = which planet (0 Mercury ... 6 Neptune)
+    pub pole: V4,
+}

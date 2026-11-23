@@ -37,9 +37,10 @@ pub fn build(c: &WallpaperConfig, elapsed: f64, cam: &Camera, width: u32, height
         SceneKind::StellarSurface => stellar_surface::build(c, t, cam, w, h, events, demo),
         SceneKind::Quasar => quasar::build(c, t, cam, w, h, events, demo),
         SceneKind::Galaxy => galaxy::build(c, t, cam, w, h, events, demo),
-        // not ported yet: they need the Earth maps and live feeds (aurora, live Earth) or are
-        // hidden in the macOS app too (nebula)
-        SceneKind::Nebula | SceneKind::AuroraOrbit | SceneKind::LiveEarth => SceneParamsGpu::default(),
+        SceneKind::AuroraOrbit => aurora_orbit::build(c, t, cam, w, h, events, demo),
+        SceneKind::LiveEarth => live_earth::build(c, t, cam, w, h),
+        // not ported: hidden in the macOS app too
+        SceneKind::Nebula => SceneParamsGpu::default(),
         // no CPU-side scene state in Swift either
         SceneKind::BlackHole | SceneKind::Wormhole | SceneKind::Binary | SceneKind::Trinary => SceneParamsGpu::default(),
     }

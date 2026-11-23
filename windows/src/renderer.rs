@@ -103,10 +103,41 @@ pub struct Renderer {
 
     /// Bound in place of the textures a scene doesn't use, one per slot format.
     placeholders: Vec<wgpu::Texture>,
+    /// Bound in place of the Earth maps a scene doesn't use (a filterable 1x1).
+    map_placeholder: wgpu::Texture,
     blue_noise: wgpu::Buffer,
     linear_clamp: wgpu::Sampler,
+    mip_repeat: wgpu::Sampler,
     bloom_targets: RefCell<HashMap<(u32, u32), BloomTargets>>,
+
+    /// Fills the aurora's per-frame table of its curtains along the oval (`auroraLUT`).
+    aurora_lut_layout: wgpu::BindGroupLayout,
+    aurora_lut_pipeline: wgpu::ComputePipeline,
+    /// The aurora's table, shared by every view: frames are encoded one after another, and each
+    /// fills it before its own scene pass reads it.
+    aurora_lut: wgpu::Texture,
+    /// Text over finished frames (`labelFragment`), blended onto CELL_FORMAT targets.
+    label_layout: wgpu::BindGroupLayout,
+    label_pipeline: wgpu::RenderPipeline,
+    /// The Earth maps and live layers, loaded on first use.
+    pub earth: EarthState,
 }
+
+/// Aurora from Orbit's and Live Earth's maps (each set loaded the first time a scene asks), the
+/// live cloud and aurora feeds, and the past clouds.
+#[derive(Default)]
+pub struct EarthState {
+    night: std::cell::OnceCell<Option<crate::earth_maps::NightTextures>>,
+    day: std::cell::OnceCell<Option<crate::earth_maps::DayTextures>>,
+    sky: std::cell::OnceCell<Option<crate::earth_maps::SkyTextures>>,
+    pub feeds: crate::live_earth_feeds::LiveEarthFeeds,
+    pub history: crate::historical_clouds::HistoricalClouds,
+}
+
+/// The aurora table's size: 8192 texels round the pole, about six per cell of the finest ray
+/// noise, and two rows. Half floats (Metal uses 32-bit floats where it can filter them; half
+/// keeps the edge wiggle to about 3e-5 rad, far under a curtain sheet's width).
+const AURORA_LUT_WIDTH: u32 = 8192;
 
 fn tex_entry(binding: u32, vis: wgpu::ShaderStages, sample: wgpu::TextureSampleType) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
@@ -171,7 +202,8 @@ impl Renderer {
     /// Picks the high-performance GPU and compiles every pipeline. Shader errors are reported
     /// through naga first, so they name the WGSL file and line.
     pub fn new() -> Result<Renderer, String> {
-        for (label, parts) in [("bake", shader::BAKE), ("frame", shader::FRAME), ("bloom", shader::BLOOM), ("present", shader::PRESENT)] {
+        for (label, parts) in [("bake", shader::BAKE), ("frame", shader::FRAME), ("auroraLUT", shader::AURORA_LUT),
+                               ("labels", shader::LABELS), ("bloom", shader::BLOOM), ("present", shader::PRESENT)] {
             shader::validate(label, parts).map_err(|e| format!("shader module {label} failed to compile:\n{e}"))?;
         }
         trace("validated");
@@ -196,6 +228,12 @@ impl Renderer {
                                adapter_info.name, limits.max_storage_textures_per_shader_stage));
         }
         limits.max_texture_dimension_2d = supported.max_texture_dimension_2d;
+        // the frame pass reads the ten bake lookups and fourteen Earth maps, over the default 16
+        limits.max_sampled_textures_per_shader_stage = supported.max_sampled_textures_per_shader_stage.min(32);
+        if limits.max_sampled_textures_per_shader_stage < 24 {
+            return Err(format!("{} supports only {} sampled textures per stage (24 needed)",
+                               adapter_info.name, limits.max_sampled_textures_per_shader_stage));
+        }
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
                 label: Some("deepfield"),
@@ -220,6 +258,8 @@ impl Renderer {
         let frame_module = module("frame", shader::FRAME);
         let bloom_module = module("bloom", shader::BLOOM);
         let present_module = module("present", shader::PRESENT);
+        let aurora_lut_module = module("auroraLUT", shader::AURORA_LUT);
+        let label_module = module("labels", shader::LABELS);
         trace("modules");
 
         let cs = wgpu::ShaderStages::COMPUTE;
@@ -250,7 +290,17 @@ impl Renderer {
             frame_entries.push(buffer_entry(b, fs, storage));
         }
         frame_entries.push(sampler_entry(19, fs));
+        // the Earth maps (20 to 32) and the aurora's table (33), the real planets, their sampler
+        for b in 20..=33 {
+            frame_entries.push(tex_entry(b, fs, FILTERABLE));
+        }
+        frame_entries.push(buffer_entry(34, fs, true));
+        frame_entries.push(sampler_entry(35, fs));
         let frame_layout = layout("frame", &frame_entries);
+        let aurora_lut_layout = layout("auroraLUT", &[
+            buffer_entry(0, cs, false), buffer_entry(1, cs, false), storage_tex_entry(2, wgpu::TextureFormat::Rgba16Float),
+        ]);
+        let label_layout = layout("labels", &[buffer_entry(0, fs, true), buffer_entry(1, fs, false)]);
         let bright_layout = layout("bloomBright", &[buffer_entry(10, cs, false), tex_entry(30, cs, UNFILTERABLE), storage_tex_entry(31, HDR_FORMAT)]);
         let down_layout = layout("bloomDown", &[sampler_entry(19, cs), tex_entry(32, cs, FILTERABLE), storage_tex_entry(31, HDR_FORMAT)]);
         let blur_layout = layout("bloomBlur", &[sampler_entry(19, cs), tex_entry(32, cs, FILTERABLE), storage_tex_entry(31, HDR_FORMAT), buffer_entry(34, cs, false)]);
@@ -283,6 +333,59 @@ impl Renderer {
         let bloom_down = compute(&bloom_module, &down_layout, "bloomDown");
         let bloom_blur = compute(&bloom_module, &blur_layout, "bloomBlur");
         let image_pipeline = Self::render_pipeline(&device, &bloom_module, &pipeline_layout(&image_layout), "imageFragment", CELL_FORMAT);
+        let aurora_lut_pipeline = compute(&aurora_lut_module, &aurora_lut_layout, "auroraLUT");
+        // labels: solid letters and a soft shadow blended over the finished frame, its alpha kept
+        let label_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("labelFragment"),
+            layout: Some(&pipeline_layout(&label_layout)),
+            vertex: wgpu::VertexState {
+                module: &label_module,
+                entry_point: Some("fullscreenVertex"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &label_module,
+                entry_point: Some("labelFragment"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: CELL_FORMAT,
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                        alpha: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::Zero,
+                            dst_factor: wgpu::BlendFactor::One,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                    }),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview: None,
+            cache: None,
+        });
+        let small = |label: &str, w: u32, h: u32, format: wgpu::TextureFormat, usage: wgpu::TextureUsages| {
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage,
+                view_formats: &[],
+            })
+        };
+        let map_placeholder = small("map placeholder", 1, 1, wgpu::TextureFormat::Rgba8Unorm, wgpu::TextureUsages::TEXTURE_BINDING);
+        let aurora_lut = small("auroraLUT", AURORA_LUT_WIDTH, 2, wgpu::TextureFormat::Rgba16Float,
+                               wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::STORAGE_BINDING);
 
         let placeholders = SLOTS
             .iter()
@@ -313,8 +416,26 @@ impl Renderer {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
+        // the Earth maps' sampler: linear with linear mips, wrapping east-west, clamped at the poles
+        let mip_repeat = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("mipRepeat"),
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
 
         Ok(Renderer {
+            map_placeholder,
+            mip_repeat,
+            aurora_lut_layout,
+            aurora_lut_pipeline,
+            aurora_lut,
+            label_layout,
+            label_pipeline,
+            earth: EarthState::default(),
             frame_pipeline_layout: pipeline_layout(&frame_layout),
             present_pipeline_layout: pipeline_layout(&present_layout),
             device,
@@ -634,7 +755,26 @@ impl Renderer {
         let palette = crate::palette::palette_gpu(c);
         let ev = events.gpu(elapsed, c, &cam, th);
         let galaxy = if c.scene == SceneKind::Galaxy { crate::scenes::galaxy::galaxy_gpu(c, elapsed) } else { GalaxyGpu::default() };
-        let scene = crate::scene_params::build(c, elapsed, &cam, tw, th, events, demo);
+        let mut scene = crate::scene_params::build(c, elapsed, &cam, tw, th, events, demo);
+        // the Earth maps and live layers the scene has (the flags in its parameters say which)
+        let mut maps: Vec<Option<std::rc::Rc<wgpu::Texture>>> = vec![None; 13];
+        let mut sky_planets = Vec::new();
+        let mut labels = Vec::new();
+        match c.scene {
+            SceneKind::AuroraOrbit => {
+                // the real Earth at night, if its maps are there (S.g.z tells the shader)
+                let night = self.night_maps();
+                scene.g[2] = if night.is_some() { 1.0 } else { 0.0 };
+            }
+            SceneKind::LiveEarth => {
+                maps = self.live_earth_maps(c, elapsed, &mut scene);
+                sky_planets = crate::scenes::live_earth::planets(c, elapsed, &scene);
+                labels = crate::scenes::live_earth::labels(c, &sky_planets, &scene, &cam, tw, th);
+                scene.o[0] = sky_planets.len() as f32;
+            }
+            _ => {}
+        }
+        let night = if matches!(c.scene, SceneKind::AuroraOrbit | SceneKind::LiveEarth) { self.night_maps() } else { None };
 
         let fbuf = self.uniform(bytemuck::bytes_of(&f));
         let pbuf = self.storage(&planets);
@@ -654,7 +794,38 @@ impl Renderer {
             entries.push(wgpu::BindGroupEntry { binding: b, resource: buf.as_entire_binding() });
         }
         entries.push(wgpu::BindGroupEntry { binding: 19, resource: wgpu::BindingResource::Sampler(&self.linear_clamp) });
+        // bindings 20 to 33: the night maps (both scenes), Live Earth's other maps, the aurora table
+        let live = c.scene == SceneKind::LiveEarth;
+        let day = if live { self.earth.day.get().and_then(|d| d.as_ref()) } else { None };
+        let sky = if live { self.earth.sky.get().and_then(|d| d.as_ref()) } else { None };
+        let map_views: Vec<wgpu::TextureView> = (0..14)
+            .map(|i| {
+                let tex: Option<&wgpu::Texture> = match i {
+                    0 => night.map(|n| &n.lights),
+                    1 => night.map(|n| &n.ground),
+                    2 => day.map(|d| &d.january),
+                    3 => day.map(|d| &d.july),
+                    4 => day.map(|d| &d.water),
+                    5 => day.map(|d| &d.moon),
+                    8 => sky.map(|s| &s.stars),
+                    9 => sky.map(|s| &s.milky_way),
+                    13 => (c.scene == SceneKind::AuroraOrbit).then_some(&self.aurora_lut),
+                    _ => maps[i].as_deref(),
+                };
+                tex.unwrap_or(&self.map_placeholder).create_view(&Default::default())
+            })
+            .collect();
+        for (i, v) in map_views.iter().enumerate() {
+            entries.push(wgpu::BindGroupEntry { binding: 20 + i as u32, resource: wgpu::BindingResource::TextureView(v) });
+        }
+        let skybuf = self.storage(&sky_planets);
+        entries.push(wgpu::BindGroupEntry { binding: 34, resource: skybuf.as_entire_binding() });
+        entries.push(wgpu::BindGroupEntry { binding: 35, resource: wgpu::BindingResource::Sampler(&self.mip_repeat) });
         let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("frame"), layout: &self.frame_layout, entries: &entries });
+        if c.scene == SceneKind::AuroraOrbit {
+            // the aurora's table pass goes first, so the scene pass reads this frame's table
+            self.encode_aurora_lut(enc, &fbuf, &scbuf);
+        }
 
         let targets = self.bloom_targets.borrow();
         let bloom_targets = if bloom { targets.get(&(tw, th)) } else { None };
@@ -682,6 +853,104 @@ impl Renderer {
         if let Some(b) = bloom_targets {
             self.encode_bloom(enc, b, target, &mut f, &fbuf);
         }
+        if !labels.is_empty() {
+            self.encode_labels(enc, target, &labels);
+        }
+    }
+
+    fn night_maps(&self) -> Option<&crate::earth_maps::NightTextures> {
+        self.earth.night.get_or_init(|| crate::earth_maps::night(&self.device, &self.queue)).as_ref()
+    }
+
+    /// Live Earth's maps for bindings 22 to 32 (index 2 to 12; the night maps are 0 and 1, see
+    /// encode_frame) and the live layers that are on; the flags in S.h, S.j and S.p tell the
+    /// shader which ones it got.
+    fn live_earth_maps(&self, c: &WallpaperConfig, elapsed: f64, s: &mut SceneParamsGpu) -> Vec<Option<std::rc::Rc<wgpu::Texture>>> {
+        use crate::live_earth_feeds::Feed;
+        use std::rc::Rc;
+        let (device, queue) = (&self.device, &self.queue);
+        let night = self.night_maps();
+        let day = self.earth.day.get_or_init(|| crate::earth_maps::day(device, queue)).as_ref();
+        let feeds = &self.earth.feeds;
+        let clouds = if c.earth_clouds { feeds.texture(Feed::Clouds, device, queue) } else { None };
+        let aurora = if c.earth_aurora { feeds.texture(Feed::Aurora, device, queue) } else { None };
+        s.h[0] = if clouds.is_some() { 1.0 } else { 0.0 };
+        s.h[1] = if aurora.is_some() { 1.0 } else { 0.0 };
+        s.h[2] = if night.is_none() || day.is_none() { 0.0 } else { 1.0 };
+        let sky = self.earth.sky.get_or_init(|| crate::earth_maps::sky(device, queue)).as_ref();
+        s.j[2] = if sky.is_some() { 1.0 } else { 0.0 };
+        // the live and past layers; encode_frame takes the day and sky maps from self.earth
+        let mut maps: Vec<Option<Rc<wgpu::Texture>>> = vec![None; 13];
+        maps[6] = clouds;
+        maps[7] = aurora;
+        // A frozen moment in the past (and a time-lapse running from one) shows that day's real
+        // clouds, moving between frames; anything else keeps the live map.
+        let mut moment = None;
+        if c.earth_clouds && c.earth_freeze_time {
+            let date = crate::scenes::live_earth::date(c, elapsed);
+            let home = crate::astronomy::point(c.home_latitude, c.home_longitude);
+            if let Some(source) = crate::historical_clouds::source(date, home, c.earth_distance, crate::scenes::live_earth::now()) {
+                moment = self.earth.history.moment(date, source, device, queue);
+            }
+        }
+        s.p = [if moment.is_some() { 1.0 } else { 0.0 }, moment.as_ref().map_or(0.0, |m| m.fraction), 0.0, 0.0];
+        if let Some(m) = moment {
+            maps[10] = Some(m.a);
+            maps[11] = Some(m.b);
+            maps[12] = Some(m.flow);
+        }
+        maps
+    }
+
+    /// Fills the aurora's per-frame table: everything about the curtains that depends only on
+    /// the angle round the pole and on time.
+    fn encode_aurora_lut(&self, enc: &mut wgpu::CommandEncoder, fbuf: &wgpu::Buffer, scbuf: &wgpu::Buffer) {
+        let view = self.aurora_lut.create_view(&Default::default());
+        let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("auroraLUT"),
+            layout: &self.aurora_lut_layout,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: fbuf.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: scbuf.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&view) },
+            ],
+        });
+        let mut pass = enc.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("auroraLUT"), timestamp_writes: None });
+        pass.set_pipeline(&self.aurora_lut_pipeline);
+        pass.set_bind_group(0, &group, &[]);
+        pass.dispatch_workgroups(AURORA_LUT_WIDTH.div_ceil(64), 1, 1);
+    }
+
+    /// Draws labels over the finished frame in `target`: solid letters and a soft shadow blended
+    /// over it, after the tone map and dither, so the text stays clean. Each label is (left edge,
+    /// vertical center, name, font pixel size), in target pixels.
+    pub fn encode_labels(&self, enc: &mut wgpu::CommandEncoder, target: &wgpu::Texture, labels: &[[f32; 4]]) {
+        let list = self.storage(labels);
+        let info: V4 = [labels.len() as f32, 0.82, 0.55, 0.0];
+        let ibuf = self.uniform(bytemuck::bytes_of(&info));
+        let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("labels"),
+            layout: &self.label_layout,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: list.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: ibuf.as_entire_binding() },
+            ],
+        });
+        let view = target.create_view(&Default::default());
+        let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("labels"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        pass.set_pipeline(&self.label_pipeline);
+        pass.set_bind_group(0, &group, &[]);
+        pass.draw(0..3, 0..1);
     }
 
     fn ensure_bloom_targets(&self, w: u32, h: u32) {

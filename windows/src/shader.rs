@@ -36,12 +36,27 @@ pub const FRAME: &[Part] = &[
     wgsl!("quasar.wgsl"),
     wgsl!("planetary.wgsl"),
     wgsl!("ringed.wgsl"),
+    wgsl!("aurora.wgsl"),
+    wgsl!("sky_planets.wgsl"),
+    wgsl!("live_earth.wgsl"),
     wgsl!("proto_disk.wgsl"),
     wgsl!("dyson.wgsl"),
     wgsl!("rogue.wgsl"),
     wgsl!("neutron_merger.wgsl"),
     wgsl!("black_hole_merger.wgsl"),
     wgsl!("eclipse.wgsl"),
+];
+
+/// Aurora from Orbit's per-frame table of its curtains, filled before the scene pass.
+pub const AURORA_LUT: &[Part] = &[
+    wgsl!("common.wgsl"),
+    wgsl!("aurora_lut.wgsl"),
+];
+
+/// Labels (planet names) blended over a finished frame.
+pub const LABELS: &[Part] = &[
+    wgsl!("common.wgsl"),
+    wgsl!("labels.wgsl"),
 ];
 
 /// Bloom's bright pass, downsample and blur, and the composite that tone maps after it.
@@ -123,7 +138,7 @@ pub fn validate(label: &str, parts: &[Part]) -> Result<(), String> {
 /// `--check-shaders`: validates every module, printing each error.
 pub fn check() -> bool {
     let mut ok = true;
-    for (label, parts) in [("bake", BAKE), ("frame", FRAME), ("bloom", BLOOM), ("present", PRESENT)] {
+    for (label, parts) in [("bake", BAKE), ("frame", FRAME), ("auroraLUT", AURORA_LUT), ("labels", LABELS), ("bloom", BLOOM), ("present", PRESENT)] {
         match validate(label, parts) {
             Ok(()) => println!("{label}: ok"),
             Err(e) => {

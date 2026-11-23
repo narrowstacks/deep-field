@@ -6,6 +6,7 @@ use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 use crate::config::{SceneKind, WallpaperConfig};
 
 pub enum TrayAction {
+    Customize,
     Scene(SceneKind),
     PixelSize(i64),
     TogglePause,
@@ -20,6 +21,7 @@ pub struct Tray {
     scenes: Vec<(SceneKind, CheckMenuItem)>,
     sizes: Vec<(i64, CheckMenuItem)>,
     pause: MenuItem,
+    customize: MenuId,
     edit: MenuId,
     quit: MenuId,
 }
@@ -65,10 +67,12 @@ impl Tray {
         for (_, item) in &sizes {
             let _ = size_menu.append(item);
         }
+        let customize = MenuItem::new("Customize...", true, None);
         let pause = MenuItem::new("Pause", true, None);
-        let edit = MenuItem::new("Edit Settings...", true, None);
+        let edit = MenuItem::new("Edit Settings File...", true, None);
         let quit = MenuItem::new("Quit Deep Field", true, None);
-        let _ = menu.append_items(&[&scene_menu, &size_menu, &PredefinedMenuItem::separator(), &pause, &edit,
+        let _ = menu.append_items(&[&customize, &PredefinedMenuItem::separator(), &scene_menu, &size_menu,
+                                    &PredefinedMenuItem::separator(), &pause, &edit,
                                     &PredefinedMenuItem::separator(), &quit]);
         let icon = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
@@ -76,12 +80,18 @@ impl Tray {
             .with_icon(icon())
             .build()
             .expect("tray icon");
-        Tray { _icon: icon, scenes, sizes, edit: edit.id().clone(), quit: quit.id().clone(), pause }
+        Tray {
+            _icon: icon, scenes, sizes, customize: customize.id().clone(), edit: edit.id().clone(),
+            quit: quit.id().clone(), pause,
+        }
     }
 
     pub fn poll(&self) -> Option<TrayAction> {
         let ev = MenuEvent::receiver().try_recv().ok()?;
         let id = ev.id;
+        if id == self.customize {
+            return Some(TrayAction::Customize);
+        }
         if let Some((s, _)) = self.scenes.iter().find(|(_, i)| *i.id() == id) {
             return Some(TrayAction::Scene(*s));
         }
@@ -109,6 +119,35 @@ impl Tray {
             item.set_checked(*n == c.pixel_size as i64);
         }
         self.pause.set_text(if paused { "Resume" } else { "Pause" });
+    }
+}
+
+/// Opens the Customize window, deepfield-settings.exe. A packaged build puts it beside this
+/// program; while developing it's in the settings crate's own target folder
+/// (windows\settings\target\<profile>, next to windows\target\<profile>). A second launch only
+/// brings the open window forward.
+pub fn open_customize() {
+    let found = std::env::current_exe().ok().and_then(|exe| {
+        let dir = exe.parent()?.to_path_buf();
+        let beside = dir.join("deepfield-settings.exe");
+        if beside.exists() {
+            return Some(beside);
+        }
+        let profile = dir.file_name()?.to_owned();
+        let dev = dir.join("..").join("..").join("settings").join("target").join(profile).join("deepfield-settings.exe");
+        let release = dir.join(r"..\..\settings\target\release\deepfield-settings.exe");
+        [dev, release].into_iter().find(|p| p.exists())
+    });
+    match found {
+        Some(exe) => {
+            if let Err(e) = std::process::Command::new(&exe).spawn() {
+                crate::error_box(&format!("Could not open {}: {e}", exe.display()));
+            }
+        }
+        None => crate::error_box(
+            "The Customize window (deepfield-settings.exe) wasn't found next to Deep Field. Build it with \
+             `cargo build --release` in windows\\settings, or edit the settings file from this menu.",
+        ),
     }
 }
 

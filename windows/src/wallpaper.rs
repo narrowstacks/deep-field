@@ -296,6 +296,7 @@ pub fn run() -> Result<(), String> {
         }
         while let Some(action) = tray.poll() {
             match action {
+                TrayAction::Customize => crate::tray::open_customize(),
                 TrayAction::Scene(s) => {
                     store.config.set_scene(s);
                     store.save();

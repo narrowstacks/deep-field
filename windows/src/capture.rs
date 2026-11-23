@@ -18,12 +18,18 @@ struct Opts {
     events: bool,
     demo: HashMap<u64, f64>,
     frames: u32,
+    /// Live Earth renders read the last fetched cloud and aurora maps instead of the bundled ones.
+    live_earth_cache: bool,
+    /// `--prefetch-history SECONDS`: fetch a span's real past clouds and exit.
+    prefetch_history: Option<f64>,
+    fetch_live_earth: bool,
 }
 
 fn parse(args: &[String]) -> Result<Opts, String> {
     let mut o = Opts {
         snapshot: None, benchmark: false, scene: None, size: (1720, 720), time: 300.0,
         config: None, events: true, demo: HashMap::new(), frames: 120,
+        live_earth_cache: false, prefetch_history: None, fetch_live_earth: false,
     };
     let mut it = args.iter();
     while let Some(a) = it.next() {
@@ -46,6 +52,10 @@ fn parse(args: &[String]) -> Result<Opts, String> {
             "--config" => o.config = Some(val("--config")?),
             "--defaults" => o.config = None,
             "--no-events" => o.events = false,
+            "--live-earth-cache" => o.live_earth_cache = true,
+            "--fetch-live-earth" => o.fetch_live_earth = true,
+            "--prefetch-history" => o.prefetch_history = Some(val("--prefetch-history")?.parse().map_err(|_| "bad --prefetch-history")?),
+            "--earth-timelapse" => crate::scenes::live_earth::set_time_lapse(val("--earth-timelapse")?.parse().map_err(|_| "bad --earth-timelapse")?),
             "--demo" => {
                 let s = val("--demo")?;
                 let (id, start) = s.split_once(':').ok_or("usage: --demo ID:START")?;
@@ -93,8 +103,28 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
         return Ok(());
     }
     let o = parse(args)?;
+    if o.fetch_live_earth {
+        return if crate::live_earth_feeds::fetch_now() { Ok(()) } else { Err("a Live Earth feed failed".into()) };
+    }
     let c = config(&o)?;
+    if let Some(span) = o.prefetch_history {
+        // fetch a span's real clouds (from the config's frozen moment) before rendering it
+        let start = crate::scenes::live_earth::date(&c, 0.0);
+        let home = crate::astronomy::point(c.home_latitude, c.home_longitude);
+        let now = crate::scenes::live_earth::now();
+        let Some(source) = crate::historical_clouds::source(start, home, c.earth_distance, now) else {
+            return Err("no past clouds for that moment".into());
+        };
+        crate::historical_clouds::prefetch(start, span, source);
+        return Ok(());
+    }
     let r = Renderer::new()?;
+    // Live Earth renders never fetch, and read the bundled cloud and aurora maps so they come
+    // out the same every time (or the last fetched ones with --live-earth-cache); a past moment
+    // waits for that day's clouds, which don't change, so it stays deterministic.
+    r.earth.feeds.allow_network.set(false);
+    r.earth.feeds.use_cache.set(o.live_earth_cache);
+    r.earth.history.blocking.set(true);
     if let Some(path) = &o.snapshot {
         let img = snapshot(&r, &c, o.size, o.time, o.events, &o.demo);
         write_png(path, o.size.0, o.size.1, &img)?;
