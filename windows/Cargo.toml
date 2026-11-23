@@ -1,0 +1,40 @@
+[package]
+name = "deepfield"
+version = "0.1.0"
+edition = "2021"
+description = "Deep Field for Windows: animated, pixel-dithered space scenes as the desktop wallpaper"
+license-file = "../LICENSE"
+
+[[bin]]
+name = "deepfield"
+path = "src/main.rs"
+
+[dependencies]
+wgpu = "23"
+pollster = "0.4"
+glam = { version = "0.29", features = ["serde"] }
+naga = { version = "23", features = ["wgsl-in"] }
+bytemuck = { version = "1", features = ["derive"] }
+png = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+raw-window-handle = "0.6"
+tray-icon = "0.19"
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Dwm",
+    "Win32_System_Console",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Registry",
+    "Win32_System_Power",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Shell",
+] }
+
+
+[profile.release]
+opt-level = 3
+lto = "thin"
