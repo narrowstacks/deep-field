@@ -8,13 +8,23 @@ struct PresetsMenu: View {
 
     var body: some View {
         let current = presets.current
+        ViewThatFits(in: .horizontal) {
+            presetsMenuContent(current)
+                .fixedSize()
+            presetsMenuContent(current)
+        }
+        .id(current?.name ?? "")
+    }
+
+    @ViewBuilder
+    private func presetsMenuContent(_ currentPreset: UserPreset?) -> some View {
         Menu {
             if presets.presets.isEmpty {
                 Text("No saved presets yet")
             } else {
                 ForEach(presets.presets) { preset in
                     Button { presets.apply(preset) } label: {
-                        if preset.id == current?.id {
+                        if preset.id == currentPreset?.id {
                             Label(preset.name, systemImage: "checkmark")
                         } else {
                             Text(preset.name)
@@ -41,11 +51,11 @@ struct PresetsMenu: View {
                 }
             }
         } label: {
-            Label(current?.name ?? "Presets", systemImage: "square.stack")
+            Label(currentPreset?.name ?? "Presets", systemImage: "square.stack")
                 .lineLimit(1)
+                .truncationMode(.tail)
         }
         .menuStyle(.borderlessButton)
-        .fixedSize()
         .help("Save, apply, import and export your customizations")
     }
 }
