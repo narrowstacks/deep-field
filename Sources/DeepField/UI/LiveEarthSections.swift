@@ -11,6 +11,18 @@ struct LiveEarthSections: View {
                 set: { store.config.earthFrozenTime = $0.timeIntervalSince1970.rounded() })
     }
 
+    /// Only the toggle freezes at now: presets and other outside changes don't go through this
+    /// setter, so they keep their date. One assignment, so the old date's clouds never download.
+    private var freezeTime: Binding<Bool> {
+        Binding(get: { store.config.earthFreezeTime },
+                set: { on in
+                    var c = store.config
+                    if on && !c.earthFreezeTime { c.earthFrozenTime = Date().timeIntervalSince1970.rounded() }
+                    c.earthFreezeTime = on
+                    store.config = c
+                })
+    }
+
     var body: some View {
         Section {
             Toggle("Use this Mac's location", isOn: $store.config.homeFromDevice)
@@ -42,10 +54,7 @@ struct LiveEarthSections: View {
         }
 
         Section {
-            Toggle("Freeze time", isOn: $store.config.earthFreezeTime)
-                .onChange(of: store.config.earthFreezeTime) { _, on in
-                    if on { store.config.earthFrozenTime = Date().timeIntervalSince1970.rounded() }
-                }
+            Toggle("Freeze time", isOn: freezeTime)
             if store.config.earthFreezeTime {
                 DatePicker("Moment", selection: frozenDate, displayedComponents: [.date, .hourAndMinute])
                 LabeledContent("") {
