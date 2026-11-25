@@ -87,7 +87,8 @@ An older nebula scene (pillars, dark clouds) is in the code but hidden from the 
   compositor scales it up with nearest-neighbor filtering, so the GPU shades about 1/9 of the
   pixels.
 - **Low frame rate.** 24 fps by default, capped at 12 in Low Power Mode and at 8 under thermal
-  pressure.
+  pressure. The saved rate can be up to 1000, and a slower display runs at its own maximum
+  (`Config/FrameRate.swift`).
 - **Stops when nobody can see it.** The display link pauses when the wallpaper window is fully
   covered (`NSWindow.occlusionState`), when the displays sleep, and when you switch users.
 - **Events are scheduled on the CPU** from a seeded hash per time slot, so there is no

@@ -111,6 +111,40 @@ enum CustomizationCheck {
         Tweak.all.first { $0.id == "glow" }?.turnOff(&off, base: bright)
         expect(off.bloom == d.bloom, "a tweak already on at the start couldn't be turned off")
 
+        // the frame rates offered: the usual ones, each display's and the saved one, once each, in order
+        func rates(_ displays: [Int], _ saved: Int = 24) -> [Int] { FrameRate.choices(displays: displays, current: saved) }
+        expect(rates([60]) == [12, 24, 30, 60], "rates on a 60 Hz display")
+        expect(rates([120]) == [12, 24, 30, 60, 120], "rates on a 120 Hz display")
+        expect(rates([165]) == [12, 24, 30, 60, 165], "rates on a 165 Hz display")
+        expect(rates([165, 60, 120, 165]) == [12, 24, 30, 60, 120, 165], "rates on mixed displays")
+        expect(rates([60], 20) == [12, 20, 24, 30, 60], "a saved 20 fps isn't listed")
+        expect(rates([60], 165) == [12, 24, 30, 60, 165], "a saved 165 fps isn't listed without its display")
+        expect(rates([0]) == [12, 24, 30, 60] && rates([]) == [12, 24, 30, 60], "rates with no known display")
+
+        // and saved rates hold up to the limit
+        for (saved, loaded) in [(20, 20), (165, 165), (600, 600), (0, 1), (5000, FrameRate.limit)] {
+            expect(WallpaperConfig.decode(Data("{\"fps\": \(saved)}".utf8))?.fps == loaded, "a saved \(saved) fps loaded wrong")
+        }
+        expect((try? ConfigKeys.apply([.init(key: "fps", raw: "165")], to: d))?.config.fps == 165, "the command line can't set 165 fps")
+
+        // frames drawn in a second when the display link ticks at `hz` with some jitter
+        func drawn(_ fps: Double, hz: Double) -> Int {
+            var last = -1.0, n = 0
+            for i in 0..<Int(hz) {
+                let now = (Double(i) + (i % 2 == 0 ? 0.05 : -0.05)) / hz
+                if FrameRate.isDue(after: now - last, fps: fps) { last = now; n += 1 }
+            }
+            return n
+        }
+        for (fps, hz, n) in [(24.0, 24.0, 24), (30, 30, 30), (60, 60, 60), (120, 120, 120), (165, 165, 165),
+                             (165, 60, 60), (60, 165, 55), (24, 120, 30), (24, 165, 28)] {
+            expect(drawn(fps, hz: hz) == n, "\(fps) fps on \(hz) Hz ticks drew \(drawn(fps, hz: hz))")
+        }
+
+        // a pixel size the picker doesn't list is added to it
+        expect(WallpaperConfig.pixelSizes.including(5) == [1, 2, 3, 4, 5, 6, 8], "a 5 px pixel size isn't listed")
+        expect(WallpaperConfig.pixelSizes.including(3) == WallpaperConfig.pixelSizes, "a listed pixel size was repeated")
+
         for f in failures { print("FAIL:", f) }
         print(failures.isEmpty ? "customization OK" : "\(failures.count) failures")
         return failures.isEmpty

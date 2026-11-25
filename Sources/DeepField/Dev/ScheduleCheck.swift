@@ -284,6 +284,14 @@ enum ScheduleCheck {
             $0.lastSlot = "another"
         }
 
+        // intervals and lengths the pickers don't list are added to them, under names of their own
+        expect(WallpaperSchedule.intervals.including(90) == [1, 5, 15, 30, 60, 90, 120, 240, 480, 1440], "a 90 minute interval isn't listed")
+        expect(WallpaperSchedule.fades.including(2.5) == [0, 2, 2.5, 4, 8, 15, 30, 60], "a 2.5 s length isn't listed")
+        expect([0.5, 45, 90, 2880].map(ScheduleTab.interval) == ["0.5 min", "45 min", "90 min", "48 hours"], "interval names")
+        expect(WallpaperSchedule.intervals.map(ScheduleTab.interval)
+               == ["1 min", "5 min", "15 min", "30 min", "Hour", "2 hours", "4 hours", "8 hours", "Day"], "usual interval names")
+        expect([0, 2, 2.5, 60].map(ScheduleTab.length) == ["Instant", "2 s", "2.5 s", "60 s"], "length names")
+
         if failures.isEmpty { print("schedule OK") } else { failures.forEach { print("FAIL:", $0) } }
         return failures.isEmpty
     }
