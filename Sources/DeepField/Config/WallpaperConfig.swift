@@ -442,8 +442,9 @@ struct WallpaperConfig: Codable, Equatable {
         clamp(\.starZoom, Self.starZoomRange)
         clamp(\.starCenterX, -1...1)
         clamp(\.starLimbY, -0.9...1)
-        clamp(\.homeLatitude, -90...90)
-        clamp(\.homeLongitude, -180...180)
+        clamp(\.homeLatitude, Self.latitudeRange)
+        c.homeLongitude = Self.keptLongitude(c.homeLongitude)
+        clamp(\.homeLongitude, -180...180)   // only NaN is left
         clamp(\.earthDistance, 1.3...20)
         for (kp, range) in Self.imageRanges { clamp(kp, range) }
         // the parked image settings become the flat ones on a scene switch, so they need it too
@@ -466,6 +467,12 @@ extension WallpaperConfig {
         (\.highlights, 0...1), (\.vignette, 0...1), (\.bloom, bloomRange),
         (\.bloomRadius, bloomRadiusRange), (\.bloomThreshold, 0...1),
     ]
+
+    static let latitudeRange = -90.0...90.0
+    static func keptLatitude(_ x: Double) -> Double { min(max(x, latitudeRange.lowerBound), latitudeRange.upperBound) }
+    /// Wrapped, because going around keeps the same place (200 is -160, on maps numbered 0 to 360)
+    /// and clamping would move it. Adding 0 turns -0 into 0.
+    static func keptLongitude(_ x: Double) -> Double { abs(x) <= 180 ? x : x.remainder(dividingBy: 360) + 0 }
 
     /// Puts the image controls back to their neutral defaults.
     mutating func resetImage() {

@@ -63,6 +63,21 @@ enum CustomizationCheck {
         w.scene = .wormhole
         expect(w.pixelSize == 1 && w.levels == 2, "a scene's own image settings not clamped")
 
+        // coordinates are kept in range: latitude stops at the poles, longitude goes around
+        for (x, kept) in [(-91.0, -90.0), (-90, -90), (40.5, 40.5), (90, 90), (1000, 90)] {
+            expect(WallpaperConfig.keptLatitude(x) == kept, "latitude \(x) wasn't kept as \(kept)")
+        }
+        for (x, kept) in [(200.0, -160.0), (-200, 160), (200.5, -159.5), (180, 180), (-180, -180), (360, 0), (-725, -5), (-120.25, -120.25)] {
+            expect(WallpaperConfig.keptLongitude(x) == kept, "longitude \(x) wasn't kept as \(kept)")
+            expect(WallpaperConfig.decode(Data("{\"homeLongitude\": \(x)}".utf8))?.homeLongitude == kept, "longitude \(x) loaded wrong")
+        }
+        expect(WallpaperConfig.keptLongitude(-360).sign == .plus, "longitude -360 reads -0")
+        var unplaced = d
+        unplaced.homeLatitude = .nan; unplaced.homeLongitude = .infinity
+        expect(unplaced.sanitized() == d, "a place that isn't a number wasn't reset")
+        let placing = try? ConfigKeys.apply([.init(key: "homeLatitude", raw: "95"), .init(key: "homeLongitude", raw: "200")], to: d)
+        expect(placing?.config.homeLatitude == 90 && placing?.config.homeLongitude == -160 && placing?.warnings.count == 2, "the command line's place")
+
         // presets carry Live Earth's place only when asked, and files never follow the Mac
         var here = d, there = d
         here.homeLatitude = 10; here.homeFromDevice = true
