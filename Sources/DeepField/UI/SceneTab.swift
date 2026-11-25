@@ -195,7 +195,8 @@ struct SceneTab: View {
                 case .blackHoleMerger:
                     Picker("Detection", selection: bbhDetection) {
                         ForEach(BlackHoleDetection.all, id: \.name) { Text($0.name).tag($0.name) }
-                        Text("Custom").tag("Custom")
+                        // listed only while current: it has nothing to apply, so choosing it would snap back
+                        if bbhDetection.wrappedValue == "Custom" { Text("Custom").tag("Custom") }
                     }
                     .help("Load the masses, spins and viewing angle of a merger LIGO, Virgo and KAGRA heard")
                     Picker("Black holes", selection: $store.config.bbhModel) {
@@ -554,7 +555,8 @@ struct SceneTab: View {
             if store.config.eclipseAtmosphere {
                 Picker("Composition", selection: airPreset) {
                     ForEach(EclipseAirPreset.all, id: \.name) { Text($0.name).tag($0.name) }
-                    Text("Custom").tag("Custom")
+                    // listed only while current, as for Detection
+                    if airPreset.wrappedValue == "Custom" { Text("Custom").tag("Custom") }
                 }
                 ColorRow("Sky color", store.color(\.eclipseAirColor))
                 SliderRow(title: "Density", value: $store.config.eclipseAirDensity, range: 0.1...3)

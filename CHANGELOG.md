@@ -18,6 +18,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Customize and the welcome guide: moving the window to a display of another shape, or changing its resolution, no longer stretches the preview, and the preview and gallery now follow the display the window is on instead of the one with keyboard focus.
 - Schedule: the status line keeps up with switches and edits, and says when a Focus filter or a change by hand is showing something else.
 - VoiceOver: sliders read their name and the value shown beside them. In the schedule, weekday buttons read the day's full name and whether it's selected, and each entry's time, look and options menu say which entry they belong to.
+- Black Hole Merger's Detection and Eclipse's Composition now list Custom only while the settings match none of their choices, so you can't pick it just to have it snap back.
 
 ## [0.4.8] - 2026-11-18
 
