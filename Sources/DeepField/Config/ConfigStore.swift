@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import Combine
 
 /// Holds the live config, persists it, and tells every view when it changes.
@@ -83,6 +83,12 @@ final class ConfigStore: ObservableObject {
         guard persists else { return }
         guard let data = try? JSONEncoder().encode(config) else { return }
         UserDefaults.standard.set(data, forKey: key)
+    }
+
+    /// Why a sky event started now couldn't be seen on any display, or nil if it could.
+    func hiddenReason(_ kind: EventSchedule.Kind) -> String? {
+        let aspects = NSScreen.screens.map { Double($0.frame.width / max($0.frame.height, 1)) }
+        return EventSchedule.hiddenReason(kind, config: config, aspects: aspects, at: Renderer.shared.elapsed)
     }
 
     func demo(_ kind: EventSchedule.Kind) {

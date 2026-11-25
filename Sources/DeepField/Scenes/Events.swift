@@ -131,17 +131,30 @@ struct EventSchedule {
     }
 
     /// `count` random sky directions for the event whose generator is `rng`, advancing `rng`
-    /// past them exactly as `randomSky` would. Cached per event instance and view.
+    /// past them exactly as `randomSky` would. Where the scene's bodies cover some of the sky,
+    /// they're placed in the rest; nil if none is left. Cached per event instance and view.
+    /// `start` is when the event began.
     private func placed(_ k: Kind, count: Int, _ rng: inout Rng, camera: Camera, config: WallpaperConfig,
-                        uRange: Double, vRange: Double) -> [SIMD3<Double>] {
+                        uRange: Double, vRange: Double, start: Double) -> [SIMD3<Double>]? {
         let key = SkyPlacements.Key(rng: rng.state, scene: config.scene, tilt: config.cameraTilt,
                                     throat: config.throat, diskSize: config.diskSize, aspect: camera.aspect)
-        if let hit = placements.entries[k.id], hit.key == key {
+        let covered = SkyCover.scenes.contains(config.scene)
+        if let hit = placements.entries[k.id], hit.key == key, !covered || placements.config == config {
             rng = hit.after
             return hit.dirs
         }
-        let dirs = (0..<count).map { _ in
-            Self.randomSky(&rng, camera: camera, config: config, uRange: uRange, vRange: vRange)
+        if covered, placements.config != config {
+            placements.entries = [:]
+            placements.config = config
+        }
+        func random(_ rng: inout Rng) -> [SIMD3<Double>] {
+            (0..<count).map { _ in
+                Self.randomSky(&rng, camera: camera, config: config, uRange: uRange, vRange: vRange)
+            }
+        }
+        var dirs: [SIMD3<Double>]? = random(&rng)
+        if let first = dirs, let sky = OpenSky(config, camera: camera, start: start, duration: k.duration) {
+            dirs = sky.place(first: first, &rng, next: random)
         }
         placements.entries[k.id] = (key, dirs, rng)
         return dirs
@@ -153,8 +166,9 @@ struct EventSchedule {
         guard enabled else { return e }
         let pa = 2 * cam.tanHalf / Double(heightPixels)   // radians per pixel
 
-        if case (let age, var rng)? = active(Self.supernova, rate: c.supernovae.rate, at: t, demo: demo) {
-            let d = placed(Self.supernova, count: 1, &rng, camera: cam, config: c, uRange: 0.85, vRange: 0.8)[0]
+        if case (let age, var rng)? = active(Self.supernova, rate: c.supernovae.rate, at: t, demo: demo),
+           let d = placed(Self.supernova, count: 1, &rng, camera: cam, config: c, uRange: 0.85, vRange: 0.8,
+                          start: t - age)?[0] {
             let fadeOut = 1 - smoothstep(Self.supernova.duration - 30, Self.supernova.duration, age)
             let rise = smoothstep(0, 2.5, age)
             let core = 5.0 * rise * (0.15 + 0.85 * exp(-age / 18)) * fadeOut
@@ -165,8 +179,9 @@ struct EventSchedule {
                                Float(min(age / 70, 1)))
         }
 
-        if case (let age, var rng)? = active(Self.comet, rate: c.comets.rate, at: t, demo: demo) {
-            let ends = placed(Self.comet, count: 2, &rng, camera: cam, config: c, uRange: 0.95, vRange: 0.7)
+        if case (let age, var rng)? = active(Self.comet, rate: c.comets.rate, at: t, demo: demo),
+           let ends = placed(Self.comet, count: 2, &rng, camera: cam, config: c, uRange: 0.95, vRange: 0.7,
+                             start: t - age) {
             let a = ends[0], b = ends[1]
             let f = age / Self.comet.duration
             let head = simd_normalize(simd_mix(a, b, SIMD3(repeating: f)))
@@ -249,7 +264,9 @@ private final class SkyPlacements {
     struct Key: Equatable {
         var rng: UInt64, scene: SceneKind, tilt: Double, throat: Double, diskSize: Double, aspect: Double
     }
-    var entries: [UInt64: (key: Key, dirs: [SIMD3<Double>], after: Rng)] = [:]
+    /// The config the entries are for, in scenes where its other settings move what covers the sky.
+    var config: WallpaperConfig?
+    var entries: [UInt64: (key: Key, dirs: [SIMD3<Double>]?, after: Rng)] = [:]
 }
 
 extension EventSchedule {

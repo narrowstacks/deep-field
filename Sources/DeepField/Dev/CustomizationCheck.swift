@@ -156,6 +156,8 @@ enum CustomizationCheck {
             expect(drawn(fps, hz: hz) == n, "\(fps) fps on \(hz) Hz ticks drew \(drawn(fps, hz: hz))")
         }
 
+        failures += SkyCoverCheck.failures()
+
         // a pixel size the picker doesn't list is added to it
         expect(WallpaperConfig.pixelSizes.including(5) == [1, 2, 3, 4, 5, 6, 8], "a 5 px pixel size isn't listed")
         expect(WallpaperConfig.pixelSizes.including(3) == WallpaperConfig.pixelSizes, "a listed pixel size was repeated")
