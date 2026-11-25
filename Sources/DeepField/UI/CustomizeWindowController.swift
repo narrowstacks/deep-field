@@ -16,7 +16,9 @@ final class CustomizeWindowController {
             NotificationCenter.default.post(name: Self.showSection, object: section)
         }
         if window == nil {
-            let w = NSWindow(contentViewController: NSHostingController(rootView: CustomizeView(initialSection: section)))
+            let thumbnails = SceneThumbnails()
+            let w = NSWindow(contentViewController: NSHostingController(
+                rootView: CustomizeView(thumbnails: thumbnails, initialSection: section)))
             w.title = "Customize Deep Field"
             // resizable: a taller window shows more of the gallery, a wider one a wider inspector
             w.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -27,6 +29,7 @@ final class CustomizeWindowController {
             w.isReleasedWhenClosed = false
             w.center()
             w.setFrameAutosaveName("CustomizeWindow")   // remembers the size and position you leave it at
+            thumbnails.follow(w)
             closeObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in self?.closed() }
             window = w

@@ -15,6 +15,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Phone: the whole preview and its size now fit in short windows, and custom sizes show the size that will be exported.
 - Live Earth no longer offers the Sky section's settings and Camera Tilt, which do nothing there since it draws the real sky, and `deepfield event supernova` and `comet` now say they can't appear there.
 - Live Earth: a preset, the schedule or the command line turning on Freeze time keeps its own date, instead of switching to now while Customize is open.
+- Customize and the welcome guide: moving the window to a display of another shape, or changing its resolution, no longer stretches the preview, and the preview and gallery now follow the display the window is on instead of the one with keyboard focus.
 
 ## [0.4.8] - 2026-11-18
 

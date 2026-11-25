@@ -1,12 +1,15 @@
 import AppKit
 import SwiftUI
 
-/// The live wallpaper renderer, embedded. Renders at the main screen's resolution and scales down.
+/// The live wallpaper renderer, embedded. Renders at the resolution of the window's screen and scales down.
 struct LivePreview: NSViewRepresentable {
     let reference: CGSize
     let actualPixels: Bool
     func makeNSView(context: Context) -> WallpaperView { WallpaperView(frame: .zero, previewOf: reference) }
-    func updateNSView(_ nsView: WallpaperView, context: Context) { nsView.actualPixels = actualPixels }
+    func updateNSView(_ nsView: WallpaperView, context: Context) {
+        nsView.previewOf = reference
+        nsView.actualPixels = actualPixels
+    }
 }
 
 /// The window's left column: the preview (or the phone preview), a caption and the scrolling
@@ -15,10 +18,10 @@ struct StageView: View {
     @ObservedObject var store: ConfigStore
     @ObservedObject var thumbnails: SceneThumbnails
     let section: CustomizeSection
-    let reference: CGSize
     let showPhoneClock: Bool
     @Binding var actualPixels: Bool
     @ObservedObject private var status = StageStatus.shared
+    private var reference: CGSize { thumbnails.reference }
 
     /// `--capture-ui` only: `cacheDisplay` can't read a Metal layer, so captures show a still.
     @State private var captureStill: CGImage?
@@ -79,6 +82,7 @@ struct StageView: View {
                 }
                 .onAppear { renderCaptureStill() }
                 .onChange(of: store.config) { renderCaptureStill() }
+                .onChange(of: reference) { renderCaptureStill() }
             } else {
                 LivePreview(reference: reference, actualPixels: actualPixels)
             }

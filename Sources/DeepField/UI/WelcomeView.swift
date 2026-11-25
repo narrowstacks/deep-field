@@ -9,7 +9,7 @@ struct WelcomeView: View {
     enum Step: Int, CaseIterable { case hello, scene, tweaks, finish }
 
     @ObservedObject private var store = ConfigStore.shared
-    @StateObject private var thumbnails = SceneThumbnails(reference: CustomizeView.reference)
+    @ObservedObject private var thumbnails: SceneThumbnails
     @State private var step: Step
     @State private var launchAtLogin = LoginItem.isEnabled
     /// The lock screen choice, if one was made. It replaces the desktop picture, so it waits for
@@ -21,7 +21,8 @@ struct WelcomeView: View {
     @State private var onDesktop = Settings.wallpaperEnabled && !Settings.capturingUI
     let finish: (_ setWallpaper: Bool) -> Void
 
-    init(startAt: Step = .hello, finish: @escaping (_ setWallpaper: Bool) -> Void) {
+    init(thumbnails: SceneThumbnails, startAt: Step = .hello, finish: @escaping (_ setWallpaper: Bool) -> Void) {
+        self.thumbnails = thumbnails
         _step = State(initialValue: startAt)
         self.finish = finish
     }
@@ -33,7 +34,7 @@ struct WelcomeView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             VStack(alignment: .leading, spacing: 10) {
-                WelcomePreview(store: store, box: Self.previewBox)
+                WelcomePreview(store: store, reference: thumbnails.reference, box: Self.previewBox)
                 Text("Live preview of \(store.config.scene.title), as it will look on your desktop")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -284,15 +285,15 @@ private struct TweakRow: View {
     }
 }
 
-/// The large live preview, fitted to the main screen's shape. During a window capture (which
-/// can't read a Metal layer) it shows a rendered still instead.
+/// The large live preview, fitted to the shape of the window's screen. During a window
+/// capture (which can't read a Metal layer) it shows a rendered still instead.
 private struct WelcomePreview: View {
     @ObservedObject var store: ConfigStore
+    let reference: CGSize
     let box: CGSize
     @State private var still: CGImage?
 
     var body: some View {
-        let reference = CustomizeView.reference
         let fitted = Theme.fit(reference, in: box)
         return Group {
             if Settings.capturingUI {
@@ -300,8 +301,9 @@ private struct WelcomePreview: View {
                     Color.black
                     if let still { Image(decorative: still, scale: 1).resizable().interpolation(.high) }
                 }
-                .onAppear { renderStill(reference) }
-                .onChange(of: store.config) { renderStill(reference) }
+                .onAppear { renderStill() }
+                .onChange(of: store.config) { renderStill() }
+                .onChange(of: reference) { renderStill() }
             } else {
                 LivePreview(reference: reference, actualPixels: false)
             }
@@ -313,7 +315,7 @@ private struct WelcomePreview: View {
         .frame(width: box.width)
     }
 
-    private func renderStill(_ reference: CGSize) {
+    private func renderStill() {
         let px = CGFloat(store.config.pixelSize)
         let w = Int((reference.width / px).rounded(.up)), h = Int((reference.height / px).rounded(.up))
         still = FrameCapture.render(config: store.config, width: w, height: h, time: 300, eventsEnabled: false)
@@ -330,13 +332,15 @@ final class WelcomeWindowController {
     func show(startAt step: WelcomeView.Step = .hello, onFinish: @escaping (Bool) -> Void) {
         self.onFinish = onFinish
         if window == nil {
-            let view = WelcomeView(startAt: step) { [weak self] setWallpaper in self?.finish(setWallpaper) }
+            let thumbnails = SceneThumbnails()
+            let view = WelcomeView(thumbnails: thumbnails, startAt: step) { [weak self] setWallpaper in self?.finish(setWallpaper) }
             let w = NSWindow(contentViewController: NSHostingController(rootView: view))
             w.title = "Welcome to Deep Field"
             w.styleMask = [.titled, .closable, .miniaturizable]
             w.appearance = NSAppearance(named: .darkAqua)
             w.isReleasedWhenClosed = false
             w.center()
+            thumbnails.follow(w)
             closeObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in self?.closed() }
             window = w

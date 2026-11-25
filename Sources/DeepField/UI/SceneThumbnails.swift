@@ -7,19 +7,73 @@ import SwiftUI
 /// live renderer.
 final class SceneThumbnails: ObservableObject {
     @Published private(set) var images: [SceneKind: CGImage] = [:]
-    let size: (width: Int, height: Int)
+    /// The size in pixels of the window's screen, which the preview renders. Kept here alone, so
+    /// the preview, its caption and the gallery can't disagree. The main screen's until `follow`.
+    @Published private(set) var reference: CGSize
+    var size: (width: Int, height: Int) {
+        let s = Theme.fit(reference, in: Theme.gallery(for: reference).box)
+        return (max(16, Int(s.width.rounded())), max(16, Int(s.height.rounded())))
+    }
 
     private var rendered: [SceneKind: WallpaperConfig] = [:]
     private var generation: [SceneKind: Int] = [:]
     private var observer: NSObjectProtocol?
     private var work: DispatchWorkItem?
+    private var screenObservers: [NSObjectProtocol] = []
+    private var screenWork: DispatchWorkItem?
 
-    init(reference: CGSize) {
-        let s = Theme.fit(reference, in: Theme.gallery(for: reference).box)
-        size = (max(16, Int(s.width.rounded())), max(16, Int(s.height.rounded())))
+    init() {
+        reference = NSScreen.main.map(Self.pixels) ?? CGSize(width: 2880, height: 1800)
     }
 
-    deinit { stop() }
+    deinit {
+        stop()
+        screenObservers.forEach(NotificationCenter.default.removeObserver)
+        screenWork?.cancel()
+    }
+
+    private static func pixels(of s: NSScreen) -> CGSize {
+        CGSize(width: s.frame.width * s.backingScaleFactor, height: s.frame.height * s.backingScaleFactor)
+    }
+
+    /// Keeps `reference` to the screen `window` is on, not `NSScreen.main`, which follows the
+    /// keyboard focus. Called once the window is placed, so it opens at the right size.
+    func follow(_ window: NSWindow) {
+        updateReference(window)
+        // occlusion too: a minimized or hidden window may have no screen until it's back
+        let sources: [(Notification.Name, Any?)] = [
+            (NSWindow.didChangeScreenNotification, window),
+            (NSWindow.didChangeOcclusionStateNotification, window),
+            (NSApplication.didChangeScreenParametersNotification, nil),
+        ]
+        screenObservers = sources.map { name, object in
+            NotificationCenter.default.addObserver(forName: name, object: object, queue: .main) { [weak self, weak window] _ in
+                if let window { self?.scheduleReference(window) }
+            }
+        }
+    }
+
+    /// Debounced, and held until the mouse is up, so a drag across displays changes it once.
+    private func scheduleReference(_ window: NSWindow) {
+        screenWork?.cancel()
+        let w = DispatchWorkItem { [weak self, weak window] in
+            guard let self, let window else { return }
+            if NSEvent.pressedMouseButtons & 1 != 0 { self.scheduleReference(window) } else { self.updateReference(window) }
+        }
+        screenWork = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: w)
+    }
+
+    private func updateReference(_ window: NSWindow) {
+        guard let screen = window.screen else { return }
+        let new = Self.pixels(of: screen), oldSize = size
+        guard new != reference else { return }
+        reference = new
+        // thumbnails often keep their size (same shape, other scale); hidden ones wait for `start`
+        guard size != oldSize else { return }
+        rendered = [:]
+        if observer != nil { refresh() }
+    }
 
     func start() {
         if observer == nil {
