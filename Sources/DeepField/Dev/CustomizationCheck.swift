@@ -97,6 +97,29 @@ enum CustomizationCheck {
             .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }.flatMap(PresetStore.preset(from:))
         expect(saved?.config == followed && saved?.includesPlace == true, "a saved preset lost its place")
 
+        // a preset still shows as current after a scene's own image settings were edited and other
+        // scenes visited, while a real difference in them still counts
+        var edited = d
+        edited.scene = .comet
+        edited.sceneHasOwnImage = true
+        edited.bloom = 2
+        let current = UserPreset(name: "", config: edited)
+        var visited = edited
+        visited.scene = .eclipse
+        visited.scene = .comet
+        expect(current.matches(visited), "a preset stopped showing as current after visiting another scene")
+        visited.bloom = 1
+        visited.scene = .eclipse
+        visited.scene = .comet
+        visited.bloom = 2
+        expect(current.matches(visited), "a preset stopped showing as current after an edit was undone")
+        visited.bloom = 1
+        expect(!current.matches(visited), "a preset showed as current with different own image settings")
+        var away = edited
+        away.scene = .eclipse
+        visited.scene = .eclipse
+        expect(!UserPreset(name: "", config: away).matches(visited), "a preset showed as current with another scene's own image settings different")
+
         // the welcome guide's tweaks undo to what was set before, in the scene's own image settings
         var base = d
         base.pixelSize = 2; base.bloom = 0.6; base.supernovae = .rare

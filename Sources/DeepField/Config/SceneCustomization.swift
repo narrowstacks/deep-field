@@ -95,6 +95,15 @@ extension WallpaperConfig {
         }
     }
 
+    /// `self` with the active scene's own image entry brought up to date. That entry is only
+    /// written as the scene is left, so until then it can hold an older copy nothing reads, which
+    /// shouldn't make two configs with the same settings compare different.
+    var withOwnImageCurrent: WallpaperConfig {
+        var c = self
+        if c.sceneHasOwnImage { c.sceneImage[c.scene.rawValue] = c.image }
+        return c
+    }
+
     /// Called as `scene` changes: keeps the old scene's tilt, then brings in the new scene's.
     mutating func swapTilt(leaving old: SceneKind) {
         if old.hasTilt { sceneTilt[old.rawValue] = tilt }
