@@ -170,6 +170,13 @@ enum CustomizationCheck {
             expect(refused == (scene.drawsRealSky ? ["supernova", "comet"] : []), "events refused in \(scene): \(refused)")
         }
 
+        // render keeps every --demo, each one comma-separated or not; the same event again moves its start
+        let demoArgs = ["out.png", "--demo", "supernova:300", "--demo=cometOutburst:20,\(EventSchedule.comet.id):40",
+                        "--demo", "supernova:310"]
+        let demos = (try? RenderCommand.arguments(demoArgs)).flatMap { try? RenderCommand.demoEvents($0, scene: .comet) }
+        expect(demos == [EventSchedule.supernova.id: 310, EventSchedule.cometOutburst.id: 20, EventSchedule.comet.id: 40],
+               "render's --demo flags: \(demos.map { "\($0)" } ?? "error")")
+
         // Reset Framing keeps a hidden Subject height, and has nothing to do for it alone
         let framed = PhoneFraming(zoom: 1.5, shift: 0.2), shifted = PhoneFraming(shift: 0.2)
         expect(framed.reset(in: .liveEarth) == shifted && shifted.reset(in: .liveEarth) == shifted, "Reset Framing changed a hidden Subject height")

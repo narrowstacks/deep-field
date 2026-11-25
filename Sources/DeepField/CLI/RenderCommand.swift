@@ -48,11 +48,16 @@ enum RenderCommand {
     private static let stillTypes: [String: UTType] = ["png": .png, "jpg": .jpeg, "jpeg": .jpeg, "heic": .heic,
                                                        "tif": .tiff, "tiff": .tiff]
 
+    /// The render command's options, parsed (also used by `--check-customization`).
+    static func arguments(_ argv: [String]) throws -> ParsedArgs {
+        try ParsedArgs(argv,
+                       values: ["--scene", "--preset", "--config", "--demo", "--size", "--scale", "--time",
+                                "--duration", "--fps", "--speed", "--codec", "--bitrate"],
+                       flags: ["--defaults", "--smooth", "--no-events", "--open", "--quiet", "--loop"])
+    }
+
     static func run(_ argv: [String], cwd: String) throws -> Int32 {
-        let a = try ParsedArgs(argv,
-                               values: ["--scene", "--preset", "--config", "--demo", "--size", "--scale", "--time",
-                                        "--duration", "--fps", "--speed", "--codec", "--bitrate"],
-                               flags: ["--defaults", "--smooth", "--no-events", "--open", "--quiet", "--loop"])
+        let a = try arguments(argv)
         var positional = a.positional
         var mode = "auto"
         if let first = positional.first, ["image", "still", "video", "timelapse", "gif", "frames"].contains(first) {
@@ -142,18 +147,27 @@ enum RenderCommand {
             c.levels = 256
             c.dither = .bayer8
         }
-        if let demo = a.value("--demo") {
+        // every option that can change the scene is in c by now
+        let demos = try demoEvents(a, scene: c.scene)
+        if !demos.isEmpty { ConfigStore.shared.demoEvents.merge(demos) { _, new in new } }
+        return c
+    }
+
+    /// Every `--demo` given, each a comma-separated list of NAME:SECONDS, as event kind id to
+    /// start time. An event named more than once starts at the last time given.
+    static func demoEvents(_ a: ParsedArgs, scene: SceneKind) throws -> [UInt64: Double] {
+        var starts: [UInt64: Double] = [:]
+        for demo in a.values("--demo") {
             for pair in demo.split(separator: ",") {
                 let parts = pair.split(separator: ":").map(String.init)
                 guard parts.count == 2, let start = Double(parts[1]),
                       let e = EventSchedule.named.first(where: { $0.name.caseInsensitiveCompare(parts[0]) == .orderedSame || String($0.kind.id) == parts[0] })
                 else { throw CLIError("--demo takes NAME:SECONDS, like supernova:300") }
-                // every option that can change the scene is in c by now
-                if let reason = EventSchedule.realSkyReason(e, in: c.scene) { throw CLIError(reason) }
-                ConfigStore.shared.demoEvents[e.kind.id] = start
+                if let reason = EventSchedule.realSkyReason(e, in: scene) { throw CLIError(reason) }
+                starts[e.kind.id] = start
             }
         }
-        return c
+        return starts
     }
 
     /// The running app's settings (they may not be saved yet), or the saved ones.

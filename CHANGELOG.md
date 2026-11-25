@@ -6,6 +6,8 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 - Presets: a preset that matches your settings shows as current again after you edit a scene's own image settings and visit other scenes.
 
+- `deepfield render` now shows every event given with `--demo` when the flag is repeated, instead of only the last one.
+
 ## [0.4.9] - 2026-11-25
 
 - Presets and exported preset files now leave out Live Earth's place (which can be your Mac's location) unless you choose to include it: tick the box when saving or exporting, use Include Live Earth's Place in the Presets menu for presets you already have, or add `--with-place` on the command line. Files exported before this update still contain it.

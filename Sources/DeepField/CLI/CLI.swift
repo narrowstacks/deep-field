@@ -303,10 +303,12 @@ enum CLI {
 }
 
 /// Options for one command: `--name value` (or `--name=value`) for those in `values`, bare
-/// flags for those in `flags`, and everything else positional.
+/// flags for those in `flags`, and everything else positional. An option given more than once
+/// keeps its last value in `options`, and every value in order in `allOptions`.
 struct ParsedArgs {
     var positional: [String] = []
     var options: [String: String] = [:]
+    var allOptions: [String: [String]] = [:]
     var flags: Set<String> = []
 
     init(_ args: [String], values: Set<String> = [], flags allowed: Set<String> = []) throws {
@@ -325,13 +327,16 @@ struct ParsedArgs {
                     inline = String(a[a.index(after: eq)...])
                 }
                 if values.contains(name) {
+                    let value: String
                     if let inline {
-                        options[name] = inline
+                        value = inline
                     } else {
                         guard i + 1 < args.count else { throw CLIError("\(name) needs a value") }
-                        options[name] = args[i + 1]
+                        value = args[i + 1]
                         i += 1
                     }
+                    options[name] = value
+                    allOptions[name, default: []].append(value)
                 } else if allowed.contains(name) {
                     // a flag can carry an optional value as --flag=value (render's --loop=2)
                     flags.insert(name)
@@ -349,6 +354,8 @@ struct ParsedArgs {
 
     func has(_ flag: String) -> Bool { flags.contains(flag) }
     func value(_ option: String) -> String? { options[option] }
+    /// Every value given for a repeatable option, in order.
+    func values(_ option: String) -> [String] { allOptions[option] ?? [] }
 
     func double(_ option: String) throws -> Double? {
         guard let s = options[option] else { return nil }
