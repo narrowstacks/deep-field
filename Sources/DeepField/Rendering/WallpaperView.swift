@@ -291,6 +291,10 @@ final class WallpaperView: NSView {
         guard let link else { return }
         let fps = Settings.effectiveFPS
         link.preferredFrameRateRange = CAFrameRateRange(minimum: Float(min(fps, 10)), maximum: Float(fps), preferred: Float(fps))
+        // With two drawables, `nextDrawable` waits about 2 ms on the compositor every frame, too much
+        // of the 6 ms there is at 165 fps.
+        let drawables = fps > 60 ? 3 : 2
+        if metalLayer.maximumDrawableCount != drawables { metalLayer.maximumDrawableCount = drawables }
         let shouldRun = shouldRun
         if link.isPaused == shouldRun {
             link.isPaused = !shouldRun
@@ -311,8 +315,7 @@ final class WallpaperView: NSView {
 
     @objc private func tick(_ l: CADisplayLink) {
         let now = l.timestamp
-        // The display link may fire faster than asked on high refresh displays; skip extra ticks.
-        if now - lastFrame < 0.75 / Settings.effectiveFPS { return }
+        guard FrameRate.isDue(after: now - lastFrame, fps: Settings.effectiveFPS) else { return }
         lastFrame = now
         render()
     }

@@ -19,6 +19,8 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Schedule: the status line keeps up with switches and edits, and says when a Focus filter or a change by hand is showing something else.
 - VoiceOver: sliders read their name and the value shown beside them. In the schedule, weekday buttons read the day's full name and whether it's selected, and each entry's time, look and options menu say which entry they belong to.
 - Black Hole Merger's Detection and Eclipse's Composition now list Custom only while the settings match none of their choices, so you can't pick it just to have it snap back.
+- Frame rate now offers each connected display's own refresh rate, such as 165 fps, and keeps up as displays are plugged in or unplugged. Saved rates can go up to 1000 fps (it was 120); a slower display runs at its own maximum. Higher rates use more power.
+- Pixel size, Frame rate, and the Schedule's Every and Length always show the current value, including one set by a preset, the `deepfield` command or an edited save.
 
 ## [0.4.8] - 2026-11-18
 

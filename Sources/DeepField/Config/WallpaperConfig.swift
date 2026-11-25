@@ -423,7 +423,7 @@ struct WallpaperConfig: Codable, Equatable {
         }
         c.pixelSize = min(max(c.pixelSize, 1), 16)
         c.levels = min(max(c.levels, 2), 256)
-        c.fps = min(max(c.fps, 1), 120)
+        c.fps = min(max(c.fps, 1), FrameRate.limit)
         c.planetCount = min(max(c.planetCount, 0), 6)
         c.ringedMoonCount = min(max(c.ringedMoonCount, 0), 3)
         c.protoGaps = min(max(c.protoGaps, 1), 7)
@@ -454,6 +454,7 @@ struct WallpaperConfig: Codable, Equatable {
 }
 
 extension WallpaperConfig {
+    static let pixelSizes = [1, 2, 3, 4, 6, 8]
     static let exposureRange = 0.3...3.0
     static let contrastRange = 0.5...2.0
     static let blackPointRange = 0.0...0.3

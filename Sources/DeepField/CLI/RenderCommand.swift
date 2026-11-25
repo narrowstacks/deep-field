@@ -89,7 +89,7 @@ enum RenderCommand {
         if still {
             try renderStill(config, size: size, time: time, events: events, smooth: a.has("--smooth"), to: out, ext: ext)
         } else {
-            let fps = try a.int("--fps") ?? config.fps
+            let fps = try a.int("--fps") ?? min(config.fps, 240)
             let duration = try a.double("--duration") ?? 10
             let speed = try a.double("--speed") ?? (mode == "timelapse" ? 60 : 1)
             guard fps > 0, fps <= 240, duration > 0, speed != 0 else { throw CLIError("--fps, --duration and --speed must be positive") }

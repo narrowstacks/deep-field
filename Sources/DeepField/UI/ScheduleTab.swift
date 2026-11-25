@@ -21,7 +21,7 @@ struct ScheduleTab: View {
                 .pickerStyle(.segmented)
                 if schedule.mode == .rotate {
                     Picker("Every", selection: s.intervalMinutes) {
-                        ForEach(WallpaperSchedule.intervals, id: \.self) { Text(Self.interval($0)).tag($0) }
+                        ForEach(WallpaperSchedule.intervals.including(schedule.intervalMinutes), id: \.self) { Text(Self.interval($0)).tag($0) }
                     }
                     Toggle("Shuffle", isOn: s.shuffle)
                         .help("A new order each time round, never showing the same look twice in a row")
@@ -34,7 +34,7 @@ struct ScheduleTab: View {
                 }
                 .help(schedule.transition.help)
                 Picker("Length", selection: s.fadeSeconds) {
-                    ForEach(WallpaperSchedule.fades, id: \.self) { Text($0 == 0 ? "Instant" : "\(Int($0)) s").tag($0) }
+                    ForEach(WallpaperSchedule.fades.including(schedule.fadeSeconds), id: \.self) { Text(Self.length($0)).tag($0) }
                 }
                 .help("How long each switch takes")
             } header: {
@@ -102,12 +102,14 @@ struct ScheduleTab: View {
 
     static func interval(_ minutes: Double) -> String {
         switch minutes {
-        case ..<60: "\(Int(minutes)) min"
         case 60: "Hour"
         case 1440: "Day"
-        default: "\(Int(minutes / 60)) hours"
+        case 120... where minutes.truncatingRemainder(dividingBy: 60) == 0: "\(ConfigKeys.number(minutes / 60)) hours"
+        default: "\(ConfigKeys.number(minutes)) min"
         }
     }
+
+    static func length(_ seconds: Double) -> String { seconds == 0 ? "Instant" : "\(ConfigKeys.number(seconds)) s" }
 }
 
 private struct EntryRow: View {
