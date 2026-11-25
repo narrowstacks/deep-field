@@ -14,7 +14,6 @@ struct LiveEarthSections: View {
     var body: some View {
         Section {
             Toggle("Use this Mac's location", isOn: $store.config.homeFromDevice)
-                .onChange(of: store.config.homeFromDevice) { _, on in if on { location.request() } }
             if store.config.homeFromDevice {
                 LabeledContent("Location") {
                     HStack {

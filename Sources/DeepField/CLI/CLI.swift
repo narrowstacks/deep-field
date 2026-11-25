@@ -59,13 +59,14 @@ enum CLI {
             """, service: true),
         Command(name: "preset", summary: "Apply, save, delete, rename, export or import presets", usage: """
             deepfield preset apply NAME|FILE.deepfield [KEY=VALUE...] [--fade SECONDS] [--style STYLE]
-            deepfield preset save NAME
+            deepfield preset save NAME [--with-place]
             deepfield preset delete NAME
             deepfield preset rename OLD NEW
-            deepfield preset export [NAME] FILE.deepfield    (the current settings without NAME)
+            deepfield preset export [NAME] FILE.deepfield [--with-place]    (the current settings without NAME)
             deepfield preset import FILE.deepfield...
 
             apply also takes a palette preset ("Synthwave") or one of the scene's color presets.
+            --with-place includes Live Earth's latitude and longitude, left out otherwise.
             """, service: true),
         Command(name: "events", summary: "List events you can trigger", usage: """
             deepfield events [--all] [--names|--json]

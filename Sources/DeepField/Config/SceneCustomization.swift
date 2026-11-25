@@ -14,6 +14,13 @@ struct ImageSettings: Codable, Equatable {
         pixelSize = c.pixelSize; levels = c.levels; dither = c.dither
     }
 
+    /// Clamped the way the active scene's image settings are.
+    func sanitized() -> ImageSettings {
+        var c = WallpaperConfig()
+        c.image = self
+        return ImageSettings(c.sanitized())
+    }
+
     /// Missing keys fall back to the defaults, so settings saved before a field existed still load.
     init(from decoder: Decoder) throws {
         let k = try decoder.container(keyedBy: CodingKeys.self)
@@ -38,6 +45,16 @@ extension WallpaperConfig {
             bloom = newValue.bloom; bloomRadius = newValue.bloomRadius; bloomThreshold = newValue.bloomThreshold
             pixelSize = newValue.pixelSize; levels = newValue.levels; dither = newValue.dither
         }
+    }
+
+    /// `self` at `other`'s place for Live Earth. Presets and preset files leave the place out
+    /// unless asked: it can be where someone is.
+    func withPlace(of other: WallpaperConfig) -> WallpaperConfig {
+        var c = self
+        c.homeLatitude = other.homeLatitude
+        c.homeLongitude = other.homeLongitude
+        c.homeFromDevice = other.homeFromDevice
+        return c
     }
 
     func hasOwnImage(_ kind: SceneKind) -> Bool { sceneImage[kind.rawValue] != nil }

@@ -46,6 +46,12 @@ struct PresetsMenu: View {
                 Menu("Rename") {
                     ForEach(presets.presets) { p in Button("\(p.name)…") { presets.promptToRename(p) } }
                 }
+                Menu("Include Live Earth's Place") {
+                    ForEach(presets.presets) { p in
+                        Toggle(p.name, isOn: Binding(get: { p.includesPlace },
+                                                     set: { presets.setIncludesPlace($0, for: p) }))
+                    }
+                }
                 Menu("Delete") {
                     ForEach(presets.presets) { p in Button("\(p.name)…") { presets.confirmDelete(p) } }
                 }
