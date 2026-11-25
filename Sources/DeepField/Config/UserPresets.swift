@@ -21,6 +21,11 @@ struct UserPreset: Codable, Identifiable, Equatable {
         c.phoneFraming = nil
         return c.sanitized()
     }
+
+    /// Whether `current` is this preset's look, so the menus show it as the current one.
+    func matches(_ current: WallpaperConfig) -> Bool {
+        applied(over: current).withOwnImageCurrent == current.withOwnImageCurrent
+    }
 }
 
 /// The user's presets, kept in UserDefaults, plus import and export as `.deepfield` files
@@ -108,7 +113,7 @@ final class PresetStore: ObservableObject {
     /// The preset the current settings match, if any.
     var current: UserPreset? {
         let c = ConfigStore.shared.config
-        return presets.first { $0.applied(over: c) == c }
+        return presets.first { $0.matches(c) }
     }
 
     // MARK: files
