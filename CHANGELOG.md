@@ -12,6 +12,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Fixed a crash when switching scenes after loading a damaged preset.
 - With the animation paused, scheduled switches and `--fade` now cut straight to the new scene instead of leaving the old one up, and pausing partway through a transition ends on the new scene.
 - Schedule: editing a rotation (its looks, their order, the interval or shuffle) no longer switches the wallpaper early, and turning a rotation on starts at its first look with a full interval.
+- Live Earth no longer offers the Sky section's settings and Camera Tilt, which do nothing there since it draws the real sky, and `deepfield event supernova` and `comet` now say they can't appear there.
 
 ## [0.4.8] - 2026-11-18
 

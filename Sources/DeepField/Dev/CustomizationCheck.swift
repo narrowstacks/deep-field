@@ -23,6 +23,11 @@ enum CustomizationCheck {
         expect(bh.palette.receding == d.palette.receding, "black hole colors not reset")
         expect(bh.palette.galaxyCore == RGB(0, 0, 1), "black hole reset touched the galaxy's colors")
 
+        // Live Earth has no use for the camera tilt, so its reset leaves it to the other scenes and doesn't claim it
+        var tilted = d
+        tilted.tilt = 20
+        expect(!tilted.isCustomized(.liveEarth) && !SceneKind.liveEarth.sharesSettings, "Live Earth's reset covers the camera tilt")
+
         // per-scene image settings follow their scene
         var i = d
         i.scene = .comet

@@ -72,9 +72,13 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Draws the real sky, from a camera held over a place on Earth, so the Sky section, the shared
+    /// sky events and the shared camera tilt have nothing to act on.
+    var drawsRealSky: Bool { self == .liveEarth }
+
     /// Scenes with settings on the Scene tab that other scenes also use (camera tilt, planets,
     /// the shared disk colors), which a per-scene reset puts back for those scenes too.
-    var sharesSettings: Bool { ![.quasar, .galaxy].contains(self) }
+    var sharesSettings: Bool { !drawsRealSky && ![.quasar, .galaxy].contains(self) }
 
     /// Scenes that show the orbiting planets.
     var hasPlanets: Bool { [.blackHole, .wormhole, .binary, .trinary].contains(self) }
