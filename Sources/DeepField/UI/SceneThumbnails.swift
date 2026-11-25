@@ -10,7 +10,9 @@ final class SceneThumbnails: ObservableObject {
     /// The size in pixels of the window's screen, which the preview renders. Kept here alone, so
     /// the preview, its caption and the gallery can't disagree. The main screen's until `follow`.
     @Published private(set) var reference: CGSize
-    var size: (width: Int, height: Int) {
+    var size: (width: Int, height: Int) { Self.size(for: reference) }
+
+    static func size(for reference: CGSize) -> (width: Int, height: Int) {
         let s = Theme.fit(reference, in: Theme.gallery(for: reference).box)
         return (max(16, Int(s.width.rounded())), max(16, Int(s.height.rounded())))
     }

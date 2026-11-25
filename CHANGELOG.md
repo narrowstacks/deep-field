@@ -14,6 +14,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Schedule: editing a rotation (its looks, their order, the interval or shuffle) no longer switches the wallpaper early, and turning a rotation on starts at its first look with a full interval.
 - Schedule: a shuffled rotation of two looks now alternates, instead of sometimes showing the same one twice in a row. One that's running when you update may switch once then.
 - Phone: the whole preview and its size now fit in short windows, and custom sizes show the size that will be exported.
+- Phone: the scene gallery beside the preview goes to one column where two don't fit, so it's no longer cut off on wide screens.
 - Live Earth no longer offers the Sky section's settings and Camera Tilt, which do nothing there since it draws the real sky, and `deepfield event supernova` and `comet` now say they can't appear there.
 - `deepfield render --demo` with `supernova` or `comet` now gives the same error for Live Earth, instead of rendering without the event.
 - Live Earth no longer offers Phone's Subject height or the welcome guide's Busier sky, which did nothing there. Both keep what you set for other scenes.

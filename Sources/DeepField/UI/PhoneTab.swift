@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The phone preview on the stage while the Phone section is selected, in place of the
@@ -6,19 +7,38 @@ struct PhoneStage: View {
     @ObservedObject var store: ConfigStore
     @ObservedObject private var phone = PhoneExporter.shared
     let showClock: Bool
-    /// The stage's height, which the preview and its caption share.
-    let stageHeight: CGFloat
+    /// The preview's size, from `previewSize`. The stage needs it too, to lay out the gallery beside it.
+    let fitted: CGSize
 
+    static let gallerySpacing: CGFloat = 20
     private static let box = CGSize(width: 394, height: 676)
     private static let captionHeight: CGFloat = 30
 
+    /// The preview's size on a stage this tall, which it shares with its caption.
+    static func previewSize(_ options: MobileOptions, stageHeight: CGFloat) -> CGSize {
+        // the exported size, which is what the preview renders
+        let size = CGSize(width: MobileOptions.clampedSide(options.width), height: MobileOptions.clampedSide(options.height))
+        // shrinks to fit short windows; capped so the gallery keeps its room in tall ones
+        let boxHeight = min(box.height, max(stageHeight - captionHeight, 1))
+        return Theme.fit(size, in: CGSize(width: box.width, height: boxHeight))
+    }
+
+    /// Two thumbnail columns beside the preview, or one where two and the scroller don't fit. Short
+    /// by under half a Retina pixel still fits: layout rounds it away, and the default phone on a
+    /// wide screen is that close.
+    static func galleryColumns(thumbnail: CGFloat, preview: CGFloat, stage: CGFloat, scroller: CGFloat) -> Int {
+        stage - preview - gallerySpacing >= thumbnail * 2 + 10 + scroller - 0.25 ? 2 : 1
+    }
+
+    /// The room a scroller takes from the gallery: none unless scroll bars are always shown, since
+    /// otherwise it draws over the content.
+    static var scrollerWidth: CGFloat {
+        NSScroller.preferredScrollerStyle == .legacy ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
+    }
+
     var body: some View {
         let options = phone.options
-        // the exported size, which is what the preview renders
         let width = MobileOptions.clampedSide(options.width), height = MobileOptions.clampedSide(options.height)
-        // shrinks to fit short windows; capped so the gallery keeps its room in tall ones
-        let boxHeight = min(Self.box.height, max(stageHeight - Self.captionHeight, 1))
-        let fitted = Theme.fit(CGSize(width: width, height: height), in: CGSize(width: Self.box.width, height: boxHeight))
         let w = fitted.width, h = fitted.height
         VStack(alignment: .leading, spacing: 0) {
             ZStack {

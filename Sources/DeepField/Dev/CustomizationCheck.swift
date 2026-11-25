@@ -24,6 +24,7 @@ enum CustomizationCheck {
         expect(bh.palette.galaxyCore == RGB(0, 0, 1), "black hole reset touched the galaxy's colors")
 
         failures += TiltCheck.failures()
+        failures += PhoneGalleryCheck.failures()
 
         // per-scene image settings follow their scene
         var i = d
