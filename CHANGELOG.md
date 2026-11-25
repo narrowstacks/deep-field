@@ -23,6 +23,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Pixel size, Frame rate, and the Schedule's Every and Length always show the current value, including one set by a preset, the `deepfield` command or an edited save.
 - Live Earth: latitude and longitude stay in range as you enter them (a longitude past 180 goes around, so 200 is -160), and turning off this Mac's location clears its error and any request still running.
 - Phone: the preview keeps up with your changes while a Live Photo exports, and a custom size outside 320 to 4096 changes to the size that will be exported when you press Return or leave the field.
+- Lock screen still: Set Now no longer stays disabled on "Rendering…" when an update finds no display to set, and the status line says when nothing was updated and why.
 
 ## [0.4.8] - 2026-11-18
 
