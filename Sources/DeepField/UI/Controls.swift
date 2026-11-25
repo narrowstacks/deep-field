@@ -8,11 +8,18 @@ struct SliderRow: View {
     var format: (Double) -> String = { String(format: "%.2f", $0) }
 
     var body: some View {
-        LabeledContent(title) {
+        // The slider speaks for the whole row, so VoiceOver doesn't repeat the title and value. It's
+        // the real one, since that is what takes keyboard focus.
+        LabeledContent {
             HStack {
                 Slider(value: $value, in: range)
+                    .accessibilityLabel(title)
+                    .accessibilityValue(format(value))
                 Text(format(value)).monospacedDigit().frame(width: 56, alignment: .trailing).foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
+        } label: {
+            Text(title).accessibilityHidden(true)
         }
     }
 }

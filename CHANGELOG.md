@@ -17,6 +17,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Live Earth: a preset, the schedule or the command line turning on Freeze time keeps its own date, instead of switching to now while Customize is open.
 - Customize and the welcome guide: moving the window to a display of another shape, or changing its resolution, no longer stretches the preview, and the preview and gallery now follow the display the window is on instead of the one with keyboard focus.
 - Schedule: the status line keeps up with switches and edits, and says when a Focus filter or a change by hand is showing something else.
+- VoiceOver: sliders read their name and the value shown beside them. In the schedule, weekday buttons read the day's full name and whether it's selected, and each entry's time, look and options menu say which entry they belong to.
 
 ## [0.4.8] - 2026-11-18
 
