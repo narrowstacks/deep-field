@@ -123,6 +123,34 @@ enum CustomizationCheck {
         Tweak.all.first { $0.id == "glow" }?.turnOff(&off, base: bright)
         expect(off.bloom == d.bloom, "a tweak already on at the start couldn't be turned off")
 
+        // a scene that draws the real sky leaves out Busier sky; Undo All there still undoes it, and
+        // another scene shows whether it's on
+        for scene in SceneKind.allCases {
+            let hidden = Set(Tweak.all.map(\.id)).subtracting(Tweak.offered(in: scene).map(\.id))
+            expect(hidden == (scene.drawsRealSky ? ["busy"] : []), "tweaks left out in \(scene): \(hidden.sorted())")
+        }
+        if let busy = Tweak.all.first(where: { $0.id == "busy" }) {
+            var sky = base
+            busy.apply(&sky)
+            sky.scene = .liveEarth
+            var undone = Tweak.undoingAll(sky, to: base)
+            expect(undone != sky, "Undo All had nothing to undo in Live Earth")
+            sky.scene = base.scene
+            undone.scene = base.scene
+            expect(busy.isOn(sky) && undone == base, "Busier sky was stuck after Live Earth")
+        }
+
+        // only the shared sky events are refused, and only where the real sky is drawn
+        for scene in SceneKind.allCases {
+            let refused = EventSchedule.named.filter { EventSchedule.realSkyReason($0, in: scene) != nil }.map(\.name)
+            expect(refused == (scene.drawsRealSky ? ["supernova", "comet"] : []), "events refused in \(scene): \(refused)")
+        }
+
+        // Reset Framing keeps a hidden Subject height, and has nothing to do for it alone
+        let framed = PhoneFraming(zoom: 1.5, shift: 0.2), shifted = PhoneFraming(shift: 0.2)
+        expect(framed.reset(in: .liveEarth) == shifted && shifted.reset(in: .liveEarth) == shifted, "Reset Framing changed a hidden Subject height")
+        expect(framed.reset(in: .gasGiant) == PhoneFraming(), "Reset Framing left something set")
+
         // the frame rates offered: the usual ones, each display's and the saved one, once each, in order
         func rates(_ displays: [Int], _ saved: Int = 24) -> [Int] { FrameRate.choices(displays: displays, current: saved) }
         expect(rates([60]) == [12, 24, 30, 60], "rates on a 60 Hz display")

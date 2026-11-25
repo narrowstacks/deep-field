@@ -148,6 +148,8 @@ enum RenderCommand {
                 guard parts.count == 2, let start = Double(parts[1]),
                       let e = EventSchedule.named.first(where: { $0.name.caseInsensitiveCompare(parts[0]) == .orderedSame || String($0.kind.id) == parts[0] })
                 else { throw CLIError("--demo takes NAME:SECONDS, like supernova:300") }
+                // every option that can change the scene is in c by now
+                if let reason = EventSchedule.realSkyReason(e, in: c.scene) { throw CLIError(reason) }
                 ConfigStore.shared.demoEvents[e.kind.id] = start
             }
         }

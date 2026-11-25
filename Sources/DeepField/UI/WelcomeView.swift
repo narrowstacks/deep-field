@@ -105,7 +105,7 @@ struct WelcomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
             ScrollView {
                 VStack(spacing: 8) {
-                    ForEach(Tweak.all) { tweak in
+                    ForEach(Tweak.offered(in: store.config.scene)) { tweak in
                         TweakRow(tweak: tweak, on: tweak.isOn(store.config)) {
                             var c = store.config
                             if tweak.isOn(c) { tweak.turnOff(&c, base: base) } else { tweak.apply(&c) }
@@ -197,6 +197,14 @@ struct Tweak: Identifiable {
     let isOn: (WallpaperConfig) -> Bool
     let apply: (inout WallpaperConfig) -> Void
     let restore: (inout WallpaperConfig, WallpaperConfig) -> Void
+    /// Changes only the shared sky.
+    var skyOnly = false
+
+    /// The tweaks that show in `scene`. Undo All covers the rest too, so one turned on in another
+    /// scene isn't stuck on.
+    static func offered(in scene: SceneKind) -> [Tweak] {
+        all.filter { !($0.skyOnly && scene.drawsRealSky) }
+    }
 
     /// `base`, with the image settings it has for `c`'s scene in place.
     private static func base(_ base: WallpaperConfig, for c: WallpaperConfig) -> WallpaperConfig {
@@ -247,7 +255,8 @@ struct Tweak: Identifiable {
             Tweak(id: "busy", title: "Busier sky", detail: "Supernovae, comets and twinkles more often", symbol: "star",
                   isOn: { $0.supernovae == .often },
                   apply: { $0.supernovae = .often; $0.comets = .often; $0.twinkles = .often },
-                  restore: { $0.supernovae = $1.supernovae; $0.comets = $1.comets; $0.twinkles = $1.twinkles }),
+                  restore: { $0.supernovae = $1.supernovae; $0.comets = $1.comets; $0.twinkles = $1.twinkles },
+                  skyOnly: true),
         ]
     }()
 }
