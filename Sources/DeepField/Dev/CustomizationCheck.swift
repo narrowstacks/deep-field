@@ -187,7 +187,7 @@ enum CustomizationCheck {
         expectDue(listed.subtracting([.liveEarth]), "nebula color") { $0.palette.nebulaA = RGB(1, 0, 0) }
         expectDue([.liveEarth], "Live Earth's place") { $0.homeLatitude = 10 }
         expectDue([.liveEarth], "Live Earth's time") { $0.earthFreezeTime = true; $0.earthFrozenTime += 60 }
-        expect(due(d, d, after: 60) == [.liveEarth], "only Live Earth shows the time")
+        expect(due(d, d, after: 0.25) == [.liveEarth], "only Live Earth shows the time")
         expectDue([], "settings no still shows") {
             $0.fps = 60; $0.pixelSize = 6; $0.lockScreenStill = true; $0.lockScreenSmooth = true; $0.homeFromDevice = true
             $0.supernovae = .rare; $0.comets = .rare; $0.wormholeEvents = .rare; $0.scene = .eclipse

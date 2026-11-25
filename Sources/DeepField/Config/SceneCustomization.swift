@@ -237,8 +237,8 @@ extension WallpaperConfig {
     struct StillSettings: Equatable {
         let saved: NSDictionary
         let image: ImageSettings
-        /// Live Earth also shows the time, and maps that load in the background.
-        let minute: Int?
+        /// Live Earth also shows the time, and maps that load in the background, so its stills never match.
+        let time: Double?
     }
 
     /// `StillSettings` for each of `kinds`, empty if the config can't be encoded. They share one
@@ -254,7 +254,7 @@ extension WallpaperConfig {
             c.scene = kind
             c.pixelSize = 1
             return (kind, StillSettings(saved: saved as NSDictionary, image: c.image,
-                                        minute: kind.drawsRealSky ? Int(now.timeIntervalSince1970 / 60) : nil))
+                                        time: kind.drawsRealSky ? now.timeIntervalSince1970 : nil))
         })
     }
 
