@@ -172,6 +172,11 @@ extension WallpaperConfig {
         return keys + ownKeys(kind).palette.map { "palette.\($0)" }
     }
 
+    /// The Sky section's settings, which a scene that draws the real sky doesn't show.
+    private static let skyKeys = ["starDensity", "nebula", "galaxies", "milkyWay", "skySeed", "twinkles", "twinkleBrightness",
+                                  "twinkleSpeed", "pulsars", "supernovae", "comets"]
+    private static let skyPalette = ["nebulaA", "nebulaB", "galaxy", "starWarm", "starCool"]
+
     /// The saved settings the active scene's look depends on, for comparing two looks. It leaves out
     /// what can differ without the look being changed: the Mac's own settings, Live Earth's place
     /// (which can follow the Mac) and other scenes' settings. Going through the saved format first
@@ -185,20 +190,72 @@ extension WallpaperConfig {
         for key in Array(dict.keys) where !Self.owns(scene, key: key) && others.contains(where: { Self.owns($0, key: key) }) {
             dict[key] = nil
         }
-        // the Sky section's settings, which a scene that draws the real sky doesn't show
-        if scene.drawsRealSky {
-            for key in ["starDensity", "nebula", "galaxies", "milkyWay", "skySeed", "twinkles", "twinkleBrightness",
-                        "twinkleSpeed", "pulsars", "supernovae", "comets"] { dict[key] = nil }
-        }
+        if scene.drawsRealSky { for key in Self.skyKeys { dict[key] = nil } }
         if var palette = dict["palette"] as? [String: Any] {
             let own = Self.ownKeys(scene).palette
             for key in others.flatMap({ Self.ownKeys($0).palette }) where !own.contains(key) { palette[key] = nil }
             if scene.drawsRealSky {
-                for key in ["nebulaA", "nebulaB", "galaxy", "starWarm", "starCool"] { palette[key] = nil }
+                for key in Self.skyPalette { palette[key] = nil }
             }
             dict["palette"] = palette
         }
         return dict as NSDictionary
+    }
+
+    /// Saved keys a scene draws with that its reset leaves alone.
+    private static func alsoDraws(_ kind: SceneKind) -> [String] {
+        switch kind {
+        case .tidalDisruption: ["photonRing"]
+        case .quasar: ["tilt"]   // turns the sky behind it
+        case .liveEarth: ["homeLatitude", "homeLongitude", "tilt"]   // tilt only through rounding in the baked rays
+        default: []
+        }
+    }
+
+    /// Saved keys (and palette colors) that can't change a still of each scene, worked out once
+    /// because they never change. Anything not known to be unused counts, so a key no list knows
+    /// costs extra renders, never a stale still.
+    private static let unusedInStills: [SceneKind: (keys: Set<String>, palette: Set<String>)] = {
+        let all = WallpaperConfig().jsonObject().keys
+        var reads: [SceneKind: Set<String>] = [:]
+        for kind in SceneKind.allCases { reads[kind] = Set(all.filter { owns(kind, key: $0) } + alsoDraws(kind)) }
+        let claimed = reads.values.reduce(Set()) { $0.union($1) }
+        let claimedPalette = Set(SceneKind.allCases.flatMap { ownKeys($0).palette })
+        // Stills have no sky or wormhole events, and the image settings are compared separately,
+        // as the scene's own or the shared ones.
+        let never = ["scene", "fps", "lockScreenStill", "lockScreenSmooth", "homeFromDevice", "supernovae", "comets",
+                     "wormholeEvents", "tdeCycleMinutes", "sceneImage", "sharedImage"]
+            + Mirror(reflecting: ImageSettings(WallpaperConfig())).children.compactMap(\.label)
+        return Dictionary(uniqueKeysWithValues: SceneKind.allCases.map { kind in
+            let sky = kind.drawsRealSky
+            return (kind, (claimed.subtracting(reads[kind]!).union(never).union(sky ? skyKeys : []),
+                           claimedPalette.subtracting(ownKeys(kind).palette).union(sky ? skyPalette : [])))
+        })
+    }()
+
+    /// What a small still of one scene depends on: two that are equal make the same still.
+    struct StillSettings: Equatable {
+        let saved: NSDictionary
+        let image: ImageSettings
+        /// Live Earth also shows the time, and maps that load in the background.
+        let minute: Int?
+    }
+
+    /// `StillSettings` for each of `kinds`, empty if the config can't be encoded. They share one
+    /// encoding, which is the slow part. The pixel size is left out, since these stills fix it.
+    func stillSettings(_ kinds: [SceneKind], at now: Date) -> [SceneKind: StillSettings] {
+        let dict = jsonObject()
+        guard let palette = dict["palette"] as? [String: Any] else { return [:] }
+        return Dictionary(uniqueKeysWithValues: kinds.map { kind in
+            let unused = Self.unusedInStills[kind]!
+            var saved = dict.filter { !unused.keys.contains($0.key) }
+            saved["palette"] = palette.filter { !unused.palette.contains($0.key) }
+            var c = self
+            c.scene = kind
+            c.pixelSize = 1
+            return (kind, StillSettings(saved: saved as NSDictionary, image: c.image,
+                                        minute: kind.drawsRealSky ? Int(now.timeIntervalSince1970 / 60) : nil))
+        })
     }
 
     /// True when any of `kind`'s own settings differ from their defaults.
