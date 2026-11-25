@@ -342,7 +342,9 @@ struct CLIService {
     private func events(_ args: [String]) throws {
         let a = try ParsedArgs(args, flags: ["--names", "--json", "--all"])
         let current = store.config.scene
-        let list = EventSchedule.named.filter { a.has("--all") || a.has("--names") || $0.scene == nil || $0.scene == current }
+        let list = EventSchedule.named.filter {
+            a.has("--all") || a.has("--names") || $0.scene == current || ($0.scene == nil && !current.drawsRealSky)
+        }
         if a.has("--names") { list.forEach { o.print($0.name) }; return }
         if a.has("--json") {
             o.print(ConfigKeys.json(list.map { ["name": $0.name, "id": Int($0.kind.id), "scene": $0.scene?.rawValue ?? "sky"] }, pretty: true))
@@ -350,9 +352,12 @@ struct CLIService {
         }
         let w = list.map(\.name.count).max() ?? 0
         for e in list {
-            o.print("\(e.name.padding(toLength: w + 2, withPad: " ", startingAt: 0))\(String(e.kind.id).padding(toLength: 4, withPad: " ", startingAt: 0))\(e.scene?.title ?? "sky (every scene)")")
+            o.print("\(e.name.padding(toLength: w + 2, withPad: " ", startingAt: 0))\(String(e.kind.id).padding(toLength: 4, withPad: " ", startingAt: 0))\(e.scene?.title ?? "sky (shared)")")
         }
-        if !a.has("--all") { o.print("(this scene's and the sky's; --all lists every scene's)") }
+        if !a.has("--all") {
+            o.print(list.isEmpty ? "(none in \(current.title); --all lists every scene's)"
+                                 : "(this scene's and the sky's; --all lists every scene's)")
+        }
     }
 
     private func event(_ args: [String]) throws {
@@ -363,6 +368,9 @@ struct CLIService {
             throw CLIError("no event called \u{201C}\(name)\u{201D}; `deepfield events --all` lists them")
         }
         try requireApp("show")
+        if e.scene == nil, store.config.scene.drawsRealSky {
+            throw CLIError("\(store.config.scene.title) draws the real sky, so the \(e.name) event can't appear there; switch scenes first (`deepfield scenes` lists them)")
+        }
         if let s = e.scene, s != store.config.scene {
             o.warn("note: \(e.name) happens in \(s.title); switch with `deepfield scene \(s.rawValue)` to see it")
         }

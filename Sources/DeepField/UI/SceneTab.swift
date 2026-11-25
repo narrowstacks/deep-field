@@ -353,10 +353,13 @@ struct SceneTab: View {
                     if !planetsCollapsed { GroupFooter(PlanetsGroup.footer) }
                 }
             }
-            Section {
-                if !cameraCollapsed { camera }
-            } header: {
-                CollapsibleHeader(title: "Camera", collapsed: $cameraCollapsed)
+            // its camera only goes where its own place and distance put it
+            if !scene.drawsRealSky {
+                Section {
+                    if !cameraCollapsed { camera }
+                } header: {
+                    CollapsibleHeader(title: "Camera", collapsed: $cameraCollapsed)
+                }
             }
         }
         .formStyle(.grouped)
