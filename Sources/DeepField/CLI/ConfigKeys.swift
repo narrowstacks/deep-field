@@ -182,7 +182,7 @@ enum ConfigKeys {
     /// `config` with the assignments applied. `scene` goes through the scene switch, so the new
     /// scene brings its own image settings; everything else merges into the saved format and is
     /// decoded with the same lenient decoder as the saved settings. A value that decoder rejects
-    /// is an error, one it clamps is a warning.
+    /// is an error, one it clamps or wraps is a warning.
     static func apply(_ list: [Assignment], to config: WallpaperConfig,
                       listedScenesOnly: Bool = true) throws -> (config: WallpaperConfig, warnings: [String]) {
         var base = config
@@ -221,7 +221,7 @@ enum ConfigKeys {
                 if let c = choices(for: a.key) { msg += " (choose from \(c.joined(separator: ", ")))" }
                 throw CLIError(msg)
             }
-            warnings.append("\(a.key) was clamped to \(got.map(display) ?? "?")")
+            warnings.append("\(a.key) was changed to \(got.map(display) ?? "?")")
         }
         return (decoded, warnings)
     }

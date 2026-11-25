@@ -36,6 +36,12 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
     private func refreshIfNewlyFollowing() {
         let follows = ConfigStore.shared.config.homeFromDevice
         if follows && !following { request() }
+        if !follows && following {
+            // nothing to wait for or report now, and a late answer finds `updating` off
+            manager.stopUpdatingLocation()
+            updating = false
+            problem = nil
+        }
         following = follows
     }
 
@@ -84,6 +90,7 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         Task { @MainActor in
+            guard self.updating else { return }
             self.updating = false
             self.problem = "Couldn't find this Mac's location (\(error.localizedDescription))."
         }
