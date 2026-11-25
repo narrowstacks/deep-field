@@ -33,9 +33,11 @@ struct FrequencyRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(title)
+                Text(title).accessibilityHidden(true)   // the picker says it
                 Spacer()
-                if let demo { DemoButton(title: "Show Me", action: demo) }
+                if let demo {
+                    DemoButton(title: "Show Me", action: demo).accessibilityLabel("Show Me, \(title)")
+                }
             }
             Picker(title, selection: $value) {
                 ForEach(Frequency.allCases) { Text($0.title).tag($0) }
@@ -64,7 +66,7 @@ struct DemoGrid: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Show me").foregroundStyle(.secondary)
+            Text("Show me").foregroundStyle(.secondary).accessibilityHidden(true)   // each button says it
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)],
                       alignment: .leading, spacing: 6) {
                 ForEach(demos, id: \.1.id) { title, kind in
@@ -72,6 +74,7 @@ struct DemoGrid: View {
                         store.demo(kind)
                         StageStatus.shared.flash(title.prefix(1) + title.dropFirst().lowercased() + " started")
                     }
+                        .accessibilityLabel("Show Me, \(title)")
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }

@@ -30,6 +30,7 @@ struct ImageTab: View {
                     Spacer()
                     Button("Reset") { store.config.resetImage() }
                         .controlSize(.small)
+                        .accessibilityLabel("Reset tone and glow")
                         .help("Puts tone and glow back to their defaults")
                 }
             } footer: {
@@ -49,9 +50,10 @@ struct ImageTab: View {
                 GroupFooter("Adds a glow around bright light. Off uses no extra power.")
             }
             Section {
-                // label plus seven segments doesn't fit one row here, so the titles sit above
+                // label plus seven segments doesn't fit one row here, so the titles sit above, hidden
+                // from VoiceOver since the pickers say them too
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Pixel size")
+                    Text("Pixel size").accessibilityHidden(true)
                     Picker("Pixel size", selection: $store.config.pixelSize) {
                         ForEach(WallpaperConfig.pixelSizes.including(store.config.pixelSize), id: \.self) { Text("\($0) px").tag($0) }
                     }
@@ -59,7 +61,7 @@ struct ImageTab: View {
                     .labelsHidden()
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Color levels per channel")
+                    Text("Color levels per channel").accessibilityHidden(true)
                     Picker("Color levels per channel", selection: $store.config.levels) {
                         // 32 and 64 match the welcome guide's Smooth look. The current value is
                         // always listed so a level set elsewhere (a preset, Shortcuts) stays selectable.

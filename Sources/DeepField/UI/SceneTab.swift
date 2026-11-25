@@ -94,11 +94,17 @@ struct SceneTab: View {
                     Picker("Type", selection: $store.config.nebulaType) {
                         ForEach(NebulaType.allCases) { Text($0.title).tag($0) }
                     }
-                    LabeledContent("Shape seed") {
+                    LabeledContent {
                         HStack {
-                            TextField("Seed", value: $store.config.nebulaSeed, format: .number).frame(width: 80)
+                            TextField(value: $store.config.nebulaSeed, format: .number) {
+                                Text("Seed").accessibilityHidden(true)
+                            }
+                            .frame(width: 80)
+                            .accessibilityLabel("Shape seed")
                             Button("New Shape") { store.config.nebulaSeed = Int.random(in: 1...99_999) }
                         }
+                    } label: {
+                        Text("Shape seed").accessibilityHidden(true)   // the field says it
                     }
                     SliderRow(title: "Flow speed", value: $store.config.nebulaFlow, range: 0.1...4)
                 case .planetaryNebula:
@@ -304,6 +310,7 @@ struct SceneTab: View {
                         Button("Reset") { store.config = store.config.resettingScene(scene) }
                             .controlSize(.small)
                             .disabled(!store.config.isCustomized(scene))
+                            .accessibilityLabel("Reset \(scene.title)")
                             .help("Puts this scene's settings and colors back to their defaults" + (scene.sharedNote.map { ". \($0)" } ?? ""))
                     }
                     Text(scene.blurb).font(.callout).foregroundStyle(.secondary)

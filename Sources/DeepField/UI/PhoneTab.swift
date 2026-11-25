@@ -53,6 +53,7 @@ struct PhoneStage: View {
             .frame(width: w, height: h)
             .clipShape(RoundedRectangle(cornerRadius: w * 0.12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: w * 0.12, style: .continuous).stroke(.secondary.opacity(0.5)))
+            .livePreviewElement(of: store.config.scene)
             Text("\(width) × \(height)" + (options.smooth ? ", smooth" : ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -106,13 +107,15 @@ struct PhoneTab: View {
                 Text("Custom size").tag("custom")
             }
             if phone.model == "custom" {
-                LabeledContent("Size in pixels") {
+                LabeledContent {
                     HStack {
-                        PixelsField(title: "Width", value: $phone.options.width)
-                        Text("×")
-                        PixelsField(title: "Height", value: $phone.options.height)
+                        PixelsField(title: "Width in pixels", value: $phone.options.width)
+                        Text("×").accessibilityHidden(true)
+                        PixelsField(title: "Height in pixels", value: $phone.options.height)
                     }
                     .labelsHidden()
+                } label: {
+                    Text("Size in pixels").accessibilityHidden(true)   // each field says it
                 }
             } else {
                 LabeledContent("Size in pixels", value: "\(phone.options.width) × \(phone.options.height)")
@@ -158,9 +161,9 @@ struct PhoneTab: View {
 
     private var exportSection: some View {
         Section {
-            LabeledContent("Still") {
+            LabeledContent {
                 HStack {
-                    Picker("Format", selection: $phone.stillFormat) {
+                    Picker("Still format", selection: $phone.stillFormat) {
                         Text("PNG").tag(MobileExport.StillFormat.png)
                         Text("HEIC").tag(MobileExport.StillFormat.heic)
                     }
@@ -168,6 +171,8 @@ struct PhoneTab: View {
                     .frame(width: 80)
                     Button("Save Still…") { phone.saveStill() }
                 }
+            } label: {
+                Text("Still").accessibilityHidden(true)   // both controls say it
             }
             Picker("Live Photo motion", selection: $phone.options.motionSpeed) {
                 Text("1×").tag(1.0)
