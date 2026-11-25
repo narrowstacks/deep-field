@@ -258,6 +258,8 @@ enum CustomizationCheck {
         expectDue([.comet], "a scene's own contrast, and leaving it", from: ownImage) { $0.contrast = 1.5; $0.scene = .eclipse }
         expectDue(listed.subtracting([.comet]), "the shared contrast", from: ownImage) { $0.scene = .eclipse; $0.contrast = 1.5 }
 
+        failures += ThumbnailCheck.failures()
+
         for f in failures { print("FAIL:", f) }
         print(failures.isEmpty ? "customization OK" : "\(failures.count) failures")
         return failures.isEmpty

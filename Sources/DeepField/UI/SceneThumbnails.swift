@@ -109,6 +109,13 @@ final class SceneThumbnails: ObservableObject {
         return c
     }
 
+    /// A gallery still of `c`. It shows no events started by hand (Show Me): those belong to the
+    /// live views, and one running at the still's moment would stay until the next re-render.
+    static func render(_ c: WallpaperConfig, width: Int, height: Int, completion: @escaping (CGImage?) -> Void) {
+        FrameCapture.render(config: c, width: width, height: height, time: 300, eventsEnabled: false, demo: [:],
+                            completion: completion)
+    }
+
     private func refresh() {
         let settings = ConfigStore.shared.config.stillSettings(SceneKind.listed, at: Date())
         for kind in SceneKind.listed {
@@ -116,7 +123,7 @@ final class SceneThumbnails: ObservableObject {
             rendered[kind] = settings[kind]
             let gen = (generation[kind] ?? 0) + 1
             generation[kind] = gen
-            FrameCapture.render(config: config(for: kind), width: size.width, height: size.height, time: 300, eventsEnabled: false) { [weak self] image in
+            Self.render(config(for: kind), width: size.width, height: size.height) { [weak self] image in
                 DispatchQueue.main.async {
                     guard let self, self.generation[kind] == gen else { return }
                     // a failed render stays due at the next refresh

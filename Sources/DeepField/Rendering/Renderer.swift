@@ -230,8 +230,10 @@ final class Renderer {
     /// With bloom on, the scene renders its linear light to a float texture, and the bloom passes
     /// and the final tone map and dither (`imageFragment`) follow; with it off (the default) the
     /// scene pass finishes the image itself and nothing else runs.
+    /// `demo` holds the events started by hand (Show Me, `--demo`): event kind id to start time.
     func encodeFrame(_ cb: MTLCommandBuffer, target: MTLTexture, baked: Baked, elapsed: Double,
-                     config c: WallpaperConfig, events: EventSchedule, orbitTime: Double? = nil) {
+                     config c: WallpaperConfig, events: EventSchedule, orbitTime: Double? = nil,
+                     demo: [UInt64: Double] = ConfigStore.shared.demoEvents) {
         let bloomAmount = c.bloom + c.scene.extraBloom
         let bloom = bloomAmount > 0 ? bloomResources(for: c.scene, width: target.width, height: target.height) : nil
 
@@ -268,11 +270,11 @@ final class Renderer {
                             image: SIMD4(Float(c.contrast), Float(c.blackPoint), Float(c.highlights), Float(c.vignette)),
                             bloom: SIMD4(Float(bloomAmount), Float(c.bloomThreshold), bloom == nil ? 0 : 1, Float(c.bloomRadius)))
         var palette = PaletteGPU(c.palette)
-        var ev = events.gpu(at: elapsed, config: c, camera: cam, heightPixels: target.height)
+        var ev = events.gpu(at: elapsed, config: c, camera: cam, heightPixels: target.height, demo: demo)
 
         var galaxy = c.scene == .galaxy ? GalaxyModel.gpu(c, elapsed: elapsed) : .empty
         var sceneParams = SceneParams.build(c, elapsed: elapsed, camera: cam, width: target.width,
-                                            height: target.height, events: events)
+                                            height: target.height, events: events, demo: demo)
         // the aurora's table pass goes first, since a command buffer has one open encoder at a time
         let lut = c.scene == .auroraOrbit ? encodeAuroraLUT(cb, frame: &f, scene: &sceneParams) : nil
         let rp = MTLRenderPassDescriptor()

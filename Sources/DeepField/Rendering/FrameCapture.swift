@@ -25,8 +25,10 @@ enum FrameCapture {
     }
 
     /// With `transition`, the frame is that far (0 to 1) into a schedule transition from `from`.
+    /// `demo` is the events started by hand to show, as in `Renderer.encodeFrame`.
     private static func encode(config: WallpaperConfig, width w: Int, height h: Int, time: Double,
-                               eventsEnabled: Bool, transition: Transition? = nil) -> Pending? {
+                               eventsEnabled: Bool, transition: Transition? = nil,
+                               demo: [UInt64: Double]) -> Pending? {
         let r = Renderer.shared
         guard let cb = r.queue.makeCommandBuffer(),
               let target = r.makeTexture(.bgra8Unorm, w, h, usage: [.renderTarget, .shaderRead]),
@@ -39,12 +41,12 @@ enum FrameCapture {
             guard let fromBaked = r.encodeBake(cb, width: w, height: h, config: dissolve.from),
                   let a = r.makeTexture(.bgra8Unorm, w, h, usage: usage),
                   let b = r.makeTexture(.bgra8Unorm, w, h, usage: usage) else { return nil }
-            r.encodeFrame(cb, target: a, baked: fromBaked, elapsed: time, config: dissolve.from, events: events)
-            r.encodeFrame(cb, target: b, baked: baked, elapsed: time, config: config, events: events)
+            r.encodeFrame(cb, target: a, baked: fromBaked, elapsed: time, config: dissolve.from, events: events, demo: demo)
+            r.encodeFrame(cb, target: b, baked: baked, elapsed: time, config: config, events: events, demo: demo)
             r.encodeTransition(cb, target: target, from: a, to: b, progress: dissolve.progress, seed: 1,
                                style: dissolve.style, fromConfig: dissolve.from, toConfig: config)
         } else {
-            r.encodeFrame(cb, target: target, baked: baked, elapsed: time, config: config, events: events)
+            r.encodeFrame(cb, target: target, baked: baked, elapsed: time, config: config, events: events, demo: demo)
         }
         guard let blit = cb.makeBlitCommandEncoder() else { return nil }
         blit.copy(from: target, sourceSlice: 0, sourceLevel: 0, sourceOrigin: MTLOrigin(),
@@ -56,9 +58,10 @@ enum FrameCapture {
 
     /// Renders one frame of `w` x `h` shaded pixels and waits for it.
     static func render(config: WallpaperConfig, width w: Int, height h: Int, time: Double,
-                       eventsEnabled: Bool, transition: Transition? = nil) -> CGImage? {
+                       eventsEnabled: Bool, transition: Transition? = nil,
+                       demo: [UInt64: Double] = ConfigStore.shared.demoEvents) -> CGImage? {
         guard let p = encode(config: config, width: w, height: h, time: time, eventsEnabled: eventsEnabled,
-                             transition: transition) else { return nil }
+                             transition: transition, demo: demo) else { return nil }
         p.cb.commit()
         p.cb.waitUntilCompleted()
         return p.cb.status == .completed ? p.image() : nil
@@ -67,8 +70,10 @@ enum FrameCapture {
     /// Encodes on the calling thread (call it on the main thread, like the live views do) and
     /// calls `completion` on a Metal completion thread once the GPU is done.
     static func render(config: WallpaperConfig, width w: Int, height h: Int, time: Double,
-                       eventsEnabled: Bool, completion: @escaping (CGImage?) -> Void) {
-        guard let p = encode(config: config, width: w, height: h, time: time, eventsEnabled: eventsEnabled) else {
+                       eventsEnabled: Bool, demo: [UInt64: Double] = ConfigStore.shared.demoEvents,
+                       completion: @escaping (CGImage?) -> Void) {
+        guard let p = encode(config: config, width: w, height: h, time: time, eventsEnabled: eventsEnabled,
+                             demo: demo) else {
             completion(nil)
             return
         }
