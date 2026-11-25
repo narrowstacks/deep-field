@@ -286,4 +286,11 @@ extension EventSchedule {
         ("starGlint", starGlint, .roguePlanet), ("eclipseEruption", eclipseEruption, .eclipse),
         ("quasarFlare", quasarFlare, .quasar),
     ]
+
+    /// Why one of `named` can't appear in `scene`, if it's a shared sky event and the scene draws
+    /// the real sky; otherwise nil.
+    static func realSkyReason(_ e: (name: String, kind: Kind, scene: SceneKind?), in scene: SceneKind) -> String? {
+        guard e.scene == nil, scene.drawsRealSky else { return nil }
+        return "\(scene.title) draws the real sky, so the \(e.name) event can't appear there; switch scenes first (`deepfield scenes` lists them)"
+    }
 }

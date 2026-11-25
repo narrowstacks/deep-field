@@ -369,9 +369,7 @@ struct CLIService {
             throw CLIError("no event called \u{201C}\(name)\u{201D}; `deepfield events --all` lists them")
         }
         try requireApp("show")
-        if e.scene == nil, store.config.scene.drawsRealSky {
-            throw CLIError("\(store.config.scene.title) draws the real sky, so the \(e.name) event can't appear there; switch scenes first (`deepfield scenes` lists them)")
-        }
+        if let reason = EventSchedule.realSkyReason(e, in: store.config.scene) { throw CLIError(reason) }
         if let reason = store.hiddenReason(e.kind) { throw CLIError(reason) }
         if let s = e.scene, s != store.config.scene {
             o.warn("note: \(e.name) happens in \(s.title); switch with `deepfield scene \(s.rawValue)` to see it")

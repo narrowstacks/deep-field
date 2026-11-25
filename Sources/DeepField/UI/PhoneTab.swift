@@ -116,14 +116,18 @@ struct PhoneTab: View {
                 }
             }
             SliderRow(title: "Zoom", value: $phone.options.framing.zoom, range: 0.6...1.8) { String(format: "%.2f×", $0) }
-            SliderRow(title: "Subject height", value: $phone.options.framing.shift, range: -0.25...0.25) {
-                String(format: "%+.0f%%", $0 * 100)
+            // it moves the camera's aim, which a scene that draws the real sky doesn't use
+            if !store.config.scene.drawsRealSky {
+                SliderRow(title: "Subject height", value: $phone.options.framing.shift, range: -0.25...0.25) {
+                    String(format: "%+.0f%%", $0 * 100)
+                }
             }
             HStack {
                 Toggle("Show the Lock Screen clock", isOn: $showClock)
                 Spacer()
-                Button("Reset Framing") { phone.options.framing = PhoneFraming() }
-                    .disabled(phone.options.framing == PhoneFraming())
+                let reset = phone.options.framing.reset(in: store.config.scene)
+                Button("Reset Framing") { phone.options.framing = reset }
+                    .disabled(phone.options.framing == reset)
             }
         } header: {
             GroupHeader(title: "Look")
