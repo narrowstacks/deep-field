@@ -8,17 +8,15 @@ struct SliderRow: View {
     var format: (Double) -> String = { String(format: "%.2f", $0) }
 
     var body: some View {
-        // One slider speaks for the whole row, so VoiceOver doesn't repeat the title and value.
-        // It stands in for the pair, since a row's help is lost when the value text is hidden.
+        // The slider speaks for the whole row, so VoiceOver doesn't repeat the title and value. It's
+        // the real one, since that is what takes keyboard focus.
         LabeledContent {
             HStack {
                 Slider(value: $value, in: range)
-                Text(format(value)).monospacedDigit().frame(width: 56, alignment: .trailing).foregroundStyle(.secondary)
-            }
-            .accessibilityRepresentation {
-                Slider(value: $value, in: range)
                     .accessibilityLabel(title)
                     .accessibilityValue(format(value))
+                Text(format(value)).monospacedDigit().frame(width: 56, alignment: .trailing).foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
         } label: {
             Text(title).accessibilityHidden(true)
