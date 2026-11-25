@@ -22,7 +22,8 @@ Everything is in `Sources/DeepField`:
 
 - `App/`: entry point, app delegate and menu bar, the per-screen wallpaper windows, runtime flags.
 - `Config/`: the settings model (`WallpaperConfig`, whose Codable keys are the saved format;
-  `SceneCustomization` holds per-scene image settings and which keys each scene's Reset covers),
+  `SceneCustomization` holds per-scene image settings and tilts (`tilt` is always the active
+  scene's, `sceneTilt` and `sharedTilt` hold the others'), and which keys each scene's Reset covers),
   scene kinds and options, star types, palettes and presets, and `ConfigStore`.
 - `Scenes/`: CPU-side scene state: camera, planets, star systems, galaxy kinematics, the event
   schedule, and per-frame parameters for the newer scenes (`SceneParams`, `TidalDisruption`).
@@ -186,7 +187,7 @@ build/DeepField.app/Contents/MacOS/DeepField --capture-ui out.png -captureTab N 
 defaults write com.narrowstacks.DeepField debug -bool true     # log bake times, fps, pause/resume
 .build/release/DeepField --preset-roundtrip out.deepfield [--scene ...] [--config ...]   # write a preset file, read it back, compare
 .build/release/DeepField --preset-check file.deepfield         # load a preset file the way Import does
-.build/release/DeepField --check-customization                 # per-scene reset and image settings, on plain configs
+.build/release/DeepField --check-customization                 # per-scene reset, tilt and image settings, on plain configs
 .build/release/DeepField --check-schedule                      # which entry rotation and timed schedules pick, DST included, and the status line
 .build/release/DeepField --snapshot out.png --defaults --scene galaxy --transition-from ringedPlanet:0.5:blackHole
     # halfway through a schedule transition (dissolve, crossfade, pan, driftAway, warp, blackHole)

@@ -304,9 +304,7 @@ struct SceneTab: View {
                         Button("Reset") { store.config = store.config.resettingScene(scene) }
                             .controlSize(.small)
                             .disabled(!store.config.isCustomized(scene))
-                            .help(scene.sharesSettings
-                                  ? "Puts this scene's settings and colors back to their defaults. Camera tilt and planets are shared with other scenes and reset for them too."
-                                  : "Puts this scene's settings and colors back to their defaults")
+                            .help("Puts this scene's settings and colors back to their defaults" + (scene.sharedNote.map { ". \($0)" } ?? ""))
                     }
                     Text(scene.blurb).font(.callout).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

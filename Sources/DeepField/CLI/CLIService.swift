@@ -218,15 +218,16 @@ struct CLIService {
 
     private func keys(_ args: [String]) throws {
         let a = try ParsedArgs(args, values: ["--scene"], flags: ["--all", "--names", "--json"])
-        let c = store.config
-        let dict = ConfigKeys.object(c)
+        var c = store.config
         let list: [String]
         if a.has("--all") {
             list = ConfigKeys.allPaths(c)
         } else {
-            let kind = try a.value("--scene").map { try SceneKind.named($0, listedOnly: false) } ?? c.scene
-            list = WallpaperConfig.sceneKeys(kind) + ConfigKeys.imageKeys
+            // switched to, for the tilt and image settings that scene has
+            if let name = a.value("--scene") { c.scene = try SceneKind.named(name, listedOnly: false) }
+            list = WallpaperConfig.sceneKeys(c.scene) + ConfigKeys.imageKeys
         }
+        let dict = ConfigKeys.object(c)
         if a.has("--names") { list.forEach { o.print($0) }; return }
         let rows = list.compactMap { key -> (String, String, String)? in
             guard let v = ConfigKeys.value(at: key.split(separator: ".").map(String.init), in: dict) else { return nil }

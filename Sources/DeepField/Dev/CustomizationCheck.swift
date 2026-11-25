@@ -1,6 +1,6 @@
 import Foundation
 
-/// `--check-customization`: checks per-scene reset and per-scene image settings on plain
+/// `--check-customization`: checks per-scene reset, tilt and image settings on plain
 /// configs, without touching the saved settings.
 enum CustomizationCheck {
     static func run() -> Bool {
@@ -23,10 +23,7 @@ enum CustomizationCheck {
         expect(bh.palette.receding == d.palette.receding, "black hole colors not reset")
         expect(bh.palette.galaxyCore == RGB(0, 0, 1), "black hole reset touched the galaxy's colors")
 
-        // Live Earth has no use for the camera tilt, so its reset leaves it to the other scenes and doesn't claim it
-        var tilted = d
-        tilted.tilt = 20
-        expect(!tilted.isCustomized(.liveEarth) && !SceneKind.liveEarth.sharesSettings, "Live Earth's reset covers the camera tilt")
+        failures += TiltCheck.failures()
 
         // per-scene image settings follow their scene
         var i = d
@@ -184,7 +181,7 @@ enum CustomizationCheck {
         expectDue(disks, "disk speed") { $0.diskSpeed = 2 }
         expectDue(disks.union([.wormhole]), "photon ring") { $0.photonRing = 2 }
         expectDue(planets, "planet count") { $0.planetCount = 1 }
-        expectDue(listed.subtracting([.galaxy, .tidalDisruption]), "tilt") { $0.tilt = 20 }
+        expectDue([.blackHole], "tilt") { $0.tilt = 20 }
         expectDue(listed.subtracting([.liveEarth]), "star density") { $0.starDensity = 2 }
         expectDue(listed.subtracting([.liveEarth]), "nebula color") { $0.palette.nebulaA = RGB(1, 0, 0) }
         expectDue([.liveEarth], "Live Earth's place") { $0.homeLatitude = 10 }

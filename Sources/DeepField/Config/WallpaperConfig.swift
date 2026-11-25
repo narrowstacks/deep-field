@@ -1,9 +1,13 @@
 import Foundation
 
 struct WallpaperConfig: Codable, Equatable {
-    /// Switching scenes also swaps in that scene's own image settings, if it has them.
+    /// Switching scenes also swaps in that scene's tilt, and its own image settings if it has them.
     var scene: SceneKind = .blackHole {
-        didSet { if scene != oldValue { swapImage(leaving: oldValue) } }
+        didSet {
+            guard scene != oldValue else { return }
+            swapImage(leaving: oldValue)
+            swapTilt(leaving: oldValue)
+        }
     }
 
     // Look
@@ -37,7 +41,15 @@ struct WallpaperConfig: Codable, Equatable {
     var lockScreenSmooth = false
 
     // Camera
-    var tilt = 6.3                 // degrees above the disk / orbital plane
+    /// The active scene's, in degrees above the disk / orbital plane. A scene that doesn't use it
+    /// holds `sharedTilt` here.
+    var tilt = WallpaperConfig.defaultTilt
+    /// Tilts of the other scenes, by scene raw value, where they differ from `sharedTilt`. The active
+    /// scene's is only ever in `tilt`, so there's no second copy to go stale.
+    var sceneTilt: [String: Double] = [:]
+    /// The tilt of every scene without one in `sceneTilt`. A save without this key is from when all
+    /// scenes shared `tilt`, and loads with it as this.
+    var sharedTilt = WallpaperConfig.defaultTilt
     /// Portrait phone framing (mobile export only). Never set on the saved config, and nil
     /// isn't encoded, so the saved format is unchanged.
     var phoneFraming: PhoneFraming?
@@ -347,13 +359,15 @@ struct WallpaperConfig: Codable, Equatable {
     var wormholeEvents: Frequency = .normal
 
     static let starZoomRange = 0.4...4.0
+    static let defaultTilt = 6.3
 
-    /// Camera elevation for the current scene; the galaxy and tidal disruption have their own.
+    /// Camera elevation for the current scene; the galaxy and tidal disruption have their own, and
+    /// scenes that don't offer a tilt stay at the default.
     var cameraTilt: Double {
         switch scene {
         case .galaxy: galaxyView
         case .tidalDisruption: tdeView
-        default: tilt
+        default: scene.hasTilt ? tilt : Self.defaultTilt
         }
     }
 
@@ -387,6 +401,8 @@ struct WallpaperConfig: Codable, Equatable {
               let defaultsData = try? JSONEncoder().encode(WallpaperConfig()),
               let defaults = try? JSONSerialization.jsonObject(with: defaultsData) as? [String: Any] else { return nil }
         migrateTunedColors(&saved)
+        // from before scenes had their own tilts, when this was every scene's
+        if !(saved["sharedTilt"] is NSNumber) { saved["sharedTilt"] = saved["tilt"] }
         // merge one level deep too, so palettes saved before new colors were added still load
         func merging(_ key: String, _ value: Any, into dict: inout [String: Any]) {
             if let nested = value as? [String: Any], var base = dict[key] as? [String: Any] {
@@ -400,9 +416,18 @@ struct WallpaperConfig: Codable, Equatable {
             guard let d = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
             return try? JSONDecoder().decode(WallpaperConfig.self, from: d)
         }
+        func loaded(_ dict: [String: Any]) -> WallpaperConfig? {
+            guard var c = decoded(dict) else { return nil }
+            // a scene this build doesn't know loads as the default one, which has a tilt of its own
+            if let name = saved["scene"] as? String, name != c.scene.rawValue {
+                c.sceneTilt[name] = c.tilt
+                c.tilt = c.sceneTilt[c.scene.rawValue] ?? c.sharedTilt
+            }
+            return c.sanitized()
+        }
         var merged = defaults
         for (key, value) in saved { merging(key, value, into: &merged) }
-        if let c = decoded(merged) { return c.sanitized() }
+        if let c = loaded(merged) { return c }
         // something in there is bad: keep each key only if the config still decodes with it
         merged = defaults
         for key in saved.keys.sorted() {
@@ -410,7 +435,7 @@ struct WallpaperConfig: Codable, Equatable {
             merging(key, saved[key]!, into: &trial)
             if decoded(trial) != nil { merged = trial }
         }
-        return decoded(merged)?.sanitized()
+        return loaded(merged)
     }
 
     /// Clamps values the renderer would choke on (zero periods, missing stars, a zero pixel
@@ -450,6 +475,7 @@ struct WallpaperConfig: Codable, Equatable {
         // the parked image settings become the flat ones on a scene switch, so they need it too
         c.sceneImage = c.sceneImage.mapValues { $0.sanitized() }
         c.sharedImage = c.sharedImage?.sanitized()
+        c.normalizeTilts()
         return c
     }
 }

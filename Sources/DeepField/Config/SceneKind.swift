@@ -73,12 +73,24 @@ enum SceneKind: String, Codable, CaseIterable, Identifiable {
     }
 
     /// Draws the real sky, from a camera held over a place on Earth, so the Sky section, the shared
-    /// sky events and the shared camera tilt have nothing to act on.
+    /// sky events and the camera tilt have nothing to act on.
     var drawsRealSky: Bool { self == .liveEarth }
 
-    /// Scenes with settings on the Scene tab that other scenes also use (camera tilt, planets,
-    /// the shared disk colors), which a per-scene reset puts back for those scenes too.
-    var sharesSettings: Bool { !drawsRealSky && ![.quasar, .galaxy].contains(self) }
+    /// Scenes with a Tilt slider, which keep their own tilt. The galaxy, tidal disruption and quasar
+    /// have viewing angles instead.
+    var hasTilt: Bool { !drawsRealSky && ![.galaxy, .tidalDisruption, .quasar].contains(self) }
+
+    /// The settings a per-scene reset puts back for other scenes too, for its help.
+    var sharedNote: String? {
+        switch self {
+        case .blackHole: "Planets are shared with Wormhole, Binary Stars and Trinary Stars, disk colors and speed with Star Meets Black Hole, and the photon ring with Wormhole and Star Meets Black Hole. They reset there too."
+        case .tidalDisruption: "Disk colors and speed and the photon ring's color are shared with Black Hole, and that color with Wormhole. They reset there too."
+        case .wormhole: "Planets are shared with Black Hole, Binary Stars and Trinary Stars, and the rim's glow and color are the photon ring's in Black Hole and Star Meets Black Hole. They reset there too."
+        case .binary: "Planets are shared with Black Hole, Wormhole and Trinary Stars, and the separation and orbit period with Trinary Stars. They reset there too."
+        case .trinary: "Planets are shared with Black Hole, Wormhole and Binary Stars, and the separation and orbit period with Binary Stars. They reset there too."
+        default: nil
+        }
+    }
 
     /// Scenes that show the orbiting planets.
     var hasPlanets: Bool { [.blackHole, .wormhole, .binary, .trinary].contains(self) }

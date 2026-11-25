@@ -95,12 +95,15 @@ final class LockScreenStill: ObservableObject {
 
     // MARK: rendering
 
-    /// What the still depends on: the config minus settings that don't change it (frame rate;
-    /// in smooth mode also the pixel look, which stillConfig overrides).
-    private static func look(_ c: WallpaperConfig) -> WallpaperConfig {
+    /// What the still depends on: the config minus settings that don't change it (frame rate, other
+    /// scenes' tilts; in smooth mode also the pixel look, which stillConfig overrides).
+    static func look(_ c: WallpaperConfig) -> WallpaperConfig {
         var c = stillConfig(c)
         c.fps = 24
         c.lockScreenStill = false
+        c.sceneTilt = [:]
+        c.sharedTilt = WallpaperConfig.defaultTilt
+        c.normalizeTilts()
         return c
     }
 
