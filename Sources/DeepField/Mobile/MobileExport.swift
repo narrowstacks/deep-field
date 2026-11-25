@@ -35,6 +35,7 @@ struct MobileOptions: Equatable {
     var motionSpeed = 2.0
 
     static let sizeRange = 320...4096   // per side; the video encoder's limit is well above this
+    static func clampedSide(_ v: Int) -> Int { min(max(v, sizeRange.lowerBound), sizeRange.upperBound) }
 
     /// The cell size used when `pixelSize` is automatic. A phone sits about twice as close as
     /// a desktop display at about twice the density, so the wallpaper's own cell size would look
@@ -78,8 +79,7 @@ enum MobileExport {
         c.phoneFraming = o.framing
         // only continuous motion: no transient events of any kind
         c.supernovae = .off; c.comets = .off; c.wormholeEvents = .off; c.cometEvents = .off; c.starFlares = .off
-        func clamped(_ v: Int) -> Int { min(max(v, MobileOptions.sizeRange.lowerBound), MobileOptions.sizeRange.upperBound) }
-        let w = clamped(o.width), h = clamped(o.height)
+        let w = MobileOptions.clampedSide(o.width), h = MobileOptions.clampedSide(o.height)
         let factor: Int
         if o.smooth {
             c = LockScreenStill.stillConfig({ var s = c; s.lockScreenSmooth = true; return s }())

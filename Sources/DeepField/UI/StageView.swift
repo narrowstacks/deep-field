@@ -26,9 +26,11 @@ struct StageView: View {
     var body: some View {
         Group {
             if section == .phone {
-                HStack(alignment: .top, spacing: 20) {
-                    PhoneStage(store: store, showClock: showPhoneClock)
-                    ScrollView { SceneGallery(store: store, thumbnails: thumbnails, columns: 2) }
+                GeometryReader { geo in
+                    HStack(alignment: .top, spacing: 20) {
+                        PhoneStage(store: store, showClock: showPhoneClock, stageHeight: geo.size.height)
+                        ScrollView { SceneGallery(store: store, thumbnails: thumbnails, columns: 2) }
+                    }
                 }
             } else {
                 GeometryReader { geo in

@@ -6,13 +6,20 @@ struct PhoneStage: View {
     @ObservedObject var store: ConfigStore
     @ObservedObject private var phone = PhoneExporter.shared
     let showClock: Bool
+    /// The stage's height, which the preview and its caption share.
+    let stageHeight: CGFloat
 
     private static let box = CGSize(width: 394, height: 676)
+    private static let captionHeight: CGFloat = 30
 
     var body: some View {
         let options = phone.options
-        let aspect = CGFloat(options.width) / CGFloat(max(options.height, 1))
-        let h = min(Self.box.height, Self.box.width / aspect), w = h * aspect
+        // the exported size, which is what the preview renders: a typed 0 or negative has no shape
+        let width = MobileOptions.clampedSide(options.width), height = MobileOptions.clampedSide(options.height)
+        // shrinks to fit short windows; capped so the gallery keeps its room in tall ones
+        let boxHeight = min(Self.box.height, max(stageHeight - Self.captionHeight, 1))
+        let fitted = Theme.fit(CGSize(width: width, height: height), in: CGSize(width: Self.box.width, height: boxHeight))
+        let w = fitted.width, h = fitted.height
         VStack(alignment: .leading, spacing: 0) {
             ZStack {
                 Color.black
@@ -21,29 +28,32 @@ struct PhoneStage: View {
                 } else {
                     ProgressView()
                 }
-                if showClock { clockGuide(height: h) }
+                if showClock { clockGuide(in: fitted) }
             }
             .frame(width: w, height: h)
             .clipShape(RoundedRectangle(cornerRadius: w * 0.12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: w * 0.12, style: .continuous).stroke(.secondary.opacity(0.5)))
-            Text("\(options.width) × \(options.height)" + (options.smooth ? ", smooth" : ""))
+            Text("\(width) × \(height)" + (options.smooth ? ", smooth" : ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .frame(height: 30)
+                .fixedSize()   // a caption wider than its preview would shrink, and narrow the gallery too
+                .frame(height: Self.captionHeight)
         }
         .onAppear { phone.appear() }
         .onDisappear { phone.disappear() }
     }
 
     /// Roughly where the Lock Screen puts the date and the time.
-    private func clockGuide(height h: CGFloat) -> some View {
-        VStack(spacing: 0) {
+    private func clockGuide(in size: CGSize) -> some View {
+        // the text follows the height, until a custom size narrower than any iPhone would cut it off
+        let h = size.height, textScale = min(h, size.width * 2.2)
+        return VStack(spacing: 0) {
             Text(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                .font(.system(size: h * 0.022, weight: .semibold))
+                .font(.system(size: textScale * 0.022, weight: .semibold))
                 .padding(.top, h * 0.1)
             Text("9:41")
-                .font(.system(size: h * 0.12, weight: .semibold, design: .rounded))
+                .font(.system(size: textScale * 0.12, weight: .semibold, design: .rounded))
             Spacer()
         }
         .foregroundStyle(.white.opacity(0.85))
