@@ -238,6 +238,22 @@ enum ScheduleCheck {
             $0.config.cometIonColor = WallpaperConfig.Tuned.cometIon.light
             $0.lastLook = (try? JSONEncoder().encode($0.config)).flatMap(WallpaperConfig.decode)
         }
+        let sky: [(inout WallpaperConfig) -> Void] = [
+            { $0.starDensity += 0.1 }, { $0.nebula += 0.1 }, { $0.galaxies.toggle() }, { $0.milkyWay.toggle() },
+            { $0.skySeed += 1 }, { $0.twinkles = .off }, { $0.twinkleBrightness += 0.1 }, { $0.twinkleSpeed += 0.1 },
+            { $0.pulsars.toggle() }, { $0.supernovae = .off }, { $0.comets = .off },
+            { $0.palette.nebulaA = RGB(0, 0, 1) }, { $0.palette.nebulaB = RGB(0, 0, 1) },
+            { $0.palette.galaxy = RGB(0, 0, 1) }, { $0.palette.starWarm = RGB(0, 0, 1) },
+            { $0.palette.starCool = RGB(0, 0, 1) }]
+        for (i, edit) in sky.enumerated() {
+            for (scene, begins) in [(SceneKind.liveEarth, "Now: Galaxy."), (.galaxy, byHand)] {
+                statusCheck("sky setting \(i) on \(scene)", begins) {
+                    $0.config.scene = scene
+                    $0.lastLook = $0.config
+                    edit(&$0.config)
+                }
+            }
+        }
         statusCheck("the preset edited later", "Now: Dusk.", entry: 1) { $0.presets[0].config.bloom += 0.5 }
         statusCheck("the preset saved over with the look", "Now: Dusk.", entry: 1) {
             $0.config.bloom += 0.5

@@ -185,9 +185,17 @@ extension WallpaperConfig {
         for key in Array(dict.keys) where !Self.owns(scene, key: key) && others.contains(where: { Self.owns($0, key: key) }) {
             dict[key] = nil
         }
+        // the Sky section's settings, which a scene that draws the real sky doesn't show
+        if scene.drawsRealSky {
+            for key in ["starDensity", "nebula", "galaxies", "milkyWay", "skySeed", "twinkles", "twinkleBrightness",
+                        "twinkleSpeed", "pulsars", "supernovae", "comets"] { dict[key] = nil }
+        }
         if var palette = dict["palette"] as? [String: Any] {
             let own = Self.ownKeys(scene).palette
             for key in others.flatMap({ Self.ownKeys($0).palette }) where !own.contains(key) { palette[key] = nil }
+            if scene.drawsRealSky {
+                for key in ["nebulaA", "nebulaB", "galaxy", "starWarm", "starCool"] { palette[key] = nil }
+            }
             dict["palette"] = palette
         }
         return dict as NSDictionary
