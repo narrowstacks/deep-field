@@ -20,9 +20,23 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
         manager.desiredAccuracy = kCLLocationAccuracyKilometer
     }
 
-    /// Asks for the location if the settings follow it.
-    func refreshIfFollowing() {
-        if ConfigStore.shared.config.homeFromDevice { request() }
+    private var observer: NSObjectProtocol?
+    private var following = false
+
+    /// Asks for the location if the settings follow it, now and whenever they start to (from the
+    /// Customize window, a preset or the command line).
+    func start() {
+        guard observer == nil else { return }
+        observer = NotificationCenter.default.addObserver(forName: ConfigStore.changed, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshIfNewlyFollowing() }
+        }
+        refreshIfNewlyFollowing()
+    }
+
+    private func refreshIfNewlyFollowing() {
+        let follows = ConfigStore.shared.config.homeFromDevice
+        if follows && !following { request() }
+        following = follows
     }
 
     func request() {

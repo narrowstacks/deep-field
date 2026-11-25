@@ -33,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             CLIServer.start()
             LockScreenStill.shared.start()
             Scheduler.shared.start()
-            LocationProvider.shared.refreshIfFollowing()
+            LocationProvider.shared.start()
         } else {
             LiveEarthFeeds.shared.allowNetwork = false
         }

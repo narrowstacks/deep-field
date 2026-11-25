@@ -4,6 +4,13 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+- Presets and exported preset files now leave out Live Earth's place (which can be your Mac's location) unless you choose to include it: tick the box when saving or exporting, use Include Live Earth's Place in the Presets menu for presets you already have, or add `--with-place` on the command line. Files exported before this update still contain it.
+- Live Earth asks for your Mac's location whenever following it is turned on, including by a preset or the command line.
+- Saving a preset suggests an unused name and asks before replacing one, and renaming can't give two presets the same name.
+- Welcome guide: the lock screen and login choices now wait for the last button, so Not Now leaves them alone. Opened with Deep Field already on the desktop, it says that changes show there as you make them.
+- Welcome guide: turning a look off, or Undo All, goes back to your own settings instead of the defaults.
+- Fixed a crash when switching scenes after loading a damaged preset.
+
 ## [0.4.8] - 2026-11-18
 
 - A `deepfield` command for the terminal: switch scenes and presets, change any setting of the running wallpaper, trigger events, control the schedule, and render stills, videos, time-lapses, GIFs and frame sequences. Install it with `DeepField.app/Contents/MacOS/DeepField install`, and see `deepfield help`.

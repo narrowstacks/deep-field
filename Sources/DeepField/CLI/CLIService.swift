@@ -199,7 +199,7 @@ struct CLIService {
         let c = store.config
         var new: WallpaperConfig
         if a.has("--all") {
-            new = UserPreset(name: "", config: WallpaperConfig()).applied(over: c)
+            new = UserPreset(name: "", config: WallpaperConfig(), includesPlace: true).applied(over: c)
         } else if !a.positional.isEmpty {
             let defaults = ConfigKeys.object(WallpaperConfig())
             let list = try a.positional.map { key -> ConfigKeys.Assignment in
@@ -291,7 +291,7 @@ struct CLIService {
 
     private func preset(_ args: [String]) throws {
         guard let sub = args.first else { throw CLIError("usage: deepfield preset apply|save|delete|rename|export|import ...") }
-        let a = try ParsedArgs(Array(args.dropFirst()), values: ["--fade", "--style", "--name"], flags: [])
+        let a = try ParsedArgs(Array(args.dropFirst()), values: ["--fade", "--style", "--name"], flags: ["--with-place"])
         let p = a.positional
         let presetStore = PresetStore.shared
         func find(_ name: String) throws -> UserPreset {
@@ -306,14 +306,16 @@ struct CLIService {
             try commit(try applyChanges(Array(p.dropFirst()), preset: name, to: store.config), a)
         case "save":
             guard let name = p.first else { throw CLIError("usage: deepfield preset save NAME") }
-            let saved = presetStore.saveCurrent(as: name)
+            let saved = presetStore.saveCurrent(as: name, includePlace: a.has("--with-place") ? true : nil)
             o.print("Saved \u{201C}\(saved.name)\u{201D}")
         case "delete":
             guard let name = p.first else { throw CLIError("usage: deepfield preset delete NAME") }
             presetStore.delete(try find(name))
         case "rename":
             guard p.count == 2 else { throw CLIError("usage: deepfield preset rename OLD NEW") }
-            presetStore.rename(try find(p[0]), to: p[1])
+            guard presetStore.rename(try find(p[0]), to: p[1]) else {
+                throw CLIError("can't rename to \u{201C}\(p[1])\u{201D}: the name is empty or another preset has it")
+            }
         case "export":
             // export [NAME] FILE: a saved preset, or the current settings
             guard let path = p.last else { throw CLIError("usage: deepfield preset export [NAME] FILE.deepfield") }
@@ -321,7 +323,7 @@ struct CLIService {
                 : UserPreset(name: a.value("--name") ?? presetStore.current?.name ?? store.config.scene.title, config: store.config)
             var url = URL(fileURLWithPath: PresetLookup.resolve(path, cwd: cwd))
             if url.pathExtension.isEmpty { url.appendPathExtension(PresetStore.fileExtension) }
-            guard let data = PresetStore.fileData(for: preset) else { throw CLIError("couldn't encode the preset") }
+            guard let data = PresetStore.fileData(for: preset, includePlace: a.has("--with-place")) else { throw CLIError("couldn't encode the preset") }
             try data.write(to: url, options: .atomic)
             o.print(url.path)
         case "import":

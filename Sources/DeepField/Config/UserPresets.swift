@@ -3,15 +3,18 @@ import Combine
 import UniformTypeIdentifiers
 
 /// A saved customization: everything about the look (scene, its settings, colors, sky, image),
-/// but not the machine's own settings (frame rate, lock screen), which stay as they are.
+/// but not the machine's own settings (frame rate, lock screen), which stay as they are. Live
+/// Earth's place can be someone's own location, so a preset only brings it when asked to.
 struct UserPreset: Codable, Identifiable, Equatable {
     var id = UUID()
     var name: String
     var config: WallpaperConfig
+    /// Whether applying it also moves Live Earth to its place.
+    var includesPlace = false
 
     /// `config` with the machine's own settings taken from `current`.
     func applied(over current: WallpaperConfig) -> WallpaperConfig {
-        var c = config
+        var c = includesPlace ? config : config.withPlace(of: current)
         c.fps = current.fps
         c.lockScreenStill = current.lockScreenStill
         c.lockScreenSmooth = current.lockScreenSmooth
@@ -47,13 +50,17 @@ final class PresetStore: ObservableObject {
 
     // MARK: editing
 
-    /// Saves the current settings under `name`, replacing a preset of the same name.
+    /// Saves the current settings under `name`, replacing a preset of the same name (which keeps
+    /// its place option unless `includePlace` is given).
     @discardableResult
-    func saveCurrent(as name: String) -> UserPreset {
+    func saveCurrent(as name: String, includePlace: Bool? = nil) -> UserPreset {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let preset = UserPreset(name: trimmed.isEmpty ? "Untitled" : trimmed, config: ConfigStore.shared.config)
+        var preset = UserPreset(name: trimmed.isEmpty ? "Untitled" : trimmed, config: ConfigStore.shared.config,
+                                includesPlace: includePlace ?? false)
         if let i = presets.firstIndex(where: { $0.name.caseInsensitiveCompare(preset.name) == .orderedSame }) {
-            presets[i] = UserPreset(id: presets[i].id, name: preset.name, config: preset.config)
+            preset.id = presets[i].id
+            preset.includesPlace = includePlace ?? presets[i].includesPlace
+            presets[i] = preset
         } else {
             presets.append(preset)
         }
@@ -64,12 +71,38 @@ final class PresetStore: ObservableObject {
         ConfigStore.shared.config = preset.applied(over: ConfigStore.shared.config)
     }
 
+    /// The preset keeps the place it was saved with either way, so this can be switched back.
+    func setIncludesPlace(_ on: Bool, for preset: UserPreset) {
+        guard let i = presets.firstIndex(where: { $0.id == preset.id }) else { return }
+        presets[i].includesPlace = on
+    }
+
     func delete(_ preset: UserPreset) { presets.removeAll { $0.id == preset.id } }
 
-    func rename(_ preset: UserPreset, to name: String) {
+    /// False, changing nothing, when the name is empty or another preset has it.
+    @discardableResult
+    func rename(_ preset: UserPreset, to name: String) -> Bool {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let i = presets.firstIndex(where: { $0.id == preset.id }) else { return }
+        guard !trimmed.isEmpty, let i = presets.firstIndex(where: { $0.id == preset.id }) else { return false }
+        if let other = named(trimmed), other.id != preset.id { return false }
         presets[i].name = trimmed
+        return true
+    }
+
+    /// The preset called `name`, ignoring case and surrounding space.
+    func named(_ name: String) -> UserPreset? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return presets.first { $0.name.caseInsensitiveCompare(trimmed) == .orderedSame }
+    }
+
+    /// `name`, with a number if a preset already has it.
+    private func unusedName(_ base: String) -> String {
+        var name = base, n = 2
+        while named(name) != nil {
+            name = "\(base) \(n)"
+            n += 1
+        }
+        return name
     }
 
     /// The preset the current settings match, if any.
@@ -87,21 +120,28 @@ final class PresetStore: ObservableObject {
         let version = 1
         let name: String
         let config: WallpaperConfig
+        let includesPlace: Bool
     }
 
-    static func fileData(for preset: UserPreset) -> Data? {
+    /// Without `includePlace` the file holds the default place. With it, the place is a fixed one:
+    /// following the Mac would mean someone else's Mac.
+    static func fileData(for preset: UserPreset, includePlace: Bool = false) -> Data? {
+        var config = includePlace ? preset.config : preset.config.withPlace(of: WallpaperConfig())
+        config.homeFromDevice = false
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        return try? encoder.encode(PresetFile(name: preset.name, config: preset.config))
+        return try? encoder.encode(PresetFile(name: preset.name, config: config, includesPlace: includePlace))
     }
 
     static func preset(from dict: [String: Any]) -> UserPreset? {
         guard let configObject = dict["config"],
               let data = try? JSONSerialization.data(withJSONObject: configObject),
-              let config = WallpaperConfig.decode(data) else { return nil }
+              var config = WallpaperConfig.decode(data) else { return nil }
+        // a file never makes someone else's Mac use its location
+        if dict["format"] != nil { config.homeFromDevice = false }
         let name = (dict["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Imported"
         let id = (dict["id"] as? String).flatMap(UUID.init(uuidString:)) ?? UUID()
-        return UserPreset(id: id, name: name, config: config)
+        return UserPreset(id: id, name: name, config: config, includesPlace: dict["includesPlace"] as? Bool ?? false)
     }
 
     /// Reads a `.deepfield` file and adds it (a name already in use gets a number).
@@ -113,32 +153,56 @@ final class PresetStore: ObservableObject {
             throw CocoaError(.fileReadCorruptFile, userInfo: [NSFilePathErrorKey: url.path])
         }
         preset.id = UUID()
-        var name = preset.name, n = 2
-        while presets.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
-            name = "\(preset.name) \(n)"
-            n += 1
-        }
-        preset.name = name
+        preset.name = unusedName(preset.name)
         presets.append(preset)
         return preset
     }
 
     // MARK: panels (shared by the menu bar and the Customize window)
 
-    /// Asks for a name, then saves the current settings under it.
+    /// Asks for a name, then saves the current settings under it. Asks again before replacing one.
     func promptToSave() {
         let alert = NSAlert()
         alert.messageText = "Save Preset"
         alert.informativeText = "Save the current scene and its look under a name. Frame rate and lock screen settings aren't included."
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
         field.placeholderString = "Preset name"
-        field.stringValue = current?.name ?? ConfigStore.shared.config.scene.title
-        alert.accessoryView = field
+        field.stringValue = unusedName(ConfigStore.shared.config.scene.title)
+        let place = Self.placeCheckbox
+        field.frame.origin.y = 28
+        let box = NSView(frame: NSRect(x: 0, y: 0, width: 260, height: 52))
+        box.addSubview(field)
+        box.addSubview(place)
+        alert.accessoryView = box
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")
         alert.window.initialFirstResponder = field
         NSApp.activate(ignoringOtherApps: true)
-        if alert.runModal() == .alertFirstButtonReturn { saveCurrent(as: field.stringValue) }
+        while alert.runModal() == .alertFirstButtonReturn {
+            let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let final = name.isEmpty ? unusedName("Untitled") : name
+            if let existing = named(final), !confirmReplace(existing) { continue }
+            saveCurrent(as: final, includePlace: place.state == .on)
+            return
+        }
+    }
+
+    /// Off to start with, since the place can be this Mac's location.
+    private static var placeCheckbox: NSButton {
+        let box = NSButton(checkboxWithTitle: "Include Live Earth's place", target: nil, action: nil)
+        box.frame = NSRect(x: 0, y: 0, width: 260, height: 20)
+        box.toolTip = "The latitude and longitude Live Earth is centered on, which can be where you are"
+        return box
+    }
+
+    private func confirmReplace(_ preset: UserPreset) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Replace \u{201C}\(preset.name)\u{201D}?"
+        alert.informativeText = "A preset with this name already exists. Replacing it can't be undone."
+        // Cancel is the default button, so pressing Return twice never replaces a preset
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Replace").hasDestructiveAction = true
+        return alert.runModal() == .alertSecondButtonReturn
     }
 
     func promptToImport() {
@@ -169,8 +233,14 @@ final class PresetStore: ObservableObject {
         panel.allowedContentTypes = [Self.fileType]
         panel.nameFieldStringValue = "\(p.name).\(Self.fileExtension)"
         panel.message = "Anyone with Deep Field can import this file."
+        let place = Self.placeCheckbox
+        place.setFrameOrigin(NSPoint(x: 20, y: 10))
+        let box = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 40))
+        box.addSubview(place)
+        panel.accessoryView = box
         NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url, let data = Self.fileData(for: p) else { return }
+        guard panel.runModal() == .OK, let url = panel.url,
+              let data = Self.fileData(for: p, includePlace: place.state == .on) else { return }
         do {
             try data.write(to: url, options: .atomic)
         } catch {
@@ -199,6 +269,13 @@ final class PresetStore: ObservableObject {
         alert.addButton(withTitle: "Cancel")
         alert.window.initialFirstResponder = field
         NSApp.activate(ignoringOtherApps: true)
-        if alert.runModal() == .alertFirstButtonReturn { rename(preset, to: field.stringValue) }
+        while alert.runModal() == .alertFirstButtonReturn {
+            if rename(preset, to: field.stringValue) { return }
+            let problem = NSAlert()
+            problem.messageText = "That name can't be used"
+            problem.informativeText = named(field.stringValue) == nil
+                ? "Enter a name for the preset." : "Another preset already has that name."
+            problem.runModal()
+        }
     }
 }

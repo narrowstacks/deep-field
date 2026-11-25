@@ -446,6 +446,9 @@ struct WallpaperConfig: Codable, Equatable {
         clamp(\.homeLongitude, -180...180)
         clamp(\.earthDistance, 1.3...20)
         for (kp, range) in Self.imageRanges { clamp(kp, range) }
+        // the parked image settings become the flat ones on a scene switch, so they need it too
+        c.sceneImage = c.sceneImage.mapValues { $0.sanitized() }
+        c.sharedImage = c.sharedImage?.sanitized()
         return c
     }
 }
