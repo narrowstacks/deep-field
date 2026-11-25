@@ -30,9 +30,10 @@ final class Scheduler {
     }
 
     func scheduleChanged(from old: WallpaperSchedule) {
-        guard started else { return }
-        // turning it on shows the current entry now, even if its slot was already shown
+        // turning it on shows the current entry now, even if its slot was already shown; before the
+        // guard, so it also counts when the command line does it for the next launch
         if store.schedule.enabled && !old.enabled { UserDefaults.standard.removeObject(forKey: lastKey) }
+        guard started else { return }
         evaluate()
     }
 
@@ -60,7 +61,9 @@ final class Scheduler {
             timer = t
         }
         let d = UserDefaults.standard
-        guard !focusActive, d.string(forKey: lastKey) != slot.key else { return }
+        // an entry removed before it could show (during a Focus) isn't switched to
+        guard !focusActive, d.string(forKey: lastKey) != slot.key,
+              s.entries.contains(where: { $0.id == slot.entry.id }) else { return }
         let store = ConfigStore.shared
         // a deleted preset leaves the wallpaper as it is
         if let new = slot.entry.target.applied(over: store.config) {
