@@ -90,6 +90,7 @@ final class LockScreenStill: ObservableObject {
         refreshWork?.cancel()
         generation += 1   // drops renders still in flight
         busy = false
+        status = ""       // it was about the still; restoring sets its own
     }
 
     // MARK: rendering
@@ -126,6 +127,8 @@ final class LockScreenStill: ObservableObject {
         }
     }
 
+    private static let leftAlone = "Not updated: you chose another desktop picture. Use Set now to replace it."
+
     private struct Target { let key: String; let width: Int; let height: Int }
 
     private func refresh(force: Bool) {
@@ -146,10 +149,13 @@ final class LockScreenStill: ObservableObject {
             return Target(key: key, width: w, height: h)
         }
         if targets.isEmpty {
-            if skipped > 0 { status = "Not updated: you chose another desktop picture. Use Set now to replace it." }
+            // the new generation dropped any render in flight, so nothing else will end it
+            busy = false
+            status = skipped > 0 ? Self.leftAlone : "Not updated: no display is available."
             return
         }
         busy = true
+        status = ""   // this run's own outcome from here on
         let c = Self.stillConfig(config)
         render(targets[...], config: c, time: Self.representativeTime(c), force: force, generation: gen,
                applied: 0, skipped: skipped)
@@ -164,7 +170,7 @@ final class LockScreenStill: ObservableObject {
             let when = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short)
             var s = "Set on \(applied) display\(applied == 1 ? "" : "s") at \(when)."
             if skipped > 0 { s += " Left \(skipped) with a picture you chose." }
-            if applied > 0 || skipped > 0 { status = s }
+            if applied > 0 { status = s }   // else it already says why the last display failed
             return
         }
         // dithered: shade one pixel per wallpaper cell and blow it up with crisp edges, like the
@@ -219,13 +225,19 @@ final class LockScreenStill: ObservableObject {
 
     /// Sets our still on the display `key`, first remembering the picture it replaces.
     private func apply(_ url: URL, to key: String, force: Bool) -> Bool {
-        guard let screen = Self.screen(for: key) else { return false }   // unplugged meanwhile
+        guard let screen = Self.screen(for: key) else {
+            if status.isEmpty { status = "Not updated: the display was disconnected." }   // keeps an earlier failure
+            return false
+        }
         let ws = NSWorkspace.shared
         var originals = loadOriginals()
         let previous = ws.desktopImageURL(for: screen)
         var recorded = false
         if !isOurs(previous) {
-            if originals[key] != nil && !force { return false }   // changed by the user mid-render
+            if originals[key] != nil && !force {   // changed by the user mid-render
+                if status.isEmpty { status = Self.leftAlone }
+                return false
+            }
             originals[key] = Picture(url: previous, options: ws.desktopImageOptions(for: screen) ?? [:])
             saveOriginals(originals)
             recorded = true
