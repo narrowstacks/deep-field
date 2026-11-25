@@ -10,6 +10,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Welcome guide: the lock screen and login choices now wait for the last button, so Not Now leaves them alone. Opened with Deep Field already on the desktop, it says that changes show there as you make them.
 - Welcome guide: turning a look off, or Undo All, goes back to your own settings instead of the defaults.
 - Fixed a crash when switching scenes after loading a damaged preset.
+- With the animation paused, scheduled switches and `--fade` now cut straight to the new scene instead of leaving the old one up, and pausing partway through a transition ends on the new scene.
 
 ## [0.4.8] - 2026-11-18
 
