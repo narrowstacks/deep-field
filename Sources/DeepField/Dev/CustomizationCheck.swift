@@ -160,6 +160,46 @@ enum CustomizationCheck {
         expect(WallpaperConfig.pixelSizes.including(5) == [1, 2, 3, 4, 5, 6, 8], "a 5 px pixel size isn't listed")
         expect(WallpaperConfig.pixelSizes.including(3) == WallpaperConfig.pixelSizes, "a listed pixel size was repeated")
 
+        // a thumbnail is due again exactly when a setting its scene draws with changes
+        let noon = Date(timeIntervalSince1970: 1_790_000_000), listed = Set(SceneKind.listed)
+        func due(_ from: WallpaperConfig, _ to: WallpaperConfig, after seconds: Double = 0) -> Set<SceneKind> {
+            let a = from.stillSettings(SceneKind.listed, at: noon)
+            let b = to.stillSettings(SceneKind.listed, at: noon + seconds)
+            return listed.filter { a[$0] == nil || a[$0] != b[$0] }
+        }
+        func expectDue(_ scenes: Set<SceneKind>, _ what: String, from: WallpaperConfig = d, _ change: (inout WallpaperConfig) -> Void) {
+            var to = from
+            change(&to)
+            let got = due(from, to)
+            expect(got == scenes, "thumbnails due after \(what): \(got.map(\.rawValue).sorted())")
+        }
+        let disks: Set<SceneKind> = [.blackHole, .tidalDisruption], planets: Set<SceneKind> = [.blackHole, .wormhole, .binary, .trinary]
+        expectDue([], "no change") { _ in }
+        expectDue([.gasGiant], "gas giant wind") { $0.gasWind = 3 }
+        expectDue([.comet], "comet color") { $0.cometIonColor = RGB(1, 0, 0) }
+        expectDue([.galaxy], "galaxy arms color") { $0.palette.galaxyArms = RGB(1, 0, 0) }
+        expectDue(disks, "disk color") { $0.palette.receding = RGB(0, 1, 0) }
+        expectDue(disks, "disk speed") { $0.diskSpeed = 2 }
+        expectDue(disks.union([.wormhole]), "photon ring") { $0.photonRing = 2 }
+        expectDue(planets, "planet count") { $0.planetCount = 1 }
+        expectDue(listed.subtracting([.galaxy, .tidalDisruption]), "tilt") { $0.tilt = 20 }
+        expectDue(listed.subtracting([.liveEarth]), "star density") { $0.starDensity = 2 }
+        expectDue(listed.subtracting([.liveEarth]), "nebula color") { $0.palette.nebulaA = RGB(1, 0, 0) }
+        expectDue([.liveEarth], "Live Earth's place") { $0.homeLatitude = 10 }
+        expectDue([.liveEarth], "Live Earth's time") { $0.earthFreezeTime = true; $0.earthFrozenTime += 60 }
+        expect(due(d, d, after: 0.25) == [.liveEarth], "only Live Earth shows the time")
+        expectDue([], "settings no still shows") {
+            $0.fps = 60; $0.pixelSize = 6; $0.lockScreenStill = true; $0.lockScreenSmooth = true; $0.homeFromDevice = true
+            $0.supernovae = .rare; $0.comets = .rare; $0.wormholeEvents = .rare; $0.scene = .eclipse
+        }
+        var ownImage = d
+        ownImage.scene = .comet
+        ownImage.sceneHasOwnImage = true
+        expectDue([], "giving a scene its own image settings", from: d) { $0.scene = .comet; $0.sceneHasOwnImage = true }
+        expectDue([.comet], "a scene's own contrast", from: ownImage) { $0.contrast = 1.5 }
+        expectDue([.comet], "a scene's own contrast, and leaving it", from: ownImage) { $0.contrast = 1.5; $0.scene = .eclipse }
+        expectDue(listed.subtracting([.comet]), "the shared contrast", from: ownImage) { $0.scene = .eclipse; $0.contrast = 1.5 }
+
         for f in failures { print("FAIL:", f) }
         print(failures.isEmpty ? "customization OK" : "\(failures.count) failures")
         return failures.isEmpty

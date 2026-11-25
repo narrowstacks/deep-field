@@ -15,7 +15,7 @@ final class SceneThumbnails: ObservableObject {
         return (max(16, Int(s.width.rounded())), max(16, Int(s.height.rounded())))
     }
 
-    private var rendered: [SceneKind: WallpaperConfig] = [:]
+    private var rendered: [SceneKind: WallpaperConfig.StillSettings] = [:]
     private var generation: [SceneKind: Int] = [:]
     private var observer: NSObjectProtocol?
     private var work: DispatchWorkItem?
@@ -98,30 +98,27 @@ final class SceneThumbnails: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: w)
     }
 
-    /// The settings a still of `kind` depends on. Fields that can't change a still are pinned,
-    /// so changing them doesn't re-render anything.
+    /// The settings a still of `kind` is drawn with.
     private func config(for kind: SceneKind) -> WallpaperConfig {
         var c = ConfigStore.shared.config
         c.scene = kind
         c.phoneFraming = nil
         c.pixelSize = 1
-        c.fps = 24
-        c.lockScreenStill = false
-        c.lockScreenSmooth = false
         return c
     }
 
     private func refresh() {
+        let settings = ConfigStore.shared.config.stillSettings(SceneKind.listed, at: Date())
         for kind in SceneKind.listed {
-            let c = config(for: kind)
-            if rendered[kind] == c { continue }
-            rendered[kind] = c
+            if let new = settings[kind], rendered[kind] == new { continue }
+            rendered[kind] = settings[kind]
             let gen = (generation[kind] ?? 0) + 1
             generation[kind] = gen
-            FrameCapture.render(config: c, width: size.width, height: size.height, time: 300, eventsEnabled: false) { [weak self] image in
+            FrameCapture.render(config: config(for: kind), width: size.width, height: size.height, time: 300, eventsEnabled: false) { [weak self] image in
                 DispatchQueue.main.async {
-                    guard let self, self.generation[kind] == gen, let image else { return }
-                    self.images[kind] = image
+                    guard let self, self.generation[kind] == gen else { return }
+                    // a failed render stays due at the next refresh
+                    if let image { self.images[kind] = image } else { self.rendered[kind] = nil }
                 }
             }
         }
