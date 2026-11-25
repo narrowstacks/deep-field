@@ -27,10 +27,19 @@ enum ScheduleCheck {
         expect(s0.next == r.anchor.addingTimeInterval(1800), "rotation next switch")
 
         // a shuffled round covers every entry once and never repeats across a round boundary
-        for round in -3...20 {
-            let order = WallpaperSchedule.shuffled(3, round: round)
-            expect(order.sorted() == [0, 1, 2], "shuffle round \(round) isn't a permutation")
-            expect(order.first != WallpaperSchedule.shuffled(3, round: round - 1).last, "shuffle repeats at round \(round)")
+        let bases = [-800_000_000, 800_000_000, 1_000_000_000_000]
+        for n in 1...12 {
+            for round in Array(-60...60) + bases.flatMap({ $0...($0 + 60) }) {
+                let order = WallpaperSchedule.shuffled(n, round: round)
+                expect(order.sorted() == Array(0..<n), "shuffle of \(n), round \(round) isn't a permutation")
+                expect(n == 1 || order.first != WallpaperSchedule.shuffled(n, round: round - 1).last,
+                       "shuffle of \(n) repeats at round \(round)")
+            }
+        }
+        // saved rotations of three or more depend on these orders, so they can't change
+        for (round, order) in [(-1, [2, 0, 1]), (2, [2, 1, 0]), (-7, [1, 3, 2, 4, 0]), (800_000_000, [3, 0, 1, 4, 2]),
+                               (817_000_000, [9, 1, 4, 6, 2, 8, 11, 10, 3, 7, 0, 5])] {
+            expect(WallpaperSchedule.shuffled(order.count, round: round) == order, "shuffle of \(order.count), round \(round) changed")
         }
 
         // editing a running rotation keeps the current slot (entry, key and next switch) and goes on from it
@@ -104,6 +113,50 @@ enum ScheduleCheck {
         expect(pair.slot(at: now) == before && upcoming(pair, 1) == [c.id], "two entries left while shuffled")
         let sorted = edited(grown) { $0.shuffle = false }
         expect(sorted.slot(at: now) == before && upcoming(sorted, 2) == [c.id, d.id], "turning shuffle off")
+
+        // two shuffled entries alternate from whichever is current, however they came to be two
+        for current in [a, b] {
+            let other = current == a ? b : a
+            func alternates(_ s: WallpaperSchedule, _ what: String) {
+                expect(s.slot(at: now)?.entry == current, "\(what): the current entry changed")
+                expect(upcoming(s, 40) == (0..<40).map { ($0 % 2 == 0 ? other : current).id }, "\(what): doesn't alternate")
+            }
+            var two = r
+            two.entries = [a, b]
+            two.shift = current == a ? 0 : 1    // step 4
+            let on = edited(two) { $0.shuffle = true }
+            alternates(on, "shuffling two")
+            alternates(edited(on) { $0.entries.reverse() }, "reordering two shuffled")
+            alternates(edited(on) { $0.intervalMinutes = 5 }, "a new interval for two shuffled")
+            alternates(edited(edited(on) { $0.shuffle = false }) { $0.shuffle = true }, "shuffling two again")
+            let three = edited(on) { $0.entries.insert(c, at: 1) }
+            alternates(edited(three) { $0.entries.remove(at: 1) }, "down to two shuffled")
+            let one = edited(on) { $0.entries = [current] }
+            expect(one.slot(at: now) == on.slot(at: now) && upcoming(one, 2) == [current.id, current.id], "down to one shuffled")
+            alternates(edited(one) { $0.entries = [a, b] }, "back to two shuffled")
+
+            let gone = edited(three) { $0.entries = [c, other] }, after = upcoming(gone, 40)
+            expect(gone.slot(at: now) == three.slot(at: now) && after.first == upcoming(three, 1).first
+                   && zip(after, after.dropFirst()).allSatisfy { $0 != $1 }, "removing the current entry, down to two shuffled")
+            let last = edited(on) { $0.entries = [other] }
+            expect(last.slot(at: now) == on.slot(at: now) && upcoming(last, 2) == [other.id, other.id],
+                   "removing the current entry, down to one shuffled")
+        }
+        // turning it on can start with either, and alternates from there
+        var started: Set<UUID> = []
+        for second in 0..<2 {
+            let on = now.addingTimeInterval(Double(second))
+            var s = WallpaperSchedule()
+            s.entries = [a, b]
+            s.shuffle = true
+            let off = s
+            s.enabled = true
+            s = s.continued(from: off, at: on)
+            let shown = (0..<40).map { s.slot(at: on.addingTimeInterval(Double($0) * 3600))!.entry.id }
+            started.insert(shown[0])
+            expect(zip(shown, shown.dropFirst()).allSatisfy { $0 != $1 }, "turning on two shuffled: doesn't alternate")
+        }
+        expect(started == [a.id, b.id], "turning on two shuffled always starts with the same one")
 
         // edits that don't touch a running rotation's order or pace are stored as they are
         let unrelated: [(inout WallpaperSchedule) -> Void] = [
