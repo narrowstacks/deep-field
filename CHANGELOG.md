@@ -35,6 +35,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Every scene now keeps its own camera Tilt. Your scenes and presets keep the tilt they have now, and changing it in one scene leaves the others alone, Quasar's background included (it has no Tilt, and always uses the default). On the command line, `tilt` is the current scene's.
 - Reset's help now says which settings each scene really shares with others, and resetting puts back only that scene's tilt.
 - Schedule: a photon ring changed on Star Meets Black Hole now counts as changed by hand.
+- Customize: a long preset name no longer overflows the inspector. The Presets menu now has its own row and shortens names that don't fit. Thanks to @zacharyarney ([#22](https://github.com/narrowstacks/deep-field/pull/22)).
 
 ## [0.4.8] - 2026-11-18
 
