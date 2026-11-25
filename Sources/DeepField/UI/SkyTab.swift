@@ -21,6 +21,15 @@ struct SkyTab: View {
         .scrollContentBackground(.hidden)
     }
 
+    private func showMe(_ kind: EventSchedule.Kind, _ name: String) {
+        if let reason = store.hiddenReason(kind) {
+            StageStatus.shared.flash(reason)
+        } else {
+            store.demo(kind)
+            StageStatus.shared.flash("\(name) started")
+        }
+    }
+
     @ViewBuilder private var controls: some View {
         Section {
             SliderRow(title: "Star density", value: $store.config.starDensity, range: 0.2...3)
@@ -61,12 +70,10 @@ struct SkyTab: View {
             Toggle("Blinking stars", isOn: $store.config.pulsars)
                 .help("A few stars blink on a steady beat, like distant pulsars")
             FrequencyRow(title: "Supernovae", value: $store.config.supernovae) {
-                store.demo(EventSchedule.supernova)
-                StageStatus.shared.flash("Supernova started")
+                showMe(EventSchedule.supernova, "Supernova")
             }
             FrequencyRow(title: "Comets", value: $store.config.comets) {
-                store.demo(EventSchedule.comet)
-                StageStatus.shared.flash("Comet started")
+                showMe(EventSchedule.comet, "Comet")
             }
         } header: {
             GroupHeader(title: "Events")
