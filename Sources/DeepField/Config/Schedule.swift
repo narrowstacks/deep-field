@@ -93,6 +93,15 @@ struct WallpaperSchedule: Codable, Equatable {
     var transition: TransitionStyle = .dissolve
     /// Rotation counts whole intervals from here, so the order survives relaunches.
     var anchor = Date()
+    /// Added to the step to get the place in the rotation, so an edit can move the current entry's
+    /// place while the step, and with it the slot's key, stays the same.
+    var shift = 0
+    /// An entry removed while it was the current one, which stays current until its step ends.
+    struct Removed: Codable, Equatable {
+        let entry: ScheduleEntry
+        let step: Int
+    }
+    var removed: Removed?
 
     static let intervals: [Double] = [1, 5, 15, 30, 60, 120, 240, 480, 1440]
     static let fades: [Double] = [0, 2, 4, 8, 15, 30, 60]
@@ -111,6 +120,8 @@ struct WallpaperSchedule: Codable, Equatable {
         fadeSeconds = (try? c.decodeIfPresent(Double.self, forKey: .fadeSeconds)) ?? d.fadeSeconds
         transition = (try? c.decodeIfPresent(TransitionStyle.self, forKey: .transition)) ?? d.transition
         anchor = (try? c.decodeIfPresent(Date.self, forKey: .anchor)) ?? d.anchor
+        shift = (try? c.decodeIfPresent(Int.self, forKey: .shift)) ?? d.shift
+        removed = (try? c.decodeIfPresent(Removed.self, forKey: .removed)) ?? d.removed
     }
 
     /// The entry that should be showing at `date`, and a key that changes exactly when a new
@@ -132,14 +143,61 @@ struct WallpaperSchedule: Codable, Equatable {
     }
 
     private func rotationSlot(at date: Date) -> Slot {
-        let interval = max(intervalMinutes, 1) * 60
-        let step = Int(floor(date.timeIntervalSince(anchor) / interval))
-        let n = entries.count
-        let index = shuffle ? Self.shuffled(n, round: Int(floor(Double(step) / Double(n))))[((step % n) + n) % n]
-                            : ((step % n) + n) % n
-        let entry = entries[index]
+        let step = step(at: date)
+        let entry = removed?.step == step ? removed!.entry : entry(atStep: step)
         return Slot(entry: entry, key: "rotate \(step) \(entry.id) \(entry.target)",
                     next: anchor.addingTimeInterval(Double(step + 1) * interval))
+    }
+
+    private var interval: TimeInterval { max(intervalMinutes, 1) * 60 }
+
+    private func step(at date: Date) -> Int { Int(floor(date.timeIntervalSince(anchor) / interval)) }
+
+    private func entry(atStep step: Int) -> ScheduleEntry {
+        let n = entries.count, place = step + shift
+        let index = ((place % n) + n) % n
+        return entries[shuffle ? Self.shuffled(n, round: Int(floor(Double(place) / Double(n))))[index] : index]
+    }
+
+    /// This schedule as it should run when it replaces `old` at `now`. A rotation that was already
+    /// running keeps its current entry and goes on from there; one that wasn't starts at the top.
+    func continued(from old: WallpaperSchedule, at now: Date) -> WallpaperSchedule {
+        guard enabled, mode == .rotate, !entries.isEmpty else { return self }
+        var s = self
+        // whole seconds, so counting steps back from here can't round into the step before
+        let seconds = now.timeIntervalSinceReferenceDate.rounded(.down)
+        guard old.enabled, old.mode == .rotate, !old.entries.isEmpty else {
+            s.anchor = Date(timeIntervalSinceReferenceDate: seconds)
+            s.shift = Int(seconds) * entries.count    // the time picks the shuffled round, so starts differ
+            s.removed = nil
+            return s
+        }
+        let step = old.step(at: now)
+        if interval != old.interval {
+            // a full interval from now: counted from the last switch, the next could be overdue
+            s.anchor = Date(timeIntervalSinceReferenceDate: seconds - Double(step) * interval)
+        }
+        guard shuffle != old.shuffle || entries.map(\.id) != old.entries.map(\.id) else { return s }
+
+        // Line up the current entry with this step or, if it's gone, the first one left of those
+        // that were to follow with the next step. Two rounds reach them all when shuffled.
+        let current = old.rotationSlot(at: now).entry
+        let index = entries.firstIndex { $0.id == current.id }
+        s.removed = index == nil ? Removed(entry: current, step: step) : nil
+        let following = (step + 1...step + 2 * old.entries.count).lazy
+            .compactMap { i in entries.firstIndex { $0.id == old.entry(atStep: i).id } }
+        let first = index ?? following.first ?? 0
+        let place: Int
+        if shuffle {
+            // a round that starts with it, so every other entry shows before any repeats
+            var round = Int(seconds)
+            while Self.shuffled(entries.count, round: round)[0] != first { round += 1 }
+            place = round * entries.count
+        } else {
+            place = first
+        }
+        s.shift = place - (index == nil ? step + 1 : step)
+        return s
     }
 
     /// A fixed shuffle per round, seeded by the round number. A round never starts with the
@@ -197,20 +255,27 @@ final class ScheduleStore: ObservableObject {
     static let shared = ScheduleStore()
     private let key = "schedule"
 
-    @Published var schedule: WallpaperSchedule {
-        didSet {
-            guard schedule != oldValue else { return }
-            if let data = try? JSONEncoder().encode(schedule) { UserDefaults.standard.set(data, forKey: key) }
-            Scheduler.shared.scheduleChanged(from: oldValue)
+    @Published private var current: WallpaperSchedule
+
+    /// Computed, so an edit is continued from the old schedule before it's stored, rather than by
+    /// a second assignment that would set off another change.
+    var schedule: WallpaperSchedule {
+        get { current }
+        set {
+            let old = current, new = newValue.continued(from: old, at: Date())
+            guard new != old else { return }
+            current = new
+            if let data = try? JSONEncoder().encode(new) { UserDefaults.standard.set(data, forKey: key) }
+            Scheduler.shared.scheduleChanged(from: old)
         }
     }
 
     private init() {
         if let data = UserDefaults.standard.data(forKey: key),
            let s = try? JSONDecoder().decode(WallpaperSchedule.self, from: data) {
-            schedule = s
+            current = s
         } else {
-            schedule = WallpaperSchedule()
+            current = WallpaperSchedule()
         }
     }
 }
