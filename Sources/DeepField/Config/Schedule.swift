@@ -7,18 +7,19 @@ enum ScheduleTarget: Codable, Hashable {
     case preset(UUID)
     case scene(SceneKind)
 
-    var title: String {
+    func title(in presets: [UserPreset]) -> String {
         switch self {
-        case let .preset(id): PresetStore.shared.presets.first { $0.id == id }?.name ?? "Deleted preset"
+        case let .preset(id): presets.first { $0.id == id }?.name ?? "Deleted preset"
         case let .scene(kind): kind.title
         }
     }
 
     /// The config this target makes from `current`, or nil if its preset is gone.
-    func applied(over current: WallpaperConfig) -> WallpaperConfig? {
+    func applied(over current: WallpaperConfig,
+                 presets: [UserPreset] = PresetStore.shared.presets) -> WallpaperConfig? {
         switch self {
         case let .preset(id):
-            return PresetStore.shared.presets.first { $0.id == id }?.applied(over: current)
+            return presets.first { $0.id == id }?.applied(over: current)
         case let .scene(kind):
             guard kind.isListed else { return nil }
             var c = current

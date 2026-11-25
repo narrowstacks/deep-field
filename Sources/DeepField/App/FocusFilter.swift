@@ -149,6 +149,8 @@ enum FocusWallpaper {
         // only the first Focus to change things saves; switching between Focuses keeps it
         if defaults.data(forKey: key) == nil, let data = try? JSONEncoder().encode(store.config) {
             defaults.set(data, forKey: key)
+            // the filter may pick the look that's already up, and then no setting changes
+            Scheduler.shared.objectWillChange.send()
         }
         if let preset, let p = PresetStore.shared.presets.first(where: { $0.id == preset }) {
             PresetStore.shared.apply(p)
