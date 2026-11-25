@@ -10,6 +10,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Welcome guide: the lock screen and login choices now wait for the last button, so Not Now leaves them alone. Opened with Deep Field already on the desktop, it says that changes show there as you make them.
 - Welcome guide: turning a look off, or Undo All, goes back to your own settings instead of the defaults.
 - Fixed a crash when switching scenes after loading a damaged preset.
+- Schedule: editing a rotation (its looks, their order, the interval or shuffle) no longer switches the wallpaper early, and turning a rotation on starts at its first look with a full interval.
 
 ## [0.4.8] - 2026-11-18
 
