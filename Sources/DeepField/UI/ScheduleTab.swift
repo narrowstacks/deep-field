@@ -50,7 +50,8 @@ struct ScheduleTab: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(s.entries) { $entry in
-                    EntryRow(entry: $entry, mode: schedule.mode, presets: presets.presets,
+                    EntryRow(entry: $entry, number: (schedule.entries.firstIndex { $0.id == entry.id } ?? 0) + 1,
+                             mode: schedule.mode, presets: presets.presets,
                              canMoveUp: entry.id != schedule.entries.first?.id,
                              moveUp: { move(entry.id) }, delete: { schedules.schedule.entries.removeAll { $0.id == entry.id } })
                 }
@@ -111,6 +112,8 @@ struct ScheduleTab: View {
 
 private struct EntryRow: View {
     @Binding var entry: ScheduleEntry
+    /// Its place in the list, which VoiceOver tells rows apart by: two can show the same look.
+    let number: Int
     let mode: WallpaperSchedule.Mode
     let presets: [UserPreset]
     let canMoveUp: Bool
@@ -121,11 +124,11 @@ private struct EntryRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 if mode == .timed {
-                    DatePicker("Starts", selection: time, displayedComponents: .hourAndMinute)
+                    DatePicker("Entry \(number) starts", selection: time, displayedComponents: .hourAndMinute)
                         .labelsHidden()
                         .fixedSize()
                 }
-                Picker("Show", selection: $entry.target) {
+                Picker("Entry \(number) shows", selection: $entry.target) {
                     if !presets.contains(where: { .preset($0.id) == entry.target }), case .preset = entry.target {
                         Text("Deleted preset").tag(entry.target)
                     }
@@ -141,7 +144,7 @@ private struct EntryRow: View {
                     if mode == .rotate { Button("Move Up", action: moveUp).disabled(!canMoveUp) }
                     Button("Remove", role: .destructive, action: delete)
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "ellipsis.circle").accessibilityLabel("Entry \(number) options")
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
@@ -177,6 +180,8 @@ private struct EntryRow: View {
                 .tint(on ? .accentColor : nil)
                 .opacity(on ? 1 : 0.45)
                 .help(cal.weekdaySymbols[day - 1])
+                .accessibilityLabel(cal.weekdaySymbols[day - 1])
+                .accessibilityAddTraits(on ? [.isSelected] : [])
             }
         }
     }
