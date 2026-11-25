@@ -182,7 +182,8 @@ private struct EntryRow: View {
                 .tint(on ? .accentColor : nil)
                 .opacity(on ? 1 : 0.45)
                 .help(cal.weekdaySymbols[day - 1])
-                .accessibilityLabel(cal.weekdaySymbols[day - 1])
+                .accessibilityLabel("Entry \(number), \(cal.weekdaySymbols[day - 1])")
+                .accessibilityHint("")   // the tooltip would repeat the day
                 .accessibilityAddTraits(on ? [.isSelected] : [])
             }
         }

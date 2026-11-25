@@ -12,6 +12,15 @@ struct LivePreview: NSViewRepresentable {
     }
 }
 
+extension View {
+    /// One image to VoiceOver: the renderer draws into a layer, which says nothing about itself.
+    func livePreviewElement(of scene: SceneKind) -> some View {
+        accessibilityElement()
+            .accessibilityLabel("Live preview of \(scene.title)")
+            .accessibilityAddTraits(.isImage)
+    }
+}
+
 /// The window's left column: the preview (or the phone preview), a caption and the scrolling
 /// scene gallery. Always visible, so every change in the inspector shows at once.
 struct StageView: View {
@@ -99,6 +108,7 @@ struct StageView: View {
         .frame(width: fitted.width, height: fitted.height)
         .background(Color.black)
         .overlay(Rectangle().stroke(Theme.hairline))
+        .livePreviewElement(of: store.config.scene)
         .frame(width: box.width)
     }
 

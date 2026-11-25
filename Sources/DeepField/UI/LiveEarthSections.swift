@@ -57,6 +57,7 @@ struct LiveEarthSections: View {
                 DatePicker("Moment", selection: frozenDate, displayedComponents: [.date, .hourAndMinute])
                 LabeledContent("") {
                     Button("Now") { store.config.earthFrozenTime = Date().timeIntervalSince1970.rounded() }
+                        .accessibilityLabel("Set Moment to Now")
                 }
             }
         } header: {

@@ -149,7 +149,9 @@ struct WelcomeView: View {
             }
         }
         .animation(.easeOut(duration: 0.2), value: step)
+        .accessibilityElement()
         .accessibilityLabel("Step \(step.rawValue + 1) of \(Step.allCases.count)")
+        .accessibilityAddTraits(.isStaticText)
     }
 
     private var navigation: some View {
@@ -321,6 +323,7 @@ private struct WelcomePreview: View {
         .background(Color.black)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.hairline))
+        .livePreviewElement(of: store.config.scene)
         .frame(width: box.width)
     }
 

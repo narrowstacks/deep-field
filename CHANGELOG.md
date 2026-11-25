@@ -22,6 +22,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Customize and the welcome guide: moving the window to a display of another shape, or changing its resolution, no longer stretches the preview, and the preview and gallery now follow the display the window is on instead of the one with keyboard focus.
 - Schedule: the status line keeps up with switches and edits, and says when a Focus filter or a change by hand is showing something else.
 - VoiceOver: sliders read their name and the value shown beside them. In the schedule, weekday buttons read the day's full name and whether it's selected, and each entry's time, look and options menu say which entry they belong to.
+- VoiceOver: titles are no longer read twice, the live previews have a name, and buttons, menus and fields say what they act on, such as which event a Show Me button starts, what a Reset button resets, and which schedule entry a weekday belongs to.
 - Black Hole Merger's Detection and Eclipse's Composition now list Custom only while the settings match none of their choices, so you can't pick it just to have it snap back.
 - Frame rate now offers each connected display's own refresh rate, such as 165 fps, and keeps up as displays are plugged in or unplugged. Saved rates can go up to 1000 fps (it was 120); a slower display runs at its own maximum. Higher rates use more power.
 - Pixel size, Frame rate, and the Schedule's Every and Length always show the current value, including one set by a preset, the `deepfield` command or an edited save.

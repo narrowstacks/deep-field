@@ -60,8 +60,11 @@ struct PresetsMenu: View {
             Label(currentPreset?.name ?? "Presets", systemImage: "square.stack")
                 .lineLimit(1)
                 .truncationMode(.tail)
+                // on the label, since on the menu its icon's name is read instead
+                .accessibilityLabel("Presets")
         }
         .menuStyle(.borderlessButton)
+        .accessibilityValue(currentPreset?.name ?? "")
         .help("Save, apply, import and export your customizations")
     }
 }
