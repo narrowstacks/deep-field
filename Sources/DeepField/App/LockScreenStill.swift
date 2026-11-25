@@ -12,7 +12,7 @@ import AppKit
 final class LockScreenStill: ObservableObject {
     static let shared = LockScreenStill()
 
-    /// One line for the System section: what was last done, or what went wrong.
+    /// For the System section: what was last done, or what went wrong.
     @Published private(set) var status = ""
     /// A render is in flight.
     @Published private(set) var busy = false
@@ -134,18 +134,45 @@ final class LockScreenStill: ObservableObject {
 
     private struct Target { let key: String; let width: Int; let height: Int }
 
+    /// What became of one display in an update.
+    private enum Outcome { case set, failed, disconnected, kept }
+
+    private struct Tally {
+        var set = 0, failed = 0, disconnected = 0
+        var kept = 0   // left with a picture the user chose
+
+        mutating func add(_ outcome: Outcome) {
+            switch outcome {
+            case .set: set += 1
+            case .failed: failed += 1
+            case .disconnected: disconnected += 1
+            case .kept: kept += 1
+            }
+        }
+
+        /// The status of an update that set at least one display.
+        var summary: String {
+            let when = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short)
+            var s = "Set on \(set) display\(set == 1 ? "" : "s") at \(when)."
+            if failed > 0 { s += " Couldn't update \(failed)." }
+            if disconnected > 0 { s += " Skipped \(disconnected) that \(disconnected == 1 ? "was" : "were") disconnected." }
+            if kept > 0 { s += " Left \(kept) with a picture you chose." }
+            return s
+        }
+    }
+
     private func refresh(force: Bool) {
         refreshWork?.cancel()
         guard isEnabled else { return }
         generation += 1
         let gen = generation
         let originals = loadOriginals()
-        var skipped = 0
+        var tally = Tally()
         let targets: [Target] = NSScreen.screens.compactMap { screen in
             guard let key = Self.displayKey(screen) else { return nil }
             // the user picked another picture since we last set ours: leave it unless forced
             if !force, originals[key] != nil, !isOurs(NSWorkspace.shared.desktopImageURL(for: screen)) {
-                skipped += 1
+                tally.add(.kept)
                 return nil
             }
             let (w, h) = Self.nativePixelSize(screen)
@@ -154,26 +181,23 @@ final class LockScreenStill: ObservableObject {
         if targets.isEmpty {
             // the new generation dropped any render in flight, so nothing else will end it
             busy = false
-            status = skipped > 0 ? Self.leftAlone : "Not updated: no display is available."
+            status = tally.kept > 0 ? Self.leftAlone : "Not updated: no display is available."
             return
         }
         busy = true
         status = ""   // this run's own outcome from here on
         let c = Self.stillConfig(config)
         render(targets[...], config: c, time: Self.representativeTime(c), force: force, generation: gen,
-               applied: 0, skipped: skipped)
+               tally: tally)
     }
 
     /// One screen at a time, so only one full-resolution bake is alive at once.
     private func render(_ targets: ArraySlice<Target>, config c: WallpaperConfig, time: Double, force: Bool,
-                        generation gen: Int, applied: Int, skipped: Int) {
+                        generation gen: Int, tally: Tally) {
         guard let t = targets.first else {
             busy = false
             cleanUp()
-            let when = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short)
-            var s = "Set on \(applied) display\(applied == 1 ? "" : "s") at \(when)."
-            if skipped > 0 { s += " Left \(skipped) with a picture you chose." }
-            if applied > 0 { status = s }   // else it already says why the last display failed
+            if tally.set > 0 { status = tally.summary }   // else it already says why the last display failed
             return
         }
         // dithered: shade one pixel per wallpaper cell and blow it up with crisp edges, like the
@@ -204,15 +228,16 @@ final class LockScreenStill: ObservableObject {
                         NSLog("DeepField: lock screen still %dx%d (shaded %dx%d) in %.0f ms", t.width, t.height, w, h,
                               (CFAbsoluteTimeGetCurrent() - t0) * 1000)
                     }
-                    var ok = false
+                    var outcome = Outcome.failed
                     if let error {
                         self.status = "Couldn't make the still: \(error)"
                     } else {
-                        ok = self.apply(url, to: t.key, force: force)
+                        outcome = self.apply(url, to: t.key, force: force)
                     }
-                    if !ok { try? FileManager.default.removeItem(at: url) }
-                    self.render(targets.dropFirst(), config: c, time: time, force: force, generation: gen,
-                                applied: applied + (ok ? 1 : 0), skipped: skipped)
+                    if outcome != .set { try? FileManager.default.removeItem(at: url) }
+                    var tally = tally
+                    tally.add(outcome)
+                    self.render(targets.dropFirst(), config: c, time: time, force: force, generation: gen, tally: tally)
                 }
             }
         }
@@ -227,10 +252,10 @@ final class LockScreenStill: ObservableObject {
     ]
 
     /// Sets our still on the display `key`, first remembering the picture it replaces.
-    private func apply(_ url: URL, to key: String, force: Bool) -> Bool {
+    private func apply(_ url: URL, to key: String, force: Bool) -> Outcome {
         guard let screen = Self.screen(for: key) else {
             if status.isEmpty { status = "Not updated: the display was disconnected." }   // keeps an earlier failure
-            return false
+            return .disconnected
         }
         let ws = NSWorkspace.shared
         var originals = loadOriginals()
@@ -239,7 +264,7 @@ final class LockScreenStill: ObservableObject {
         if !isOurs(previous) {
             if originals[key] != nil && !force {   // changed by the user mid-render
                 if status.isEmpty { status = Self.leftAlone }
-                return false
+                return .kept
             }
             originals[key] = Picture(url: previous, options: ws.desktopImageOptions(for: screen) ?? [:])
             saveOriginals(originals)
@@ -250,12 +275,12 @@ final class LockScreenStill: ObservableObject {
         } catch {
             if recorded { originals[key] = nil; saveOriginals(originals) }
             status = "Couldn't set the desktop picture: \(error.localizedDescription)"
-            return false
+            return .failed
         }
         var current = defaults.dictionary(forKey: currentKey) as? [String: String] ?? [:]
         current[key] = url.path
         defaults.set(current, forKey: currentKey)
-        return true
+        return .set
     }
 
     /// Puts back the remembered pictures of attached displays. Displays that aren't attached
@@ -265,6 +290,7 @@ final class LockScreenStill: ObservableObject {
         var current = defaults.dictionary(forKey: currentKey) as? [String: String] ?? [:]
         guard !originals.isEmpty || !current.isEmpty else { return }
         let ws = NSWorkspace.shared
+        var restored = 0
         var problems: [String] = []
         for (key, original) in originals {
             guard let screen = Self.screen(for: key) else { continue }
@@ -279,7 +305,11 @@ final class LockScreenStill: ObservableObject {
                 }
                 do {
                     try ws.setDesktopImageURL(target, for: screen, options: target == original.url ? original.options : [:])
-                    if target != original.url { problems.append("\(screen.localizedName): the original picture is gone; set the macOS default") }
+                    if target == original.url {
+                        restored += 1
+                    } else {
+                        problems.append("\(screen.localizedName): the original picture is gone; set the macOS default")
+                    }
                 } catch {
                     problems.append("\(screen.localizedName): \(error.localizedDescription)")
                     continue
@@ -294,7 +324,10 @@ final class LockScreenStill: ObservableObject {
         saveOriginals(originals)
         defaults.set(current, forKey: currentKey)
         cleanUp()
-        status = problems.isEmpty ? "Restored your desktop picture." : problems.joined(separator: ". ") + "."
+        // empty when nothing was put back or went wrong, so an earlier status doesn't look current
+        var lines = problems.map { $0.hasSuffix(".") ? $0 : $0 + "." }   // a system error may end with its own
+        if restored > 0 { lines.insert("Restored your desktop picture\(restored == 1 ? "" : "s").", at: 0) }
+        status = lines.joined(separator: " ")
     }
 
     /// Deletes stills no display uses any more.
