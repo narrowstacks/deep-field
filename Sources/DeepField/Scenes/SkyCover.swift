@@ -158,9 +158,9 @@ struct OpenSky {
         let a = spots[min(Int(rng.next() * Double(spots.count)), spots.count - 1)]
         if first.count == 1 { return [a] }
         let reach = 0.4                           // half screen heights
-        if let b = spots.sorted(by: { simd_dot($0, a) < simd_dot($1, a) }).first(where: { open(from: a, to: $0) }),
-           simd_dot(a, b) < cos(reach * camera.tanHalf) { return [a, b] }
         guard let at = camera.project(a) else { return [a, a] }
+        if let b = spots.sorted(by: { simd_dot($0, a) < simd_dot($1, a) }).first(where: { open(from: a, to: $0) }),
+           let to = camera.project(b), simd_length(SIMD2((to.x - at.x) * camera.aspect, to.y - at.y)) >= reach { return [a, b] }
         return (0..<12).map { i -> [SIMD3<Double>] in
             let q = Double(i) * .pi / 6, step = SIMD2(cos(q) / camera.aspect, sin(q)) * reach / 2
             return [camera.ray(at.x - step.x, at.y - step.y), camera.ray(at.x + step.x, at.y + step.y)]
