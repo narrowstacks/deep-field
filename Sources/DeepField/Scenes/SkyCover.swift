@@ -32,7 +32,7 @@ struct SkyCover {
         switch scene {
         case .gasGiant: return outside(p.a, l)     // its small moon passes in seconds
         case .roguePlanet: return outside(p.a, l) && outside(p.g, l)
-        case .ringedPlanet: return outside(SIMD4(SIMD3<Float>(-cam.pos), p.a.w), d)   // the rings let light through
+        case .ringedPlanet: return outside(SIMD4(SIMD3<Float>(-cam.pos), p.a.w), d) && !behindDenseRing(d)
         case .auroraOrbit:
             // the ray clears the air, which dims the stars up to 1.03 Earth radii
             let rd = Self.pitched(l, Double(p.a.x)), ro = SIMD3(0, 1 + Double(p.a.y), 0)
@@ -43,6 +43,16 @@ struct SkyCover {
         case .eclipse: return eclipseOpen(d)
         default: return true
         }
+    }
+
+    /// The ringed planet's rings let light through, but at high density the classic style's middle
+    /// ring (`b` in rgRingOpacity, opacity 0.55 to 0.85 before density) is nearly opaque.
+    private func behindDenseRing(_ d: SIMD3<Double>) -> Bool {
+        guard p.j.x == RingStyle.classic.shaderIndex, p.j.z > 1.3 else { return false }
+        let n = p.a.xyz, den = simd_dot(d, n), t = abs(den) > 1e-4 ? -simd_dot(cam.pos, n) / den : -1
+        let r = simd_length(cam.pos + d * t) / Double(p.a.w)
+        let unstretched = 1.24 + (r - 1.24) / Double(p.j.y)     // the width setting, as in the shader
+        return t > 0 && unstretched > 1.5 && unstretched < 1.98
     }
 
     private func eclipseOpen(_ d: SIMD3<Double>) -> Bool {
@@ -110,13 +120,20 @@ struct OpenSky {
     /// Open through the first half, while a supernova is bright.
     func open(_ d: SIMD3<Double>) -> Bool { covers.prefix(3).allSatisfy { $0.open(d) } }
 
-    /// Whether a comet going from `a` to `b` is in open sky for most of its pass.
-    func open(from a: SIMD3<Double>, to b: SIMD3<Double>) -> Bool {
+    /// How many of 11 steps of a comet's pass from `a` to `b` are in open sky; it needs 9.
+    private func openSteps(from a: SIMD3<Double>, to b: SIMD3<Double>, anywhere: Bool = true) -> Int {
         (1..<12).filter { i in
             let f = Double(i) / 12
-            return covers[Int((f * 4).rounded())].open(simd_normalize(simd_mix(a, b, SIMD3(repeating: f))))
-        }.count >= 9
+            let d = simd_normalize(simd_mix(a, b, SIMD3(repeating: f)))
+            return covers[Int((f * 4).rounded())].open(d) && (anywhere || onScreen(d))
+        }.count
     }
+
+    private func onScreen(_ d: SIMD3<Double>) -> Bool {
+        camera.project(d).map { abs($0.x) < 1 && abs($0.y) < 1 } ?? false
+    }
+
+    func open(from a: SIMD3<Double>, to b: SIMD3<Double>) -> Bool { openSteps(from: a, to: b) >= 9 }
 
     /// Open spots on a grid over the screen, enough to find any patch worth using.
     func spots() -> [SIMD3<Double>] {
@@ -127,7 +144,9 @@ struct OpenSky {
 
     /// The first of some random placements (a supernova's spot, or a comet's two ends) in open sky,
     /// so one that already was stays put. If a dozen miss, a spot off the grid (for a comet, with
-    /// the farthest spot it can reach through open sky); nil if there's none.
+    /// the farthest spot it can reach through open sky, or if that's too near to see it move, a
+    /// short path across the patch, brightest in it and passing behind the body or off the
+    /// screen); nil if there's none.
     func place(first: [SIMD3<Double>], _ rng: inout Rng, next: (inout Rng) -> [SIMD3<Double>]) -> [SIMD3<Double>]? {
         var dirs = first
         for _ in 0..<12 {
@@ -138,7 +157,14 @@ struct OpenSky {
         guard !spots.isEmpty else { return nil }
         let a = spots[min(Int(rng.next() * Double(spots.count)), spots.count - 1)]
         if first.count == 1 { return [a] }
-        return [a, spots.sorted { simd_dot($0, a) < simd_dot($1, a) }.first { open(from: a, to: $0) } ?? a]
+        let reach = 0.4                           // half screen heights
+        if let b = spots.sorted(by: { simd_dot($0, a) < simd_dot($1, a) }).first(where: { open(from: a, to: $0) }),
+           simd_dot(a, b) < cos(reach * camera.tanHalf) { return [a, b] }
+        guard let at = camera.project(a) else { return [a, a] }
+        return (0..<12).map { i -> [SIMD3<Double>] in
+            let q = Double(i) * .pi / 6, step = SIMD2(cos(q) / camera.aspect, sin(q)) * reach / 2
+            return [camera.ray(at.x - step.x, at.y - step.y), camera.ray(at.x + step.x, at.y + step.y)]
+        }.max { openSteps(from: $0[0], to: $0[1], anywhere: false) < openSteps(from: $1[0], to: $1[1], anywhere: false) }
     }
 }
 
@@ -151,11 +177,10 @@ extension EventSchedule {
         let skies = aspects.compactMap { OpenSky(c, camera: Camera(c, aspect: $0), start: t, duration: k.duration) }
         guard let camera = skies.first?.camera else { return nil }
         if skies.allSatisfy({ $0.spots().isEmpty }) { return "No open sky for a \(name) with these settings" }
-        // it needs a dark sky for about 20 s, while the supernova is bright or before the comet fades
-        let end = k.id == supernova.id ? k.duration / 2 : k.duration - 30
-        let dark = stride(from: 5, through: end, by: 5).filter {
-            (SkyCover(c, camera: camera, at: t + $0)?.darkness ?? 1) > 0.5
-        }
-        return dark.count < 4 ? "The sky is too bright for a \(name) until nearer totality" : nil
+        // it should show soon after the click: a supernova in its flash, a comet early in its pass
+        let ages = [3.0, 6, 10, 15, 20, 25] + (k.id == comet.id ? [30, 40, 50, 60] : [])
+        let enough = k.id == comet.id ? 0.1 : 0.02     // the flash shows through more glow
+        let dark = ages.contains { (SkyCover(c, camera: camera, at: t + $0)?.darkness ?? 1) > enough }
+        return dark ? nil : "The sky is too bright for a \(name) now"
     }
 }
