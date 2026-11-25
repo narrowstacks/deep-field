@@ -21,6 +21,8 @@ struct StageView: View {
     let showPhoneClock: Bool
     @Binding var actualPixels: Bool
     @ObservedObject private var status = StageStatus.shared
+    @ObservedObject private var phone = PhoneExporter.shared
+    @State private var scrollerWidth = PhoneStage.scrollerWidth
     private var reference: CGSize { thumbnails.reference }
 
     /// `--capture-ui` only: `cacheDisplay` can't read a Metal layer, so captures show a still.
@@ -30,9 +32,12 @@ struct StageView: View {
         Group {
             if section == .phone {
                 GeometryReader { geo in
-                    HStack(alignment: .top, spacing: 20) {
-                        PhoneStage(store: store, showClock: showPhoneClock, stageHeight: geo.size.height)
-                        ScrollView { SceneGallery(store: store, thumbnails: thumbnails, columns: 2) }
+                    let preview = PhoneStage.previewSize(phone.options, stageHeight: geo.size.height)
+                    let columns = PhoneStage.galleryColumns(thumbnail: CGFloat(thumbnails.size.width), preview: preview.width,
+                                                            stage: geo.size.width, scroller: scrollerWidth)
+                    HStack(alignment: .top, spacing: PhoneStage.gallerySpacing) {
+                        PhoneStage(store: store, showClock: showPhoneClock, fitted: preview)
+                        ScrollView { SceneGallery(store: store, thumbnails: thumbnails, columns: columns) }
                     }
                 }
             } else {
@@ -54,6 +59,10 @@ struct StageView: View {
         .padding(.horizontal, Theme.stagePadding)
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // connecting a mouse can change it while the window is open
+        .onReceive(NotificationCenter.default.publisher(for: NSScroller.preferredScrollerStyleDidChangeNotification)) { _ in
+            scrollerWidth = PhoneStage.scrollerWidth
+        }
     }
 
     /// The preview grows with the window: the stage's full width, and as tall as leaves the
