@@ -22,8 +22,12 @@ final class PhoneExporter: ObservableObject {
     @Published private(set) var status = ""
 
     private let queue = DispatchQueue(label: "local.deepfield.phone-export", qos: .userInitiated)
+    /// Apart from the exports', so a Live Photo doesn't hold up the preview. Rendering both at once
+    /// is safe: frames are encoded one at a time on the main thread, as the live views' are.
+    private let previewQueue = DispatchQueue(label: "local.deepfield.phone-preview", qos: .userInitiated)
     private var observer: NSObjectProtocol?
     private var previewWork: DispatchWorkItem?
+    private var previewRender: DispatchWorkItem?
     private var previewGeneration = 0
 
     private var plan: MobileExport.Plan { MobileExport.plan(ConfigStore.shared.config, options) }
@@ -56,10 +60,14 @@ final class PhoneExporter: ObservableObject {
     private func renderPreview() {
         previewGeneration += 1
         let gen = previewGeneration, plan = plan
-        queue.async {
+        // only a render that hasn't started can be cancelled, so at most one waits its turn
+        previewRender?.cancel()
+        let render = DispatchWorkItem {
             let image = MobileExport.renderStill(plan)
             DispatchQueue.main.async { if gen == self.previewGeneration { self.preview = image } }
         }
+        previewRender = render
+        previewQueue.async(execute: render)
     }
 
     // MARK: exports

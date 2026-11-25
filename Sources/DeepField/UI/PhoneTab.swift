@@ -14,7 +14,7 @@ struct PhoneStage: View {
 
     var body: some View {
         let options = phone.options
-        // the exported size, which is what the preview renders: a typed 0 or negative has no shape
+        // the exported size, which is what the preview renders
         let width = MobileOptions.clampedSide(options.width), height = MobileOptions.clampedSide(options.height)
         // shrinks to fit short windows; capped so the gallery keeps its room in tall ones
         let boxHeight = min(Self.box.height, max(stageHeight - Self.captionHeight, 1))
@@ -88,9 +88,9 @@ struct PhoneTab: View {
             if phone.model == "custom" {
                 LabeledContent("Size in pixels") {
                     HStack {
-                        TextField("Width", value: $phone.options.width, format: .number.grouping(.never)).frame(width: 70)
+                        PixelsField(title: "Width", value: $phone.options.width)
                         Text("×")
-                        TextField("Height", value: $phone.options.height, format: .number.grouping(.never)).frame(width: 70)
+                        PixelsField(title: "Height", value: $phone.options.height)
                     }
                     .labelsHidden()
                 }
@@ -174,5 +174,39 @@ struct PhoneTab: View {
                 .help("Orbits are held still in the loop. iOS 17 and later can play Live Photo wallpapers when the Lock Screen wakes, but often shows \"Motion not available\" for ones not taken with the Camera.")
         }
         .disabled(phone.busy)
+    }
+}
+
+/// One side of a custom size. The setting follows the typing, always in range; the text stays as
+/// typed until Return or leaving the field, since clamping it sooner would break up "1320" at "1".
+private struct PixelsField: View {
+    let title: String
+    @Binding var value: Int
+
+    /// The text being typed, shown while the setting still has the value it gave.
+    @State private var draft: (text: String, value: Int)?
+    @FocusState private var focused: Bool
+
+    private static let format = IntegerFormatStyle<Int>.number.grouping(.never)
+
+    private var text: Binding<String> {
+        Binding(get: {
+            if let draft, draft.value == value { return draft.text }
+            return value.formatted(Self.format)
+        }, set: { new in
+            // also called without a change, as when the field takes focus
+            guard new != self.text.wrappedValue else { return }
+            let v = (try? Self.format.parseStrategy.parse(new)).map(MobileOptions.clampedSide) ?? value
+            draft = (new, v)
+            if v != value { value = v }
+        })
+    }
+
+    var body: some View {
+        TextField(title, text: text)
+            .frame(width: 70)
+            .focused($focused)
+            .onSubmit { draft = nil }
+            .onChange(of: focused) { if !focused { draft = nil } }
     }
 }

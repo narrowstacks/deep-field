@@ -22,6 +22,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Frame rate now offers each connected display's own refresh rate, such as 165 fps, and keeps up as displays are plugged in or unplugged. Saved rates can go up to 1000 fps (it was 120); a slower display runs at its own maximum. Higher rates use more power.
 - Pixel size, Frame rate, and the Schedule's Every and Length always show the current value, including one set by a preset, the `deepfield` command or an edited save.
 - Live Earth: latitude and longitude stay in range as you enter them (a longitude past 180 goes around, so 200 is -160), and turning off this Mac's location clears its error and any request still running.
+- Phone: the preview keeps up with your changes while a Live Photo exports, and a custom size outside 320 to 4096 changes to the size that will be exported when you press Return or leave the field.
 
 ## [0.4.8] - 2026-11-18
 
