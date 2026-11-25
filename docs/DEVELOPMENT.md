@@ -186,7 +186,7 @@ defaults write com.narrowstacks.DeepField debug -bool true     # log bake times,
 .build/release/DeepField --preset-roundtrip out.deepfield [--scene ...] [--config ...]   # write a preset file, read it back, compare
 .build/release/DeepField --preset-check file.deepfield         # load a preset file the way Import does
 .build/release/DeepField --check-customization                 # per-scene reset and image settings, on plain configs
-.build/release/DeepField --check-schedule                      # which entry rotation and timed schedules pick, DST included
+.build/release/DeepField --check-schedule                      # which entry rotation and timed schedules pick, DST included, and the status line
 .build/release/DeepField --snapshot out.png --defaults --scene galaxy --transition-from ringedPlanet:0.5:blackHole
     # halfway through a schedule transition (dissolve, crossfade, pan, driftAway, warp, blackHole)
 build/DeepField.app/Contents/MacOS/DeepField --welcome          # show the first-launch guide

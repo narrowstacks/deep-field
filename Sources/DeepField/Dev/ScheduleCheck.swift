@@ -172,6 +172,102 @@ enum ScheduleCheck {
         expect(only.slot(at: date(2026, 11, 16, 12, 0), calendar: cal)?.entry.id == one.id, "a single weekly entry holds all week")
         expect(WallpaperSchedule().slot(at: Date()) == nil, "an empty schedule picks nothing")
 
+        // the status line
+        let preset = UserPreset(name: "Dusk", config: WallpaperConfig())
+        let p = ScheduleEntry(target: .preset(preset.id))
+        var plan = WallpaperSchedule()
+        plan.enabled = true
+        plan.entries = [a, p]
+        plan.intervalMinutes = 1440
+        plan.anchor = now
+        func statusCheck(_ what: String, _ begins: String, next: Bool = true, entry: Int = 0,
+                         _ change: (inout ScheduleStatus) -> Void) {
+            let at = now.addingTimeInterval(Double(entry) * 86400 + 60)
+            var look = WallpaperConfig()
+            look.sceneImage["comet"] = ImageSettings(look)
+            look.scene = entry == 0 ? .galaxy : .blackHole
+            var s = ScheduleStatus(schedule: plan, config: look, presets: [preset],
+                                   lastSlot: plan.slot(at: at)!.key, lastLook: look)
+            change(&s)
+            let text = s.text(at: at)
+            expect(text.hasPrefix(begins) && text.contains("Next switch") == next, "status, \(what): \(text)")
+        }
+        let byHand = "Changed by hand since the last switch. Next switch "
+        statusCheck("scene", "Now: Galaxy. Next switch ") { _ in }
+        statusCheck("preset", "Now: Dusk. Next switch ", entry: 1) { _ in }
+        statusCheck("off", "Off.", next: false) { $0.schedule.enabled = false; $0.focusActive = true }
+        statusCheck("empty", "Nothing to show yet.", next: false) { $0.schedule.entries = [] }
+        statusCheck("Focus", "A Focus filter is choosing the wallpaper. The schedule resumes when it ends.", next: false) {
+            $0.focusActive = true
+            $0.config.scene = .comet
+        }
+        statusCheck("another scene", byHand) { $0.config.scene = .comet }
+        statusCheck("the scene's settings", byHand) { $0.config.galaxyArms += 1 }
+        statusCheck("the sky", byHand) { $0.config.nebula += 0.1 }
+        statusCheck("a preset's settings", byHand, entry: 1) { $0.config.bloom += 0.1 }
+        statusCheck("a color", byHand, entry: 1) { $0.config.palette.ring = RGB(0.1, 0.2, 0.3) }
+
+        // what isn't a change by hand
+        statusCheck("the Mac's settings and place", "Now: Galaxy.") {
+            $0.config.fps = 60
+            $0.config.lockScreenStill = true
+            $0.config.lockScreenSmooth = true
+            $0.config.homeFromDevice = true
+            $0.config.homeLatitude = 12.34
+            $0.config.homeLongitude = 56.78
+        }
+        statusCheck("another scene's settings", "Now: Galaxy.") {
+            $0.config.scene = .comet
+            $0.config.cometTailLength = 2
+            $0.config.bloom = 1    // comet has its own image settings, so galaxy's stay
+            $0.config.scene = .galaxy
+            $0.config.diskSize = 20
+            $0.config.palette.receding = RGB(0.1, 0.2, 0.3)
+        }
+        statusCheck("after a relaunch", "Now: Galaxy.") {
+            var c = $0.config
+            c.saturation = 1.0 / 3
+            c.nebula = 0.1 + 0.2
+            c.galaxyPitch = .pi
+            c.levels = 1    // clamped when read back
+            $0.lastLook = c
+            $0.config = (try? JSONEncoder().encode(c)).flatMap(WallpaperConfig.decode) ?? WallpaperConfig()
+        }
+        statusCheck("a color that saving migrates", "Now: Dusk.", entry: 1) {
+            $0.config.scene = .comet
+            $0.config.cometIonColor = WallpaperConfig.Tuned.cometIon.light
+            $0.lastLook = (try? JSONEncoder().encode($0.config)).flatMap(WallpaperConfig.decode)
+        }
+        statusCheck("the preset edited later", "Now: Dusk.", entry: 1) { $0.presets[0].config.bloom += 0.5 }
+        statusCheck("the preset saved over with the look", "Now: Dusk.", entry: 1) {
+            $0.config.bloom += 0.5
+            $0.presets[0].config = $0.config
+        }
+        statusCheck("a switch by an older version", "Now: Galaxy.") { $0.lastLook = nil; $0.config.scene = .comet }
+        statusCheck("a switch about to happen", "Now: Galaxy.") { $0.lastSlot = "another"; $0.config.scene = .comet }
+
+        // presets renamed or deleted, and entries removed
+        let deleted = "The scheduled preset was deleted, so the wallpaper stays as it is. Next switch "
+        statusCheck("renamed", "Now: Dawn. Next switch ", entry: 1) { $0.presets[0].name = "Dawn" }
+        statusCheck("deleted", deleted, entry: 1) { $0.presets = [] }
+        statusCheck("deleted before its switch", deleted, entry: 1) {
+            $0.presets = []
+            $0.config.scene = .comet
+            $0.lastLook = $0.config
+        }
+        statusCheck("deleted, then changed", byHand, entry: 1) { $0.presets = []; $0.config.scene = .comet }
+        func remove(_ s: inout ScheduleStatus) {
+            let old = s.schedule
+            s.schedule.entries.remove(at: 0)
+            s.schedule = s.schedule.continued(from: old, at: now.addingTimeInterval(60))
+        }
+        statusCheck("removed", "Now: Galaxy (removed from the schedule). Next switch ") { remove(&$0) }
+        statusCheck("removed, then changed", byHand) { remove(&$0); $0.config.scene = .comet }
+        statusCheck("removed before it showed", "The scheduled look was removed before it could show. Next switch ") {
+            remove(&$0)
+            $0.lastSlot = "another"
+        }
+
         if failures.isEmpty { print("schedule OK") } else { failures.forEach { print("FAIL:", $0) } }
         return failures.isEmpty
     }

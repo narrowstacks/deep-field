@@ -172,6 +172,27 @@ extension WallpaperConfig {
         return keys + ownKeys(kind).palette.map { "palette.\($0)" }
     }
 
+    /// The saved settings the active scene's look depends on, for comparing two looks. It leaves out
+    /// what can differ without the look being changed: the Mac's own settings, Live Earth's place
+    /// (which can follow the Mac) and other scenes' settings. Going through the saved format first
+    /// gives a live config and a saved one the same clamping and color migration.
+    var visibleSettings: NSDictionary {
+        let saved = (try? JSONEncoder().encode(self)).flatMap(Self.decode) ?? self
+        var dict = saved.jsonObject()
+        for key in ["fps", "lockScreenStill", "lockScreenSmooth", "homeLatitude", "homeLongitude", "homeFromDevice",
+                    "sceneImage", "sharedImage", "phoneFraming"] { dict[key] = nil }
+        let others = SceneKind.allCases.filter { $0 != scene }
+        for key in Array(dict.keys) where !Self.owns(scene, key: key) && others.contains(where: { Self.owns($0, key: key) }) {
+            dict[key] = nil
+        }
+        if var palette = dict["palette"] as? [String: Any] {
+            let own = Self.ownKeys(scene).palette
+            for key in others.flatMap({ Self.ownKeys($0).palette }) where !own.contains(key) { palette[key] = nil }
+            dict["palette"] = palette
+        }
+        return dict as NSDictionary
+    }
+
     /// True when any of `kind`'s own settings differ from their defaults.
     func isCustomized(_ kind: SceneKind) -> Bool { resettingScene(kind) != self }
 }

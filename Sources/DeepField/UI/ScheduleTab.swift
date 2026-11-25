@@ -5,6 +5,9 @@ import SwiftUI
 struct ScheduleTab: View {
     @ObservedObject private var schedules = ScheduleStore.shared
     @ObservedObject private var presets = PresetStore.shared
+    // observed for the status line: switches, the clock and Focus filters, and changes by hand
+    @ObservedObject private var scheduler = Scheduler.shared
+    @ObservedObject private var store = ConfigStore.shared
 
     var body: some View {
         let s = $schedules.schedule
@@ -37,7 +40,7 @@ struct ScheduleTab: View {
             } header: {
                 GroupHeader(title: "Schedule")
             } footer: {
-                GroupFooter(status)
+                GroupFooter(scheduler.status)
             }
 
             Section {
@@ -94,23 +97,6 @@ struct ScheduleTab: View {
     private func move(_ id: UUID) {
         guard let i = schedules.schedule.entries.firstIndex(where: { $0.id == id }), i > 0 else { return }
         schedules.schedule.entries.swapAt(i, i - 1)
-    }
-
-    private var status: String {
-        let s = schedules.schedule
-        guard s.enabled else { return "Off. Your wallpaper stays as you set it." }
-        guard let slot = s.slot(at: Date()) else {
-            return s.entries.isEmpty ? "Nothing to show yet." : "Nothing has started yet."
-        }
-        var text = "Now: \(slot.entry.target.title)."
-        if let next = slot.next {
-            let f = DateFormatter()
-            f.dateStyle = Calendar.current.isDateInToday(next) ? .none : .short
-            f.timeStyle = .short
-            f.doesRelativeDateFormatting = true
-            text += " Next switch \(f.string(from: next))."
-        }
-        return text
     }
 
     static func interval(_ minutes: Double) -> String {
