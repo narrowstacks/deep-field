@@ -169,7 +169,8 @@ struct WallpaperSchedule: Codable, Equatable {
         let seconds = now.timeIntervalSinceReferenceDate.rounded(.down)
         guard old.enabled, old.mode == .rotate, !old.entries.isEmpty else {
             s.anchor = Date(timeIntervalSinceReferenceDate: seconds)
-            s.shift = Int(seconds) * entries.count    // the time picks the shuffled round, so starts differ
+            // the time picks the shuffled round (or which of two goes first), so starts differ
+            s.shift = Int(seconds) * (shuffle && entries.count == 2 ? 1 : entries.count)
             s.removed = nil
             return s
         }
@@ -189,7 +190,7 @@ struct WallpaperSchedule: Codable, Equatable {
             .compactMap { i in entries.firstIndex { $0.id == old.entry(atStep: i).id } }
         let first = index ?? following.first ?? 0
         let place: Int
-        if shuffle {
+        if shuffle, entries.count > 2 {    // every round of two starts with the same one
             // a round that starts with it, so every other entry shows before any repeats
             var round = Int(seconds)
             while Self.shuffled(entries.count, round: round)[0] != first { round += 1 }
@@ -202,8 +203,11 @@ struct WallpaperSchedule: Codable, Equatable {
     }
 
     /// A fixed shuffle per round, seeded by the round number. A round never starts with the
-    /// entry the round before ended on, so the same look doesn't show twice in a row.
+    /// entry the round before ended on, so the same look doesn't show twice in a row. Two entries
+    /// can only alternate, so all their rounds are the same; with more, the swap leaves the last
+    /// entry alone, so the round before needn't be swapped to compare with it.
     static func shuffled(_ n: Int, round: Int) -> [Int] {
+        guard n > 2 else { return Array(0..<n) }
         func order(_ r: Int) -> [Int] {
             var rng = SplitMix(seed: UInt64(bitPattern: Int64(r)) &* 0x9E37_79B9_7F4A_7C15 &+ 1)
             var a = Array(0..<n)
@@ -211,7 +215,7 @@ struct WallpaperSchedule: Codable, Equatable {
             return a
         }
         var a = order(round)
-        if n > 1, a.first == order(round - 1).last { a.swapAt(0, 1) }
+        if a.first == order(round - 1).last { a.swapAt(0, 1) }
         return a
     }
 
