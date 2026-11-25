@@ -30,7 +30,14 @@ final class WallpaperView: NSView {
     private var seenTransition = 0
 
     /// Preview mode: render exactly what a screen of this pixel size would show, scaled down to fit.
-    private let previewOf: CGSize?
+    /// A new size re-centers 1:1, since the old pan points at another part of the scene.
+    var previewOf: CGSize? {
+        didSet {
+            guard previewOf != oldValue else { return }
+            pan = .zero
+            layoutDrawable()
+        }
+    }
 
     // debug counters
     private var framesSinceLog = 0
