@@ -29,6 +29,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Live Earth: latitude and longitude stay in range as you enter them (a longitude past 180 goes around, so 200 is -160), and turning off this Mac's location clears its error and any request still running.
 - Phone: the preview keeps up with your changes while a Live Photo exports, and a custom size outside 320 to 4096 changes to the size that will be exported when you press Return or leave the field.
 - Lock screen still: Set Now no longer stays disabled on "Rendering…" when an update finds no display to set, and the status line says when nothing was updated and why.
+- Lock screen still: the status says your picture was restored only when one was, and after updating some displays it also counts any that failed or were disconnected.
 - Customize: changing a setting redraws only the gallery thumbnails it affects, and one that failed to draw is tried again at the next change.
 - Supernovae and comets now appear in open sky, instead of sometimes behind the planet, star or ground, and Show Me and `deepfield event` say so when none is visible.
 - Every scene now keeps its own camera Tilt. Your scenes and presets keep the tilt they have now, and changing it in one scene leaves the others alone, Quasar's background included (it has no Tilt, and always uses the default). On the command line, `tilt` is the current scene's.
