@@ -238,6 +238,42 @@ enum ScheduleCheck {
             $0.config.cometIonColor = WallpaperConfig.Tuned.cometIon.light
             $0.lastLook = (try? JSONEncoder().encode($0.config)).flatMap(WallpaperConfig.decode)
         }
+        // tilt: its own scene's only, and the same look in a save from when all scenes shared one
+        func tilt(_ scene: SceneKind, _ x: Double) -> (inout ScheduleStatus) -> Void {
+            { s in
+                let active = s.config.scene
+                s.config.scene = scene
+                s.config.tilt = x
+                s.config.scene = active
+            }
+        }
+        statusCheck("the scene's tilt", byHand, entry: 1, tilt(.blackHole, 20))
+        statusCheck("another scene's tilt", "Now: Dusk.", entry: 1, tilt(.comet, 20))
+        statusCheck("another scene's tilt on one without", "Now: Galaxy.", tilt(.comet, 20))
+        statusCheck("Star Meets Black Hole's photon ring", byHand) {
+            $0.config.scene = .tidalDisruption
+            $0.lastLook = $0.config
+            $0.config.photonRing += 0.5
+        }
+        for kind in SceneKind.listed {
+            let old = { (x: Double) in
+                (try? JSONSerialization.data(withJSONObject: TiltCheck.oldSave(kind, tilt: x))).flatMap(WallpaperConfig.decode) ?? WallpaperConfig()
+            }
+            statusCheck("upgrading on \(kind)", "Now: Galaxy.") { $0.lastLook = old(20); $0.config = old(20) }
+            statusCheck("upgrading on \(kind), then saving", "Now: Galaxy.") {
+                $0.lastLook = old(20)
+                $0.config = (try? JSONEncoder().encode(old(20))).flatMap(WallpaperConfig.decode) ?? WallpaperConfig()
+                if kind != .comet { tilt(.comet, 9)(&$0) }
+            }
+            statusCheck("a tilt changed before upgrading on \(kind)", kind.hasTilt ? byHand : "Now: Galaxy.") { $0.lastLook = old(20); $0.config = old(8) }
+            // a switch brings the scene's own tilt, and leaves the last scene's to come back to
+            var c = old(20)
+            c.scene = .comet
+            c.tilt = 9
+            let there = ScheduleTarget.scene(kind).applied(over: c, presets: [])!
+            expect(there.tilt == (kind == .comet ? 9 : 20) && there.scene == kind, "a scheduled \(kind) shows another scene's tilt")
+            expect(ScheduleTarget.scene(.comet).applied(over: there, presets: []) == c, "a scheduled switch to \(kind) and back changed a tilt")
+        }
         let sky: [(inout WallpaperConfig) -> Void] = [
             { $0.starDensity += 0.1 }, { $0.nebula += 0.1 }, { $0.galaxies.toggle() }, { $0.milkyWay.toggle() },
             { $0.skySeed += 1 }, { $0.twinkles = .off }, { $0.twinkleBrightness += 0.1 }, { $0.twinkleSpeed += 0.1 },

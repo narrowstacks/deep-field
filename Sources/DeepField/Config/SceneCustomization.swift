@@ -94,6 +94,22 @@ extension WallpaperConfig {
             image = shared
         }
     }
+
+    /// Called as `scene` changes: keeps the old scene's tilt, then brings in the new scene's.
+    mutating func swapTilt(leaving old: SceneKind) {
+        if old.hasTilt { sceneTilt[old.rawValue] = tilt }
+        tilt = sceneTilt[scene.rawValue] ?? sharedTilt
+        normalizeTilts()
+    }
+
+    /// Drops parked tilts that mean nothing, so configs with the same tilts compare equal. Tilts of
+    /// scenes this build doesn't know stay, for the version that does.
+    mutating func normalizeTilts() {
+        sceneTilt = sceneTilt.filter { name, value in
+            value != sharedTilt && name != scene.rawValue && SceneKind(rawValue: name)?.hasTilt != false
+        }
+        if !scene.hasTilt { tilt = sharedTilt }
+    }
 }
 
 // MARK: per-scene reset
@@ -101,8 +117,8 @@ extension WallpaperConfig {
 extension WallpaperConfig {
     /// Saved keys that belong to a scene's own settings: its Scene tab controls, colors and
     /// events. A prefix matches keys that continue with a capital letter ("gas" matches
-    /// "gasWind", "pulsar" doesn't match the sky's "pulsars"). Camera tilt and the planets are
-    /// shared with other scenes, so resetting one of those scenes resets them for all of them.
+    /// "gasWind", "pulsar" doesn't match the sky's "pulsars"). A few are another scene's
+    /// too (see `SceneKind.sharedNote`), so resetting one resets them for both. `tilt` is each scene's own.
     private static func ownKeys(_ kind: SceneKind) -> (prefixes: [String], keys: [String], palette: [String]) {
         let planets = ["planetCount", "planetSize", "planetOrbitMinutes", "planetSeed", "planetRings"]
         let disk = ["receding", "approaching", "core", "ring"]
@@ -154,7 +170,8 @@ extension WallpaperConfig {
     func resettingScene(_ kind: SceneKind) -> WallpaperConfig {
         var dict = jsonObject()
         let defaults = WallpaperConfig().jsonObject()
-        for (key, value) in defaults where Self.owns(kind, key: key) { dict[key] = value }
+        // `tilt` is the active scene's; another scene's is parked
+        for (key, value) in defaults where Self.owns(kind, key: key) && (key != "tilt" || kind == scene) { dict[key] = value }
         let paletteKeys = Self.ownKeys(kind).palette
         if !paletteKeys.isEmpty, var palette = dict["palette"] as? [String: Any],
            let defaultPalette = defaults["palette"] as? [String: Any] {
@@ -162,7 +179,11 @@ extension WallpaperConfig {
             dict["palette"] = palette
         }
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
-              let c = try? JSONDecoder().decode(WallpaperConfig.self, from: data) else { return self }
+              var c = try? JSONDecoder().decode(WallpaperConfig.self, from: data) else { return self }
+        if kind.hasTilt, kind != scene {
+            c.sceneTilt[kind.rawValue] = Self.defaultTilt
+            c.normalizeTilts()
+        }
         return c
     }
 
@@ -185,9 +206,10 @@ extension WallpaperConfig {
         let saved = (try? JSONEncoder().encode(self)).flatMap(Self.decode) ?? self
         var dict = saved.jsonObject()
         for key in ["fps", "lockScreenStill", "lockScreenSmooth", "homeLatitude", "homeLongitude", "homeFromDevice",
-                    "sceneImage", "sharedImage", "phoneFraming"] { dict[key] = nil }
+                    "sceneImage", "sharedImage", "sceneTilt", "sharedTilt", "phoneFraming"] { dict[key] = nil }
         let others = SceneKind.allCases.filter { $0 != scene }
-        for key in Array(dict.keys) where !Self.owns(scene, key: key) && others.contains(where: { Self.owns($0, key: key) }) {
+        let draws = Self.alsoDraws(scene)
+        for key in Array(dict.keys) where !Self.owns(scene, key: key) && !draws.contains(key) && others.contains(where: { Self.owns($0, key: key) }) {
             dict[key] = nil
         }
         if scene.drawsRealSky { for key in Self.skyKeys { dict[key] = nil } }
@@ -206,8 +228,7 @@ extension WallpaperConfig {
     private static func alsoDraws(_ kind: SceneKind) -> [String] {
         switch kind {
         case .tidalDisruption: ["photonRing"]
-        case .quasar: ["tilt"]   // turns the sky behind it
-        case .liveEarth: ["homeLatitude", "homeLongitude", "tilt"]   // tilt only through rounding in the baked rays
+        case .liveEarth: ["homeLatitude", "homeLongitude"]
         default: []
         }
     }
@@ -224,7 +245,7 @@ extension WallpaperConfig {
         // Stills have no sky or wormhole events, and the image settings are compared separately,
         // as the scene's own or the shared ones.
         let never = ["scene", "fps", "lockScreenStill", "lockScreenSmooth", "homeFromDevice", "supernovae", "comets",
-                     "wormholeEvents", "tdeCycleMinutes", "sceneImage", "sharedImage"]
+                     "wormholeEvents", "tdeCycleMinutes", "sceneImage", "sharedImage", "sceneTilt", "sharedTilt"]
             + Mirror(reflecting: ImageSettings(WallpaperConfig())).children.compactMap(\.label)
         return Dictionary(uniqueKeysWithValues: SceneKind.allCases.map { kind in
             let sky = kind.drawsRealSky
@@ -253,6 +274,7 @@ extension WallpaperConfig {
             var c = self
             c.scene = kind
             c.pixelSize = 1
+            if kind.hasTilt { saved["tilt"] = c.tilt }
             return (kind, StillSettings(saved: saved as NSDictionary, image: c.image,
                                         time: kind.drawsRealSky ? now.timeIntervalSince1970 : nil))
         })

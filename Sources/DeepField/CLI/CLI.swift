@@ -42,6 +42,8 @@ enum CLI {
             `deepfield keys --all` every one. Numbers, true/false (or on/off), hex colors and choices:
               deepfield set bloom=0.6 pixelSize=4 dither=blueNoise
               deepfield set palette.core=#ffd27a diskSpeed=1.5
+            tilt is the current scene's own; with scene=NAME in the same command, before or after it, the
+            new scene's.
             """, service: true),
         Command(name: "keys", summary: "List settings with their values and types", usage: """
             deepfield keys [--scene NAME] [--all] [--names] [--json]

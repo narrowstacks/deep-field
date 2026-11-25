@@ -76,7 +76,7 @@ enum ConfigKeys {
     // MARK: keys
 
     /// Every settable key path: top-level keys, plus `palette.<color>` and the like for nested
-    /// objects. Per-scene image storage is managed by the scene switch, so it's left out.
+    /// objects. Per-scene image and tilt storage is managed by the scene switch, so it's left out.
     static func allPaths(_ c: WallpaperConfig = WallpaperConfig()) -> [String] {
         var out: [String] = []
         for (key, value) in object(c) where !internalKeys.contains(key) {
@@ -89,7 +89,7 @@ enum ConfigKeys {
         return out.sorted()
     }
 
-    static let internalKeys: Set<String> = ["sceneImage", "sharedImage", "phoneFraming", "tdeCycleMinutes"]
+    static let internalKeys: Set<String> = ["sceneImage", "sharedImage", "sceneTilt", "sharedTilt", "phoneFraming", "tdeCycleMinutes"]
     static let imageKeys = ["saturation", "brightness", "contrast", "blackPoint", "highlights", "vignette",
                             "bloom", "bloomRadius", "bloomThreshold", "pixelSize", "levels", "dither"]
 
@@ -180,9 +180,9 @@ enum ConfigKeys {
     }
 
     /// `config` with the assignments applied. `scene` goes through the scene switch, so the new
-    /// scene brings its own image settings; everything else merges into the saved format and is
-    /// decoded with the same lenient decoder as the saved settings. A value that decoder rejects
-    /// is an error, one it clamps or wraps is a warning.
+    /// scene brings its own tilt and image settings, whatever order they're given in; everything
+    /// else merges into the saved format and is decoded with the same lenient decoder as the saved
+    /// settings. A value that decoder rejects is an error, one it clamps or wraps is a warning.
     static func apply(_ list: [Assignment], to config: WallpaperConfig,
                       listedScenesOnly: Bool = true) throws -> (config: WallpaperConfig, warnings: [String]) {
         var base = config
@@ -220,6 +220,10 @@ enum ConfigKeys {
                 var msg = "\u{201C}\(a.raw)\u{201D} isn't a valid value for \(a.key)"
                 if let c = choices(for: a.key) { msg += " (choose from \(c.joined(separator: ", ")))" }
                 throw CLIError(msg)
+            }
+            if a.key == "tilt", !decoded.scene.hasTilt {
+                warnings.append("\(decoded.scene.title) has no tilt, so it wasn't changed")
+                continue
             }
             warnings.append("\(a.key) was changed to \(got.map(display) ?? "?")")
         }

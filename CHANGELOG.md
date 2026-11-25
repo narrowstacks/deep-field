@@ -26,6 +26,9 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - Lock screen still: Set Now no longer stays disabled on "Rendering…" when an update finds no display to set, and the status line says when nothing was updated and why.
 - Customize: changing a setting redraws only the gallery thumbnails it affects, and one that failed to draw is tried again at the next change.
 - Supernovae and comets now appear in open sky, instead of sometimes behind the planet, star or ground, and Show Me and `deepfield event` say so when none is visible.
+- Every scene now keeps its own camera Tilt. Your scenes and presets keep the tilt they have now, and changing it in one scene leaves the others alone, Quasar's background included (it has no Tilt, and always uses the default). On the command line, `tilt` is the current scene's.
+- Reset's help now says which settings each scene really shares with others, and resetting puts back only that scene's tilt.
+- Schedule: a photon ring changed on Star Meets Black Hole now counts as changed by hand.
 
 ## [0.4.8] - 2026-11-18
 
