@@ -4,6 +4,8 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-11-25
+
 - Presets: a preset that matches your settings shows as current again after you edit a scene's own image settings and visit other scenes.
 - `deepfield render` now shows every event given with `--demo` when the flag is repeated, instead of only the last one.
 - The scene gallery's thumbnails no longer show an event started with Show Me soon after launch.
