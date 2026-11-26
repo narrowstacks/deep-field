@@ -101,6 +101,7 @@ struct SceneTab: View {
                             }
                             .frame(width: 80)
                             .accessibilityLabel("Shape seed")
+                            .accessibilityInputLabels(["Shape seed", "Seed"])   // "Seed" shows when it's empty
                             Button("New Shape") { store.config.nebulaSeed = Int.random(in: 1...99_999) }
                         }
                     } label: {
@@ -311,6 +312,7 @@ struct SceneTab: View {
                             .controlSize(.small)
                             .disabled(!store.config.isCustomized(scene))
                             .accessibilityLabel("Reset \(scene.title)")
+                            .accessibilityInputLabels(["Reset", "Reset \(scene.title)"])   // the shown word first, for Voice Control
                             .help("Puts this scene's settings and colors back to their defaults" + (scene.sharedNote.map { ". \($0)" } ?? ""))
                     }
                     Text(scene.blurb).font(.callout).foregroundStyle(.secondary)

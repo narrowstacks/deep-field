@@ -109,9 +109,12 @@ struct PhoneTab: View {
             if phone.model == "custom" {
                 LabeledContent {
                     HStack {
+                        // what Voice Control users say; only the row's title shows, so it names the first
                         PixelsField(title: "Width in pixels", value: $phone.options.width)
+                            .accessibilityInputLabels(["Width", "Width in pixels", "Size in pixels"])
                         Text("×").accessibilityHidden(true)
                         PixelsField(title: "Height in pixels", value: $phone.options.height)
+                            .accessibilityInputLabels(["Height", "Height in pixels"])
                     }
                     .labelsHidden()
                 } label: {
@@ -168,6 +171,7 @@ struct PhoneTab: View {
                         Text("HEIC").tag(MobileExport.StillFormat.heic)
                     }
                     .labelsHidden()
+                    .accessibilityInputLabels(["Still", "Still format", "Format"])   // the row's shown title first, for Voice Control
                     .frame(width: 80)
                     Button("Save Still…") { phone.saveStill() }
                 }

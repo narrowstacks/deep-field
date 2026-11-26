@@ -31,6 +31,7 @@ struct ImageTab: View {
                     Button("Reset") { store.config.resetImage() }
                         .controlSize(.small)
                         .accessibilityLabel("Reset tone and glow")
+                        .accessibilityInputLabels(["Reset", "Reset tone and glow"])   // the shown word first, for Voice Control
                         .help("Puts tone and glow back to their defaults")
                 }
             } footer: {

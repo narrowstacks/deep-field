@@ -184,6 +184,9 @@ private struct EntryRow: View {
                 .help(cal.weekdaySymbols[day - 1])
                 .accessibilityLabel("Entry \(number), \(cal.weekdaySymbols[day - 1])")
                 .accessibilityHint("")   // the tooltip would repeat the day
+                // Voice Control: the day as said, the letter shown, then the entry to tell rows apart
+                .accessibilityInputLabels([cal.weekdaySymbols[day - 1], symbols[day - 1],
+                                           "Entry \(number) \(cal.weekdaySymbols[day - 1])"])
                 .accessibilityAddTraits(on ? [.isSelected] : [])
             }
         }
