@@ -233,7 +233,7 @@ final class LockScreenStill: ObservableObject {
         let w = (t.width + factor - 1) / factor, h = (t.height + factor - 1) / factor
         let url = Self.folder.appendingPathComponent("\(t.key)-\(Int(Date().timeIntervalSince1970 * 1000)).png")
         let t0 = CFAbsoluteTimeGetCurrent()
-        FrameCapture.render(config: c, width: w, height: h, time: time, eventsEnabled: false) { frame in
+        FrameCapture.render(config: c, width: w, height: h, time: time, eventsEnabled: false, demo: [:]) { frame in
             DispatchQueue.global(qos: .utility).async {
                 var error: String?
                 if let frame, let image = FrameCapture.upscaled(frame, factor: factor, width: t.width, height: t.height, nearest: dithered) {
