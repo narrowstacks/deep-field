@@ -217,22 +217,32 @@ starting at t = 300 s (`--time`), and the CPU time spent encoding each frame.
 
 ## Releasing
 
-The version lives in `VERSION`, and each release has a section in `CHANGELOG.md`. To ship:
+The version lives in `VERSION`, and each release has a section in `CHANGELOG.md`. User-facing
+notes go under `## [Unreleased]` as changes land. To ship:
 
-1. Set `VERSION` (for example `0.2.0`), move the `Unreleased` notes into a `## [0.2.0]` section, and commit.
-2. Tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
+1. Set `VERSION` (for example `0.2.0`) and rename `Unreleased` to `## [0.2.0] - <date>` (CI
+   checks a section exists for `VERSION`). Commit and push `main`.
+2. Push an annotated tag: `git tag -a v0.2.0 -m "Deep Field 0.2.0" && git push origin v0.2.0`.
 
 The [Release workflow](../.github/workflows/release.yml) then builds a universal app on the
 self-hosted Mac runner, signs it with the Developer ID certificate, packages and notarizes the
 DMG, signs a Sparkle appcast, and publishes both to a GitHub release. Installed copies pick up
 the new version from `releases/latest/download/appcast.xml`. A tag with a suffix
-(`v0.2.0-beta.1`) becomes a prerelease, which the update feed skips.
+(`v0.2.0-beta.1`) becomes a prerelease, which the update feed skips. The GitHub release shows the
+version's `CHANGELOG.md` section as Markdown; the update window shows it as plain text, with links
+reduced to their text and code spans quoted (`scripts/release/plain-notes.sh`).
+
+For a full release, the workflow then pushes an empty `[deploy]` commit to
+narrowstacks/deep-field-website so the website rebuilds with it. If that step fails, push
+`chore: ship Deep Field 0.2.0 [deploy]` there by hand.
+
 [CI](../.github/workflows/ci.yml) builds every push and pull request on GitHub-hosted runners.
 
 Secrets the release needs: `APPLE_DEVELOPER_ID_P12_B64` and `APPLE_DEVELOPER_ID_P12_PASSWORD`
 (the Developer ID Application certificate), `APPLE_NOTARY_API_KEY_B64`, `APPLE_NOTARY_API_KEY_ID`
 and `APPLE_NOTARY_API_ISSUER_ID` (an App Store Connect API key for notarization), and
-`SPARKLE_ED_PRIVATE_KEY` (the update signing key; its public half is `SUPublicEDKey` in `build.sh`).
+`SPARKLE_ED_PRIVATE_KEY` (the update signing key; its public half is `SUPublicEDKey` in `build.sh`),
+and `WEBSITE_DEPLOY_TOKEN` (pushes the website's deploy commit).
 
 ## App icon, logo and media
 

@@ -9,6 +9,7 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 - The scene gallery's thumbnails no longer show an event started with Show Me soon after launch.
 - Lock screen still: the status says why displays couldn't be updated, lists each reason when none could be, and keeps saying a still stays because its original picture is gone. It also no longer shows an event started with Show Me.
 - Voice Control: controls answer to the words they show, such as a preset's name, Show Me, Now, Reset, a weekday or a color set's name.
+- The update window's release notes no longer show Markdown: links show only their text, and commands are in quotes.
 
 ## [0.4.9] - 2026-11-25
 
