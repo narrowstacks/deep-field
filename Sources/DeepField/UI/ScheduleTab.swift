@@ -174,6 +174,9 @@ private struct EntryRow: View {
         return HStack(spacing: 4) {
             ForEach(days, id: \.self) { day in
                 let on = entry.weekdays.contains(day)
+                let name: String = cal.weekdaySymbols[day - 1]
+                // Voice Control: the day as said, the letter shown, then the entry to tell rows apart
+                let spoken: [String] = [name, symbols[day - 1], "Entry \(number) \(name)"]
                 Button(symbols[day - 1]) {
                     if on { if entry.weekdays.count > 1 { entry.weekdays.remove(day) } } else { entry.weekdays.insert(day) }
                 }
@@ -181,12 +184,10 @@ private struct EntryRow: View {
                 .controlSize(.small)
                 .tint(on ? .accentColor : nil)
                 .opacity(on ? 1 : 0.45)
-                .help(cal.weekdaySymbols[day - 1])
-                .accessibilityLabel("Entry \(number), \(cal.weekdaySymbols[day - 1])")
+                .help(name)
+                .accessibilityLabel("Entry \(number), \(name)")
                 .accessibilityHint("")   // the tooltip would repeat the day
-                // Voice Control: the day as said, the letter shown, then the entry to tell rows apart
-                .accessibilityInputLabels([cal.weekdaySymbols[day - 1], symbols[day - 1],
-                                           "Entry \(number) \(cal.weekdaySymbols[day - 1])"])
+                .accessibilityInputLabels(spoken)
                 .accessibilityAddTraits(on ? [.isSelected] : [])
             }
         }
