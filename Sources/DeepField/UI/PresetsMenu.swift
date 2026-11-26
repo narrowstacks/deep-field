@@ -65,6 +65,8 @@ struct PresetsMenu: View {
         }
         .menuStyle(.borderlessButton)
         .accessibilityValue(currentPreset?.name ?? "")
+        // on the menu, since the label's don't reach it. Voice Control goes by the shown name first.
+        .accessibilityInputLabels(currentPreset.map { [$0.name, "Presets"] } ?? ["Presets"])
         .help("Save, apply, import and export your customizations")
     }
 }

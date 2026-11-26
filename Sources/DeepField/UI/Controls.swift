@@ -36,7 +36,9 @@ struct FrequencyRow: View {
                 Text(title).accessibilityHidden(true)   // the picker says it
                 Spacer()
                 if let demo {
+                    // Voice Control goes by the shown words first; the event tells the buttons apart
                     DemoButton(title: "Show Me", action: demo).accessibilityLabel("Show Me, \(title)")
+                        .accessibilityInputLabels(["Show Me", "Show Me \(title)"])
                 }
             }
             Picker(title, selection: $value) {
@@ -75,6 +77,7 @@ struct DemoGrid: View {
                         StageStatus.shared.flash(title.prefix(1) + title.dropFirst().lowercased() + " started")
                     }
                         .accessibilityLabel("Show Me, \(title)")
+                        .accessibilityInputLabels([title, "Show Me \(title)"])   // the shown title first, for Voice Control
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }

@@ -58,6 +58,7 @@ struct LiveEarthSections: View {
                 LabeledContent("") {
                     Button("Now") { store.config.earthFrozenTime = Date().timeIntervalSince1970.rounded() }
                         .accessibilityLabel("Set Moment to Now")
+                        .accessibilityInputLabels(["Now", "Set Moment to Now"])   // the shown word first, for Voice Control
                 }
             }
         } header: {
