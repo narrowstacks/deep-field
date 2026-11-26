@@ -134,31 +134,52 @@ final class LockScreenStill: ObservableObject {
 
     private struct Target { let key: String; let width: Int; let height: Int }
 
-    /// What became of one display in an update.
-    private enum Outcome { case set, failed, disconnected, kept }
+    /// What became of one display in an update. A failure carries its status line and the reason
+    /// alone, for a summary.
+    private enum Outcome: Equatable { case set, failed(status: String, why: String), disconnected, kept }
 
     private struct Tally {
-        var set = 0, failed = 0, disconnected = 0
+        var set = 0, disconnected = 0
         var kept = 0   // left with a picture the user chose
+        var failures: [(status: String, why: String)] = []
 
         mutating func add(_ outcome: Outcome) {
             switch outcome {
             case .set: set += 1
-            case .failed: failed += 1
+            case let .failed(status, why): failures.append((status, why))
             case .disconnected: disconnected += 1
             case .kept: kept += 1
             }
         }
 
-        /// The status of an update that set at least one display.
+        /// The different failure lines, in display order.
+        private var reasons: [(status: String, why: String)] {
+            var seen = Set<String>()
+            return failures.filter { seen.insert($0.status).inserted }
+        }
+
+        /// The status of an update that set no display but had failures: every different reason,
+        /// so one display's failure doesn't hide another's.
+        var failureStatus: String {
+            let r = reasons
+            return r.count == 1 ? r[0].status : r.map { Self.sentence($0.status) }.joined(separator: " ")
+        }
+
+        /// The status of an update that set at least one display. The failures stay one short
+        /// clause: their reason when they share one, else just that they differ.
         var summary: String {
             let when = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short)
             var s = "Set on \(set) display\(set == 1 ? "" : "s") at \(when)."
-            if failed > 0 { s += " Couldn't update \(failed)." }
+            let r = reasons
+            if !r.isEmpty {
+                s += " Couldn't update \(failures.count)" + (r.count == 1 ? ": " + Self.sentence(r[0].why) : " for different reasons.")
+            }
             if disconnected > 0 { s += " Skipped \(disconnected) that \(disconnected == 1 ? "was" : "were") disconnected." }
             if kept > 0 { s += " Left \(kept) with a picture you chose." }
             return s
         }
+
+        private static func sentence(_ s: String) -> String { s.hasSuffix(".") ? s : s + "." }   // a system error may end with its own
     }
 
     private func refresh(force: Bool) {
@@ -197,7 +218,11 @@ final class LockScreenStill: ObservableObject {
         guard let t = targets.first else {
             busy = false
             cleanUp()
-            if tally.set > 0 { status = tally.summary }   // else it already says why the last display failed
+            if tally.set > 0 {
+                status = tally.summary
+            } else if !tally.failures.isEmpty {
+                status = tally.failureStatus
+            }   // else it already says why nothing was set
             return
         }
         // dithered: shade one pixel per wallpaper cell and blow it up with crisp edges, like the
@@ -228,9 +253,10 @@ final class LockScreenStill: ObservableObject {
                         NSLog("DeepField: lock screen still %dx%d (shaded %dx%d) in %.0f ms", t.width, t.height, w, h,
                               (CFAbsoluteTimeGetCurrent() - t0) * 1000)
                     }
-                    var outcome = Outcome.failed
+                    let outcome: Outcome
                     if let error {
                         self.status = "Couldn't make the still: \(error)"
+                        outcome = .failed(status: self.status, why: error)
                     } else {
                         outcome = self.apply(url, to: t.key, force: force)
                     }
@@ -275,7 +301,7 @@ final class LockScreenStill: ObservableObject {
         } catch {
             if recorded { originals[key] = nil; saveOriginals(originals) }
             status = "Couldn't set the desktop picture: \(error.localizedDescription)"
-            return .failed
+            return .failed(status: status, why: error.localizedDescription)
         }
         var current = defaults.dictionary(forKey: currentKey) as? [String: String] ?? [:]
         current[key] = url.path
@@ -298,8 +324,7 @@ final class LockScreenStill: ObservableObject {
                 // the original may have been deleted or be on a disk that isn't mounted
                 let target = original.url.flatMap { FileManager.default.isReadableFile(atPath: $0.path) ? $0 : nil }
                     ?? Self.defaultDesktopPicture
-                guard let target else {
-                    problems.append("\(screen.localizedName): the original picture is gone; the still stays")
+                guard let target else {   // reported below, from what the display shows
                     originals[key] = nil
                     continue   // keeps current[key], so the still's file isn't deleted from under it
                 }
@@ -324,6 +349,12 @@ final class LockScreenStill: ObservableObject {
         saveOriginals(originals)
         defaults.set(current, forKey: currentKey)
         cleanUp()
+        // A still with no record left has nothing to go back to. Checking this on every restore,
+        // not only when the record is dropped, keeps the line up for as long as the still shows.
+        for key in current.keys.sorted() where originals[key] == nil {
+            guard let screen = Self.screen(for: key), isOurs(ws.desktopImageURL(for: screen)) else { continue }
+            problems.append("\(screen.localizedName): the original picture is gone; the still stays")
+        }
         // empty when nothing was put back or went wrong, so an earlier status doesn't look current
         var lines = problems.map { $0.hasSuffix(".") ? $0 : $0 + "." }   // a system error may end with its own
         if restored > 0 { lines.insert("Restored your desktop picture\(restored == 1 ? "" : "s").", at: 0) }
