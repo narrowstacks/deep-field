@@ -231,6 +231,8 @@ git clone https://github.com/narrowstacks/deep-field.git && cd deep-field
 
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) covers the code layout, how the rendering works, the
 command line tools for snapshots and benchmarks, and how releases are made.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) says what a pull request needs: the checks to run, images for
+visible changes, and a changelog line.
 
 Before your first pull request is merged, you'll be asked to sign the
 [Contributor License Agreement](CLA.md) by posting a comment on the pull request. It lets the

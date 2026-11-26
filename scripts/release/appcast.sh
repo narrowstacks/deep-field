@@ -15,7 +15,7 @@ SIGN="${SIGN_UPDATE:-.build/artifacts/sparkle/Sparkle/bin/sign_update}"
 : "${SPARKLE_ED_PRIVATE_KEY:?set SPARKLE_ED_PRIVATE_KEY}"
 ATTRS=$(print -rn -- "$SPARKLE_ED_PRIVATE_KEY" | "$SIGN" --ed-key-file - "$DMG")
 URL="https://github.com/narrowstacks/deep-field/releases/download/v$VERSION/DeepField.dmg"
-NOTES=$(scripts/release/notes.sh "$VERSION" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
+NOTES=$(scripts/release/notes.sh "$VERSION" | scripts/release/plain-notes.sh | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
 cat > build/release/appcast.xml <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
