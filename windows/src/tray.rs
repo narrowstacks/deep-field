@@ -19,6 +19,8 @@ pub enum TrayAction {
     /// the schedule's next entry now
     SkipSchedule,
     PixelSize(i64),
+    /// Use Scene on Lock Screen
+    ToggleLockScreen,
     TogglePause,
     EditSettings,
     Quit,
@@ -39,6 +41,7 @@ pub struct Tray {
     skip: MenuItem,
     skip_shown: bool,
     wallpaper: CheckMenuItem,
+    lock_screen: CheckMenuItem,
     guide: MenuId,
     customize: MenuId,
     edit: MenuId,
@@ -92,12 +95,14 @@ impl Tray {
         let wallpaper = CheckMenuItem::new("Show on Desktop", true, true, None);
         let customize = MenuItem::new("Customize...", true, None);
         let pause = MenuItem::new("Pause Animation", true, None);
+        let lock_screen = CheckMenuItem::new("Use Scene on Lock Screen", true, c.lock_screen_still, None);
         let guide = MenuItem::new("Welcome Guide...", true, None);
         let edit = MenuItem::new("Edit Settings File...", true, None);
         let quit = MenuItem::new("Quit Deep Field", true, None);
         // the Mac's order, with the scene and pixel size submenus it doesn't have after Customize
         let _ = menu.append_items(&[&wallpaper, &pause, &customize, &PredefinedMenuItem::separator(), &scene_menu,
                                     &presets_menu, &schedule, &size_menu,
+                                    &PredefinedMenuItem::separator(), &lock_screen,
                                     &PredefinedMenuItem::separator(), &guide, &edit,
                                     &PredefinedMenuItem::separator(), &quit]);
         let icon = TrayIconBuilder::new()
@@ -108,7 +113,7 @@ impl Tray {
             .expect("tray icon");
         let mut tray = Tray {
             _icon: icon, scenes, sizes, presets_menu, presets: Vec::new(), requests: Vec::new(), menu, schedule, skip,
-            skip_shown: false, wallpaper, guide: guide.id().clone(),
+            skip_shown: false, wallpaper, lock_screen, guide: guide.id().clone(),
             customize: customize.id().clone(), edit: edit.id().clone(),
             quit: quit.id().clone(), pause,
         };
@@ -124,6 +129,9 @@ impl Tray {
         }
         if id == self.customize {
             return Some(TrayAction::Customize);
+        }
+        if id == *self.lock_screen.id() {
+            return Some(TrayAction::ToggleLockScreen);
         }
         if id == self.guide {
             return Some(TrayAction::Request("welcome"));
@@ -166,6 +174,7 @@ impl Tray {
         for (n, item) in &self.sizes {
             item.set_checked(*n == c.pixel_size as i64);
         }
+        self.lock_screen.set_checked(c.lock_screen_still);
         self.pause.set_text(if paused { "Resume Animation" } else { "Pause Animation" });
     }
 

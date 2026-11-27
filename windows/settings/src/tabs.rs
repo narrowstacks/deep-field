@@ -971,6 +971,8 @@ pub fn system_tab(s: &mut Settings, _w: &mut Window, cx: &mut Context<Settings>)
         "Rendering pauses while a full-screen app has the focus. With battery saver on it drops to 12 fps. Higher rates use more power.",
     );
 
+    let lock_screen = lock_screen_group(s, &c, cx);
+
     let login = s.login_item;
     let login_switch = gpui_kit::component::switch::Switch::new("login-item")
         .checked(login)
@@ -1017,5 +1019,45 @@ pub fn system_tab(s: &mut Settings, _w: &mut Window, cx: &mut Context<Settings>)
             }
         }));
     let reset = Group::new(None).row(div().py(px(8.0)).flex().child(reset).into_any_element());
-    vec![performance.into_element(), startup.into_element(), files.into_element(), reset.into_element()]
+    vec![performance.into_element(), lock_screen.into_element(), startup.into_element(), files.into_element(),
+         reset.into_element()]
+}
+
+/// The lock screen still (SystemTab.swift's Lock Screen section). The wallpaper renders and sets
+/// it; this shows how that went and asks it to set one now.
+fn lock_screen_group(s: &mut Settings, c: &WallpaperConfig, cx: &mut Context<Settings>) -> Group {
+    let lock = s.lock_state.clone();
+    let mut rows = vec![s.toggle_row("lock-screen", "Use a still of this scene for the lock screen", c.lock_screen_still,
+                                     |c, on| c.lock_screen_still = on, None, cx)];
+    let status_text = |text: String| div().flex_1().text_size(px(12.0)).text_color(theme::secondary()).child(text);
+    if c.lock_screen_still {
+        let styles = vec![("Dithered".to_string(), !c.lock_screen_smooth), ("Smooth".to_string(), c.lock_screen_smooth)];
+        rows.push(s.segmented_row("lock-style", "Style", styles, |c, i| c.lock_screen_smooth = i == 1, cx));
+        let running = deepfield::app_state::wallpaper_running();
+        let status = if lock.busy {
+            "Rendering...".to_string()
+        } else if !running {
+            "Deep Field isn't running; the still is set once it starts.".to_string()
+        } else {
+            lock.status.clone()
+        };
+        let set_now = Button::new("lock-set-now")
+            .label("Set Now")
+            .small()
+            .disabled(lock.busy || !running)
+            .tooltip("Render the still and set it, replacing a picture you chose since")
+            .on_click(|_, _, _| {
+                let _ = std::fs::write(deepfield::lock_screen::request_path(), "");
+            });
+        rows.push(
+            div().min_h(px(38.0)).py(px(6.0)).flex().items_center().gap(px(12.0)).child(status_text(status)).child(set_now)
+                .into_any_element(),
+        );
+    } else if !lock.status.is_empty() {
+        rows.push(div().py(px(8.0)).flex().child(status_text(lock.status.clone())).into_any_element());
+    }
+    Group::titled("Lock screen").rows(rows).footer(
+        "The lock screen shows a picture, not the animation. Turning this off puts your own picture back; Windows \
+         spotlight has to be turned on again in Settings.",
+    )
 }

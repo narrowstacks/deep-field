@@ -87,6 +87,8 @@ pub struct Settings {
     thumb_sent: HashMap<SceneKind, (WallpaperConfig, (u32, u32), u64)>,
     thumb_generation: u64,
     pub thumbs_due: Option<Instant>,
+    /// what the wallpaper last did with the lock screen still
+    pub lock_state: deepfield::lock_screen::LockState,
     /// the welcome guide, when the window is showing it instead of Customize
     pub guide: Option<crate::welcome::Guide>,
 
@@ -144,6 +146,7 @@ impl Settings {
             thumb_generation: 0,
             thumbs_due: Some(Instant::now()),
             guide: None,
+            lock_state: deepfield::lock_screen::LockState::load(),
             screen: system::screen_size(),
             hwnd: None,
             sliders: HashMap::new(),
@@ -277,6 +280,12 @@ impl Settings {
             }
             // presets applied from the tray menu
             if self.presets.reload_if_changed() {
+                changed = true;
+            }
+            // the lock screen still's progress, from the wallpaper
+            let lock = deepfield::lock_screen::LockState::load();
+            if lock != self.lock_state {
+                self.lock_state = lock;
                 changed = true;
             }
             // the tray's Save, Import and Export, which need this window's dialogs

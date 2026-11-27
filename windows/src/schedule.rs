@@ -413,6 +413,11 @@ impl LocalCalendar for FixedOffset {
 /// Windows' own time zone, and the user's own time and date formats.
 pub struct SystemCalendar;
 
+/// A moment (Swift reference seconds) as a time of day in the user's own format, "9:41 PM".
+pub fn local_time_string(t: f64) -> String {
+    win::local(t).map(|st| win::time(&st)).unwrap_or_default()
+}
+
 mod win {
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::{FILETIME, SYSTEMTIME};

@@ -17,6 +17,7 @@ pub mod earth_maps;
 pub mod events;
 pub mod historical_clouds;
 pub mod live_earth_feeds;
+pub mod lock_screen;
 pub mod gpu_types;
 pub mod math;
 pub mod palette;

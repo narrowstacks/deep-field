@@ -356,6 +356,12 @@ fn set_on_desktop(on: bool, screens: &mut Vec<Screen>, r: &Renderer) {
     }
 }
 
+/// The primary display's size in pixels (the process is per-monitor DPI aware), which the lock
+/// screen still is rendered at.
+fn primary_size() -> (u32, u32) {
+    unsafe { (GetSystemMetrics(SM_CXSCREEN).max(1) as u32, GetSystemMetrics(SM_CYSCREEN).max(1) as u32) }
+}
+
 /// Explorer keeps the last frame we drew behind the icons; setting the wallpaper again repaints it.
 fn restore_desktop() {
     unsafe {
@@ -440,6 +446,7 @@ pub fn run() -> Result<(), String> {
     if first_launch {
         crate::tray::request_customize("welcome");
     }
+    let mut lock_screen = crate::lock_screen::LockScreenStill::start(&store.config);
     let mut schedules = ScheduleStore::load();
     let mut sched_state = ScheduleState::load_from(&ScheduleState::path());
     tray.update_schedule(&schedules.schedule);
@@ -484,6 +491,10 @@ pub fn run() -> Result<(), String> {
                 TrayAction::Customize => crate::tray::open_customize(),
                 TrayAction::Scene(s) => {
                     store.config.set_scene(s);
+                    store.save();
+                }
+                TrayAction::ToggleLockScreen => {
+                    store.config.lock_screen_still = !store.config.lock_screen_still;
                     store.save();
                 }
                 TrayAction::PixelSize(n) => {
@@ -547,6 +558,9 @@ pub fn run() -> Result<(), String> {
             if presets.reload_if_changed() {
                 tray.set_presets(&presets, &store.config);
             }
+            // the lock screen still follows the look, a few seconds after it settles
+            lock_screen.config_changed(&store.config);
+            lock_screen.tick(&r, &store.config, primary_size());
             // the welcome guide's Set as Wallpaper
             if let Some(s) = app_state.poll() {
                 if s.wallpaper_enabled != on_desktop {

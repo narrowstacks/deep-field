@@ -23,6 +23,9 @@ struct Opts {
     preset: Option<String>,
     /// `--transition-from SCENE:PROGRESS[:STYLE]`: a frame partway through a schedule transition
     transition_from: Option<String>,
+    /// --lock-screen: the lock screen still as it would be set (--lock-screen-smooth for its
+    /// smooth style), at --size
+    lock_screen: Option<bool>,
     demo: HashMap<u64, f64>,
     frames: u32,
     /// Live Earth renders read the last fetched cloud and aurora maps instead of the bundled ones.
@@ -35,7 +38,7 @@ struct Opts {
 fn parse(args: &[String]) -> Result<Opts, String> {
     let mut o = Opts {
         snapshot: None, benchmark: false, scene: None, size: (1720, 720), time: 300.0,
-        config: None, events: true, demo_specs: vec![], preset: None, transition_from: None, demo: HashMap::new(), frames: 120,
+        config: None, events: true, demo_specs: vec![], preset: None, transition_from: None, lock_screen: None, demo: HashMap::new(), frames: 120,
         live_earth_cache: false, prefetch_history: None, fetch_live_earth: false,
     };
     let mut it = args.iter();
@@ -66,6 +69,8 @@ fn parse(args: &[String]) -> Result<Opts, String> {
             "--demo" => o.demo_specs.push(val("--demo")?),
             "--preset" => o.preset = Some(val("--preset")?),
             "--transition-from" => o.transition_from = Some(val("--transition-from")?),
+            "--lock-screen" => o.lock_screen = Some(false),
+            "--lock-screen-smooth" => o.lock_screen = Some(true),
             other => return Err(format!("usage: unknown option {other}")),
         }
     }
@@ -162,6 +167,13 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
     r.earth.feeds.allow_network.set(false);
     r.earth.feeds.use_cache.set(o.live_earth_cache);
     r.earth.history.blocking.set(true);
+    if let (Some(path), Some(smooth)) = (&o.snapshot, o.lock_screen) {
+        let mut c = c.clone();
+        c.lock_screen_smooth = smooth;
+        let img = crate::lock_screen::render_still(&r, &c, o.size);
+        write_png(path, o.size.0, o.size.1, &img)?;
+        return Ok(());
+    }
     if let Some(path) = &o.snapshot {
         let transition = o.transition_from.as_deref().map(|s| transition_from(s, &c)).transpose()?;
         let img = snapshot(&r, &c, o.size, o.time, o.events, &o.demo, transition.as_ref());

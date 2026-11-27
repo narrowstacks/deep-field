@@ -4,7 +4,7 @@ A port of Deep Field to Windows 10 and 11: the same scenes, drawn live behind th
 on every monitor. Rust and wgpu (Direct3D 12), with the Metal shaders translated to WGSL.
 
 This is an early port. All 21 listed scenes run, and their snapshots match the macOS reference
-renders in `docs/media/gallery`. Still to come: the lock screen still and phone exports, and Live
+renders in `docs/media/gallery`. Still to come: phone exports, and Live
 Earth following the device's location (it uses the home latitude and longitude from the
 settings).
 
@@ -33,8 +33,8 @@ out, use `cargo build --profile dist` (thin LTO; plain release builds skip it to
 
 A tray icon appears in the notification area: take the scene off the desktop and put it back
 (Show on Desktop), pause, pick a scene, preset or pixel size, turn the schedule on or skip ahead,
-reopen the welcome guide, open the settings file, or quit. Starting it again while it runs opens
-the Customize window. Settings live in
+use the scene on the lock screen, reopen the welcome guide, open the settings file, or quit.
+Starting it again while it runs opens the Customize window. Settings live in
 `%APPDATA%\DeepField\config.json`, with the same keys as the macOS app's saved config, so a
 config exported from a Mac reads here. Edits to the file show up within a second.
 
@@ -88,12 +88,21 @@ be hidden behind the scene, or lost in a bright sky, says so instead, as on the 
 The first launch opens the welcome guide in this window instead, as on the Mac: pick a scene, try
 a few looks, then Set as Wallpaper. The desktop stays as it was until then (Not Now leaves it
 alone; the tray's Show on Desktop turns it on later). The guide's choice and whether it has been
-seen are kept in %APPDATA%\DeepField\app-state.json, the Windows stand-in for the Mac's
+seen are kept in `%APPDATA%\DeepField\app-state.json`, the Windows stand-in for the Mac's
 defaults, which the wallpaper reads. A first launch is one with none of the settings files there
-yet. The tray's Welcome Guide item opens it again, and deepfield-settings --welcome opens it
+yet. The tray's Welcome Guide item opens it again, and `deepfield-settings --welcome` opens it
 directly.
 
-Not there yet: Phone and the lock screen still.
+The System section's Lock screen switch keeps a still of the scene as the Windows lock screen
+picture (dithered like the wallpaper, or smooth), re-rendered a few seconds after the look
+changes. The Mac does this through the desktop picture, which its lock screen shows; Windows has
+a lock screen picture of its own, set through WinRT's `LockScreen`, one for every display, at the
+primary display's size. The wallpaper does the work and keeps a copy of the picture it replaced
+in `%APPDATA%\DeepField\Lock Screen`, which goes back when the switch is turned off. A picture
+chosen in Windows' settings meanwhile is left alone until Set Now. Its status for this window is
+in `lock-screen.json`.
+
+Not there yet: Phone.
 
 ## Command line
 
@@ -107,7 +116,8 @@ deepfield --quit
 
 `--snapshot` takes `--config FILE`, `--preset NAME|FILE`, `--no-events` and `--demo NAME:START` (repeatable, or comma-separated) like the macOS dev
 command line. Snapshots are deterministic (events use seed 1), so they can be compared with the
-Mac's. `--transition-from SCENE:PROGRESS[:STYLE]` renders a frame that far (0 to 1) into a
+Mac's. `--lock-screen` (or `--lock-screen-smooth`) renders the lock screen still as it would be
+set, at `--size`. `--transition-from SCENE:PROGRESS[:STYLE]` renders a frame that far (0 to 1) into a
 schedule transition from SCENE to the configured look (styles: dissolve, crossfade, pan,
 driftAway, warp, blackHole, random; dissolve by default), with seed 1 like the Mac's.
 `--benchmark` reports GPU time per frame from timestamp queries; keep it under about 2 ms.
