@@ -10,6 +10,7 @@ pub mod capture;
 pub mod color_presets;
 pub mod config;
 pub mod customization;
+pub mod demo;
 pub mod config_store;
 pub mod earth_maps;
 pub mod events;

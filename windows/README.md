@@ -78,8 +78,12 @@ days, each switch moving into the next with one of the Mac's transitions. It's k
 can turn it on and skip ahead) and records each switch in `schedule-state.json` for the status
 line.
 
-Not there yet: Phone, the lock screen still, and the Show Me buttons that start an event in the
-running wallpaper.
+Show Me buttons (beside Supernovae and Comets, and under each scene's Events) start an event
+now, in the preview and the running wallpaper at once: the start goes through `demo.json` as
+wall-clock time, since the two programs keep their own clocks. A supernova or comet that would
+be hidden behind the scene, or lost in a bright sky, says so instead, as on the Mac.
+
+Not there yet: Phone and the lock screen still.
 
 ## Command line
 

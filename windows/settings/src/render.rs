@@ -72,7 +72,9 @@ fn worker(rx: Receiver<Job>, out: Sender<Output>) {
     let mut baked: Option<Baked> = None;
     let mut target: Option<wgpu::Texture> = None;
     let events = EventSchedule::new(1);
-    let demo = HashMap::new();
+    // events started with Show Me, shared with the wallpaper through demo.json
+    let mut demos = deepfield::demo::DemoWatcher::default();
+    let none = HashMap::new();
     let mut thumbs: Vec<Job> = Vec::new();
     let mut next_frame = Instant::now();
     let mut warmed = false;
@@ -127,6 +129,8 @@ fn worker(rx: Receiver<Job>, out: Sender<Output>) {
                 let mut enc = r.device.create_command_encoder(&Default::default());
                 // the same moment the wallpaper's own clock would be near, kept moving
                 let time = 300.0 + start.elapsed().as_secs_f64();
+                demos.poll();
+                let demo = demos.demo(time);
                 r.encode_frame(&mut enc, t, baked.as_ref().unwrap(), time, &p.config, &events, &demo);
                 r.queue.submit([enc.finish()]);
                 let cells = r.read_rgba(t);
@@ -154,7 +158,7 @@ fn worker(rx: Receiver<Job>, out: Sender<Output>) {
             if thumbs.iter().any(|j| matches!(j, Job::Thumbnail { kind: k, .. } if *k == kind)) {
                 continue;
             }
-            let rgba = deepfield::capture::render_cells(&r, &config, cells.0, cells.1, 300.0, false, &demo);
+            let rgba = deepfield::capture::render_cells(&r, &config, cells.0, cells.1, 300.0, false, &none);
             let frame = nearest(&rgba, cells.0, cells.1, shown);
             if out.send(Output::Thumbnail { kind, frame, generation }).is_err() {
                 return;

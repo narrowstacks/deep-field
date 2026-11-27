@@ -489,3 +489,74 @@ impl Settings {
         row(title, None, controls)
     }
 }
+
+impl Settings {
+    /// Starts `kind` now in the preview and the running wallpaper, or says why a sky event would
+    /// be hidden right now (behind the scene's bodies, or in too bright a sky) instead.
+    pub fn show_me(&mut self, kind: deepfield::events::Kind, started: String) {
+        let c = self.config().clone();
+        let aspects = deepfield::wallpaper::monitor_aspects();
+        // the moment the wallpaper is showing, or the preview's when it isn't running
+        let at = deepfield::demo::wallpaper_elapsed().unwrap_or(300.0);
+        match deepfield::sky_cover::hidden_reason(kind, &c, &aspects, at) {
+            Some(reason) => self.flash(reason),
+            None => {
+                deepfield::demo::request(kind.id);
+                self.flash(started);
+            }
+        }
+    }
+
+    /// A small Show Me button.
+    pub fn demo_button(&mut self, id: SharedString, title: &'static str, kind: deepfield::events::Kind,
+                       started: String, cx: &mut Context<Self>) -> Button {
+        Button::new(id)
+            .label(title)
+            .xsmall()
+            .on_click(cx.listener(move |this: &mut Settings, _: &ClickEvent, _, cx| {
+                this.show_me(kind, started.clone());
+                cx.notify();
+            }))
+    }
+
+    /// Buttons that start a scene's events now, two to a row (DemoGrid).
+    pub fn demo_grid(&mut self, demos: &[(&'static str, deepfield::events::Kind)], cx: &mut Context<Self>) -> AnyElement {
+        let mut grid = div().grid().grid_cols(2).gap(px(6.0));
+        for (title, kind) in demos {
+            // "Comet Impact" starts as "Comet impact started"
+            let mut chars = title.chars();
+            let first: String = chars.next().into_iter().collect();
+            let started = format!("{first}{} started", chars.as_str().to_lowercase());
+            let id = SharedString::from(format!("demo-{}", kind.id));
+            grid = grid.child(self.demo_button(id, title, *kind, started, cx).w_full());
+        }
+        div()
+            .py(px(8.0))
+            .flex()
+            .flex_col()
+            .gap(px(6.0))
+            .child(div().text_color(theme::secondary()).child("Show me"))
+            .child(grid)
+            .into_any_element()
+    }
+
+    /// Frequency segments with a Show Me button beside the title (FrequencyRow with `demo`).
+    pub fn frequency_demo_row(&mut self, key: &'static str, title: &'static str, value: Frequency,
+                              set: fn(&mut WallpaperConfig, Frequency), kind: deepfield::events::Kind, name: &'static str,
+                              cx: &mut Context<Self>) -> AnyElement {
+        let items = Frequency::ALL.iter().map(|f| (SharedString::from(frequency_title(*f)), *f == value)).collect();
+        let seg = segmented(key, items, false, cx.listener(move |this: &mut Settings, i: &usize, _, cx| {
+            let f = Frequency::ALL[*i];
+            this.edit(cx, |c| set(c, f));
+        }));
+        let button = self.demo_button(SharedString::from(format!("demo-{key}")), "Show Me", kind, format!("{name} started"), cx);
+        div()
+            .py(px(8.0))
+            .flex()
+            .flex_col()
+            .gap(px(6.0))
+            .child(div().flex().items_center().justify_between().child(title).child(button))
+            .child(seg)
+            .into_any_element()
+    }
+}

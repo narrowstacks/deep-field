@@ -809,7 +809,7 @@ impl Renderer {
             bloom: v4(bloom_amount, c.bloom_threshold, if bloom { 1.0 } else { 0.0 }, c.bloom_radius),
         };
         let palette = crate::palette::palette_gpu(c);
-        let ev = events.gpu(elapsed, c, &cam, th);
+        let ev = events.gpu_with_demo(elapsed, c, &cam, th, demo);
         let galaxy = if c.scene == SceneKind::Galaxy { crate::scenes::galaxy::galaxy_gpu(c, elapsed) } else { GalaxyGpu::default() };
         let mut scene = crate::scene_params::build(c, elapsed, &cam, tw, th, events, demo);
         // the Earth maps and live layers the scene has (the flags in its parameters say which)

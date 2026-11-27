@@ -8,7 +8,6 @@
 //! later that WorkerW is a child of Progman instead of a top-level window, and our window goes
 //! into Progman just below the icon view.
 
-use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -232,7 +231,7 @@ impl Screen {
         }
     }
 
-    fn draw(&mut self, r: &Renderer, store: &ConfigStore, events: &EventSchedule, elapsed: f64) {
+    fn draw(&mut self, r: &Renderer, store: &ConfigStore, events: &EventSchedule, elapsed: f64, demo: &crate::events::DemoMap) {
         let c = &store.config;
         let px = c.pixel_size.max(1) as u32;
         let (cw, ch) = (self.size.0.div_ceil(px), self.size.1.div_ceil(px));
@@ -263,7 +262,6 @@ impl Screen {
         };
         let cells = self.cells.as_ref().unwrap();
         let baked = self.baked.as_ref().unwrap();
-        let demo = HashMap::new();
         let mut enc = r.device.create_command_encoder(&Default::default());
         let progress = self.fade.as_ref().and_then(|f| f.progress(elapsed));
         match (progress, &mut self.fade) {
@@ -420,6 +418,8 @@ pub fn run() -> Result<(), String> {
     let mut paused = false;
     let mut next = Instant::now();
     let mut last_config_check = Instant::now();
+    let mut demos = crate::demo::DemoWatcher::default();
+    crate::demo::record_wallpaper_clock(r.elapsed());
     // the display link never ticks faster than its display on the Mac; with Mailbox nothing
     // here holds frames back, so the fastest display's refresh rate caps the frame rate
     let mut fastest_display = display_rates().into_iter().max().unwrap_or(60);
@@ -517,6 +517,9 @@ pub fn run() -> Result<(), String> {
             if power_saving() {
                 fps = fps.min(12);
             }
+            // Show Me in the Customize window: a stat of demo.json a frame is cheap next to a frame
+            demos.poll();
+            let demo = demos.demo(r.elapsed());
             let interval = Duration::from_secs_f64(1.0 / fps as f64);
             next += interval;
             if next < now {
@@ -525,7 +528,7 @@ pub fn run() -> Result<(), String> {
             if !paused && !fullscreen_app_covers() && store.config.scene.is_ported() {
                 let elapsed = r.elapsed();
                 for s in &mut screens {
-                    s.draw(&r, &store, &events, elapsed);
+                    s.draw(&r, &store, &events, elapsed, &demo);
                 }
             } else if paused && !fullscreen_app_covers() && store.config.scene.is_ported() {
                 // Paused partway through a transition: end on the new look. Covered by a full
@@ -533,7 +536,7 @@ pub fn run() -> Result<(), String> {
                 let elapsed = r.elapsed();
                 for s in &mut screens {
                     if s.end_fade() {
-                        s.draw(&r, &store, &events, elapsed);
+                        s.draw(&r, &store, &events, elapsed, &demo);
                     }
                 }
             }
@@ -590,4 +593,9 @@ fn schedule_changed(old: &WallpaperSchedule, schedules: &ScheduleStore, state: &
     if schedules.schedule.enabled && !old.enabled {
         state.last_slot = None;
     }
+}
+
+/// Each monitor's width over its height, for whether a sky event would show on any of them.
+pub fn monitor_aspects() -> Vec<f64> {
+    monitors().iter().map(|m| (m.right - m.left) as f64 / ((m.bottom - m.top).max(1)) as f64).collect()
 }

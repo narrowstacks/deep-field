@@ -743,26 +743,42 @@ fn color_rows(s: &mut Settings, c: &WallpaperConfig, w: &mut Window, cx: &mut Co
 /// The scene's own occasional events. The Mac's Show Me buttons start an event in the running
 /// wallpaper, which the Windows wallpaper can't be asked to do yet, so only the frequencies show.
 fn events_group(s: &mut Settings, c: &WallpaperConfig, cx: &mut Context<Settings>) -> Option<Group> {
+    use deepfield::events::*;
     use SceneKind::*;
     let g = Group::titled("Events");
+    let cycle = "The merger ends every cycle; set how often with Cycle length.";
     Some(match c.scene {
-        Comet => g.row(freq!(s, cx, "Outbursts and tail breaks", comet_events)),
-        StellarSurface => g.row(freq!(s, cx, "Flares and eruptions", star_flares)),
-        GasGiant => g.row(freq!(s, cx, "Comet impacts", gas_events)),
-        ProtoplanetaryDisk => g.row(freq!(s, cx, "Accretion outbursts", proto_events)),
-        DysonSwarm => g.row(freq!(s, cx, "Reorientation waves", dyson_events)),
+        Comet => g.row(freq!(s, cx, "Outbursts and tail breaks", comet_events))
+            .row(s.demo_grid(&[("Outburst", COMET_OUTBURST), ("Tail Disconnection", TAIL_DISCONNECT)], cx)),
+        StellarSurface => g.row(freq!(s, cx, "Flares and eruptions", star_flares)).row(s.demo_grid(&[
+            ("Flare", STELLAR_FLARE), ("Surge", SURGE), ("Prominence Eruption", PROMINENCE_ERUPTION),
+            ("Coronal Mass Ejection", CORONAL_EJECTION),
+        ], cx)),
+        GasGiant => g.row(freq!(s, cx, "Comet impacts", gas_events)).row(s.demo_grid(&[("Comet Impact", COMET_IMPACT)], cx)),
+        ProtoplanetaryDisk => g.row(freq!(s, cx, "Accretion outbursts", proto_events))
+            .row(s.demo_grid(&[("Outburst", ACCRETION_OUTBURST)], cx)),
+        BlackHoleMerger => g.row(s.demo_grid(&[("Merger", BLACK_HOLE_MERGER)], cx)).footer(cycle),
+        NeutronMerger => g.row(s.demo_grid(&[("Merger", NEUTRON_MERGER)], cx)).footer(cycle),
+        DysonSwarm => g.row(freq!(s, cx, "Reorientation waves", dyson_events))
+            .row(s.demo_grid(&[("Reorientation Wave", SWARM_WAVE)], cx)),
         RoguePlanet => g.row(freq!(s, cx, "Star glints", rogue_events,
-            "A bright star passing behind the planet, its light bent round the limb by the thin atmosphere")),
-        Eclipse => g.row(freq!(s, cx, "Eruptions", eclipse_events)).footer(if c.eclipse_motion == EclipseMotion::Cycle {
-            "Eruptions wait for totality, when the corona is out."
-        } else {
-            "Held at totality, eruptions come every few minutes, with small jets in between."
-        }),
-        AuroraOrbit => g.row(freq!(s, cx, "Substorms", aurora_events)),
-        RingedPlanet => g.row(freq!(s, cx, "Great white storms", ringed_events)),
-        PlanetaryNebula => g.row(freq!(s, cx, "Shell ejections", planetary_events)),
-        Quasar => g.row(freq!(s, cx, "Flares", quasar_events)),
-        Wormhole => g.row(freq!(s, cx, "Wormhole events", wormhole_events)),
+            "A bright star passing behind the planet, its light bent round the limb by the thin atmosphere"))
+            .row(s.demo_grid(&[("Star Glint", STAR_GLINT)], cx)),
+        Eclipse => g.row(freq!(s, cx, "Eruptions", eclipse_events)).row(s.demo_grid(&[("Eruption", ECLIPSE_ERUPTION)], cx))
+            .footer(if c.eclipse_motion == EclipseMotion::Cycle {
+                "Eruptions wait for totality, when the corona is out."
+            } else {
+                "Held at totality, eruptions come every few minutes, with small jets in between."
+            }),
+        AuroraOrbit => g.row(freq!(s, cx, "Substorms", aurora_events)).row(s.demo_grid(&[("Substorm", SUBSTORM)], cx)),
+        RingedPlanet => g.row(freq!(s, cx, "Great white storms", ringed_events))
+            .row(s.demo_grid(&[("White Storm", WHITE_STORM)], cx)),
+        PlanetaryNebula => g.row(freq!(s, cx, "Shell ejections", planetary_events))
+            .row(s.demo_grid(&[("Shell Ejection", SHELL_EJECTION)], cx)),
+        Quasar => g.row(freq!(s, cx, "Flares", quasar_events)).row(s.demo_grid(&[("Flare", QUASAR_FLARE)], cx)),
+        Wormhole => g.row(freq!(s, cx, "Wormhole events", wormhole_events)).row(s.demo_grid(&[
+            ("Infall", INFALL), ("Emergence", EMERGENCE), ("Rim Flare", THROAT_FLARE), ("Far-Side Supernova", FAR_SUPERNOVA),
+        ], cx)),
         _ => return None,
     })
 }
@@ -834,8 +850,9 @@ pub fn sky_tab(s: &mut Settings, w: &mut Window, cx: &mut Context<Settings>) -> 
             .help("How fast twinkles come and go, and how fast each one flickers"), w, cx));
     }
     events.push(toggle!(s, cx, "Blinking stars", pulsars, "A few stars blink on a steady beat, like distant pulsars"));
-    events.push(freq!(s, cx, "Supernovae", supernovae));
-    events.push(freq!(s, cx, "Comets", comets));
+    events.push(s.frequency_demo_row("supernovae", "Supernovae", c.supernovae, |c, v| c.supernovae = v,
+                                     deepfield::events::SUPERNOVA, "Supernova", cx));
+    events.push(s.frequency_demo_row("comets", "Comets", c.comets, |c, v| c.comets = v, deepfield::events::COMET, "Comet", cx));
     let events = Group::titled("Events").rows(events).footer(
         "At Normal, a supernova goes off about every 6 minutes and a comet passes about every 9. Each plays out over two to three minutes.",
     );
