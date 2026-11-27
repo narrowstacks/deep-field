@@ -21,6 +21,7 @@ pub mod renderer;
 pub mod scene_params;
 pub mod scenes;
 pub mod shader;
+pub mod sky_cover;
 pub mod sky_planets;
 pub mod star_system;
 pub mod tray;
@@ -32,7 +33,7 @@ Deep Field for Windows
   deepfield                      start the live wallpaper (tray icon to change scenes or quit)
   deepfield --snapshot OUT.png   render one frame to a PNG
       [--scene KIND] [--size WxH] [--time SECONDS] [--defaults | --config FILE]
-      [--no-events] [--demo ID:START]
+      [--no-events] [--demo NAME:START,...]
       [--live-earth-cache]       Live Earth: the last fetched clouds and aurora, not the bundled ones
       [--earth-timelapse N]      Live Earth: its clock runs N times as fast from its moment
   deepfield --fetch-live-earth   fetch Live Earth's cloud map and aurora forecast into the cache

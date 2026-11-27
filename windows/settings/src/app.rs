@@ -90,6 +90,8 @@ pub struct Settings {
     pub planets_collapsed: bool,
     pub camera_collapsed: bool,
     pub login_item: bool,
+    /// each display's refresh rate, for the frame rates offered
+    pub display_rates: Vec<i64>,
     pub confirm_reset_until: Option<Instant>,
     status: Option<(String, Instant)>,
     focus: FocusHandle,
@@ -137,6 +139,7 @@ impl Settings {
             planets_collapsed: false,
             camera_collapsed: false,
             login_item: system::login_item().is_some(),
+            display_rates: deepfield::wallpaper::display_rates(),
             confirm_reset_until: None,
             status: None,
         }
@@ -370,7 +373,7 @@ impl Settings {
     /// pixel per point, so shown 1:1 it has the wallpaper's dither look.
     fn thumb_config(&self, kind: SceneKind) -> WallpaperConfig {
         let mut c = self.store.config.clone();
-        c.scene = kind;
+        c.set_scene(kind);
         c.phone_framing = None;
         c.pixel_size = 1;
         c.fps = 24;

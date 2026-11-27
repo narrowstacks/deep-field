@@ -16,6 +16,8 @@ struct Opts {
     time: f64,
     config: Option<String>,
     events: bool,
+    /// every `--demo` given, checked against the scene once the config is known
+    demo_specs: Vec<String>,
     demo: HashMap<u64, f64>,
     frames: u32,
     /// Live Earth renders read the last fetched cloud and aurora maps instead of the bundled ones.
@@ -28,7 +30,7 @@ struct Opts {
 fn parse(args: &[String]) -> Result<Opts, String> {
     let mut o = Opts {
         snapshot: None, benchmark: false, scene: None, size: (1720, 720), time: 300.0,
-        config: None, events: true, demo: HashMap::new(), frames: 120,
+        config: None, events: true, demo_specs: vec![], demo: HashMap::new(), frames: 120,
         live_earth_cache: false, prefetch_history: None, fetch_live_earth: false,
     };
     let mut it = args.iter();
@@ -56,32 +58,33 @@ fn parse(args: &[String]) -> Result<Opts, String> {
             "--fetch-live-earth" => o.fetch_live_earth = true,
             "--prefetch-history" => o.prefetch_history = Some(val("--prefetch-history")?.parse().map_err(|_| "bad --prefetch-history")?),
             "--earth-timelapse" => crate::scenes::live_earth::set_time_lapse(val("--earth-timelapse")?.parse().map_err(|_| "bad --earth-timelapse")?),
-            "--demo" => {
-                let s = val("--demo")?;
-                let (id, start) = s.split_once(':').ok_or("usage: --demo ID:START")?;
-                o.demo.insert(id.parse().map_err(|_| "bad --demo id")?, start.parse().map_err(|_| "bad --demo start")?);
-            }
+            "--demo" => o.demo_specs.push(val("--demo")?),
             other => return Err(format!("usage: unknown option {other}")),
         }
     }
     Ok(o)
 }
 
-fn config(o: &Opts) -> Result<WallpaperConfig, String> {
+/// The config to render, and in `o.demo` the events started with `--demo` (checked against the
+/// scene, so they wait until every option that can change it is in).
+fn config(o: &mut Opts) -> Result<WallpaperConfig, String> {
     let mut c = match &o.config {
         Some(path) => {
             let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
-            serde_json::from_str(&text).map_err(|e| format!("{path}: {e}"))?
+            // leniently, as the app loads its settings, so a config from another version reads
+            WallpaperConfig::decode(&text).ok_or(format!("{path}: not a Deep Field config"))?
         }
         None => WallpaperConfig::default(),
     };
     if let Some(s) = o.scene {
-        c.scene = s;
+        // as the Mac's `c.scene = ...` does, bringing in the scene's own tilt and image settings
+        c.set_scene(s);
     }
     if !c.scene.is_ported() {
         // still rendered, so a scene can be checked while it's being ported
         eprintln!("deepfield: note: the {} scene isn't marked as ported yet", c.scene.raw());
     }
+    o.demo = crate::events::demo_events(&o.demo_specs, c.scene)?;
     Ok(c)
 }
 
@@ -102,11 +105,11 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
         }
         return Ok(());
     }
-    let o = parse(args)?;
+    let mut o = parse(args)?;
     if o.fetch_live_earth {
         return if crate::live_earth_feeds::fetch_now() { Ok(()) } else { Err("a Live Earth feed failed".into()) };
     }
-    let c = config(&o)?;
+    let c = config(&mut o)?;
     if let Some(span) = o.prefetch_history {
         // fetch a span's real clouds (from the config's frozen moment) before rendering it
         let start = crate::scenes::live_earth::date(&c, 0.0);

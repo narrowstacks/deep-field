@@ -213,7 +213,8 @@ pub fn resetting_scene(c: &WallpaperConfig, kind: SceneKind) -> WallpaperConfig 
     let mut dict = json(c);
     let defaults = json(&WallpaperConfig::default());
     for (k, v) in &defaults {
-        if owns(kind, k) {
+        // `tilt` is the active scene's; another scene's is parked
+        if owns(kind, k) && (k != "tilt" || kind == c.scene) {
             dict.insert(k.clone(), v.clone());
         }
     }
@@ -229,7 +230,12 @@ pub fn resetting_scene(c: &WallpaperConfig, kind: SceneKind) -> WallpaperConfig 
             dict.insert("palette".into(), Value::Object(p));
         }
     }
-    serde_json::from_value(Value::Object(dict)).unwrap_or_else(|_| c.clone())
+    let Ok(mut out) = serde_json::from_value::<WallpaperConfig>(Value::Object(dict)) else { return c.clone() };
+    if kind.has_tilt() && kind != c.scene {
+        out.scene_tilt.insert(kind.raw().to_string(), deepfield::config::DEFAULT_TILT);
+        out.normalize_tilts();
+    }
+    out
 }
 
 pub fn is_customized(c: &WallpaperConfig, kind: SceneKind) -> bool {
@@ -599,5 +605,25 @@ mod tests {
         let r = resetting_scene(&c, SceneKind::GasGiant);
         assert_eq!(r.gas_wind, 1.0);
         assert_eq!(r.star_density, 2.0);
+    }
+
+    #[test]
+    fn reset_puts_back_each_scenes_own_tilt() {
+        // the slider and the reset agree about which scenes have a tilt
+        for &k in SceneKind::ALL {
+            assert_eq!(k.has_tilt(), owns(k, "tilt"), "{k:?}");
+        }
+        let mut c = WallpaperConfig::default();
+        c.set_scene(SceneKind::Comet);
+        c.tilt = 20.0;
+        c.set_scene(SceneKind::BlackHole);
+        c.tilt = 12.0;
+        // another scene's parked tilt counts as its customization, and resets alone
+        assert!(is_customized(&c, SceneKind::Comet));
+        let r = resetting_scene(&c, SceneKind::Comet);
+        assert_eq!((r.tilt, r.scene_tilt.get("comet")), (12.0, None));
+        // the active scene's
+        let r = resetting_scene(&c, SceneKind::BlackHole);
+        assert_eq!((r.tilt, r.scene_tilt.get("comet")), (DEFAULT_TILT, Some(&20.0)));
     }
 }

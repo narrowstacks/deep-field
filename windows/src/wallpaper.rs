@@ -71,6 +71,39 @@ unsafe extern "system" fn collect_monitor(m: HMONITOR, _: HDC, _: *mut RECT, out
     TRUE
 }
 
+/// Each display's refresh rate in Hz (NSScreen.maximumFramesPerSecond on the Mac). Windows
+/// reports 0 or 1 for a display left at its hardware default; those are left out.
+pub fn display_rates() -> Vec<i64> {
+    let mut rates = Vec::new();
+    for i in 0.. {
+        let mut dd = DISPLAY_DEVICEW { cb: std::mem::size_of::<DISPLAY_DEVICEW>() as u32, ..Default::default() };
+        if !unsafe { EnumDisplayDevicesW(PCWSTR::null(), i, &mut dd, 0) }.as_bool() {
+            break;
+        }
+        if dd.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP == 0 {
+            continue;
+        }
+        let mut dm = DEVMODEW { dmSize: std::mem::size_of::<DEVMODEW>() as u16, ..Default::default() };
+        if unsafe { EnumDisplaySettingsW(PCWSTR(dd.DeviceName.as_ptr()), ENUM_CURRENT_SETTINGS, &mut dm) }.as_bool()
+            && dm.dmDisplayFrequency > 1
+        {
+            rates.push(dm.dmDisplayFrequency as i64);
+        }
+    }
+    rates
+}
+
+/// The frame rates Customize offers (FrameRate.choices): the usual ones, each display's refresh
+/// rate, and the saved rate whatever set it, so the picker always has it to show.
+pub fn frame_rate_choices(displays: &[i64], current: i64) -> Vec<i64> {
+    let mut v: Vec<i64> = crate::config::STANDARD_FPS.to_vec();
+    v.extend(displays.iter().copied().filter(|r| (1..=crate::config::FPS_LIMIT).contains(r)));
+    v.push(current);
+    v.sort();
+    v.dedup();
+    v
+}
+
 /// Every monitor's rectangle in virtual-screen pixels.
 fn monitors() -> Vec<RECT> {
     let mut rects: Vec<RECT> = Vec::new();
@@ -279,6 +312,9 @@ pub fn run() -> Result<(), String> {
     let mut paused = false;
     let mut next = Instant::now();
     let mut last_config_check = Instant::now();
+    // the display link never ticks faster than its display on the Mac; with Mailbox nothing
+    // here holds frames back, so the fastest display's refresh rate caps the frame rate
+    let mut fastest_display = display_rates().into_iter().max().unwrap_or(60);
 
     'run: loop {
         unsafe {
@@ -290,6 +326,7 @@ pub fn run() -> Result<(), String> {
                 if msg.message == WM_DEEPFIELD_REBUILD {
                     screens.clear();
                     screens = build_screens(&r);
+                    fastest_display = display_rates().into_iter().max().unwrap_or(60);
                     continue;
                 }
                 let _ = TranslateMessage(&msg);
@@ -322,7 +359,7 @@ pub fn run() -> Result<(), String> {
 
         let now = Instant::now();
         if now >= next {
-            let mut fps = store.config.fps.clamp(1, 60) as u32;
+            let mut fps = store.config.fps.clamp(1, fastest_display.max(1)) as u32;
             if power_saving() {
                 fps = fps.min(12);
             }

@@ -36,7 +36,7 @@ fn world_base(w: EclipseWorld) -> [f32; 3] {
     }
 }
 
-fn body_shader_index(b: EclipseSkyBody) -> f32 {
+pub fn body_shader_index(b: EclipseSkyBody) -> f32 {
     match b {
         EclipseSkyBody::TealGiant => 0.0,
         EclipseSkyBody::BandedGiant => 1.0,

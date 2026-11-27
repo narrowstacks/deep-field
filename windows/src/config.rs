@@ -114,8 +114,29 @@ impl SceneKind {
         }
     }
 
-    pub fn shares_settings(self) -> bool {
-        !matches!(self, SceneKind::Quasar | SceneKind::Galaxy)
+    /// Draws the real sky, from a camera held over a place on Earth, so the Sky section, the
+    /// shared sky events and the camera tilt have nothing to act on.
+    pub fn draws_real_sky(self) -> bool {
+        self == SceneKind::LiveEarth
+    }
+
+    /// Scenes with a Tilt slider, which keep their own tilt. The galaxy, tidal disruption and
+    /// quasar have viewing angles instead.
+    pub fn has_tilt(self) -> bool {
+        !self.draws_real_sky() && !matches!(self, SceneKind::Galaxy | SceneKind::TidalDisruption | SceneKind::Quasar)
+    }
+
+    /// The settings a per-scene reset puts back for other scenes too, for its help.
+    pub fn shared_note(self) -> Option<&'static str> {
+        use SceneKind::*;
+        Some(match self {
+            BlackHole => "Planets are shared with Wormhole, Binary Stars and Trinary Stars, disk colors and speed with Star Meets Black Hole, and the photon ring with Wormhole and Star Meets Black Hole. They reset there too.",
+            TidalDisruption => "Disk colors and speed and the photon ring's color are shared with Black Hole, and that color with Wormhole. They reset there too.",
+            Wormhole => "Planets are shared with Black Hole, Binary Stars and Trinary Stars, and the rim's glow and color are the photon ring's in Black Hole and Star Meets Black Hole. They reset there too.",
+            Binary => "Planets are shared with Black Hole, Wormhole and Trinary Stars, and the separation and orbit period with Trinary Stars. They reset there too.",
+            Trinary => "Planets are shared with Black Hole, Wormhole and Binary Stars, and the separation and orbit period with Binary Stars. They reset there too.",
+            _ => return None,
+        })
     }
 
     /// Scenes that show the orbiting planets.
@@ -418,6 +439,30 @@ impl ImageSettings {
             pixel_size: c.pixel_size, levels: c.levels, dither: c.dither,
         }
     }
+
+    /// Clamped the way the active scene's image settings are.
+    pub fn sanitized(&self) -> ImageSettings {
+        let mut c = WallpaperConfig::default();
+        c.set_image(*self);
+        ImageSettings::of(&c.sanitized())
+    }
+}
+
+pub const DEFAULT_TILT: f64 = 6.3;
+/// Above the refresh rate of any display (FrameRate.swift); the wallpaper never draws faster
+/// than its display, so a higher rate runs at the display's maximum.
+pub const FPS_LIMIT: i64 = 1000;
+pub const STANDARD_FPS: [i64; 4] = [12, 24, 30, 60];
+pub const PIXEL_SIZES: [i64; 6] = [1, 2, 3, 4, 6, 8];
+
+/// Wrapped, because going around keeps the same place (200 is -160) and clamping would move it.
+/// Adding 0 turns -0 into 0. Matches Swift's `remainder(dividingBy:)`, which rounds to nearest.
+pub fn kept_longitude(x: f64) -> f64 {
+    if x.abs() <= 180.0 {
+        x
+    } else {
+        x - 360.0 * (x / 360.0).round_ties_even() + 0.0
+    }
 }
 
 /// Declares the config struct and its Default from one list, so each default is written once.
@@ -467,8 +512,15 @@ config_struct! {
     lock_screen_smooth: bool = false,
 
     // Camera
-    /// degrees above the disk / orbital plane
-    tilt: f64 = 6.3,
+    /// The active scene's, in degrees above the disk / orbital plane. A scene that doesn't use it
+    /// holds `shared_tilt` here.
+    tilt: f64 = DEFAULT_TILT,
+    /// Tilts of the other scenes, by scene raw value, where they differ from `shared_tilt`. The
+    /// active scene's is only ever in `tilt`, so there's no second copy to go stale.
+    scene_tilt: BTreeMap<String, f64> = BTreeMap::new(),
+    /// The tilt of every scene without one in `scene_tilt`. A save without this key is from when
+    /// all scenes shared `tilt`, and loads with it as this.
+    shared_tilt: f64 = DEFAULT_TILT,
     #[serde(skip_serializing_if = "Option::is_none")]
     phone_framing: Option<PhoneFraming> = None,
 
@@ -815,12 +867,35 @@ pub const BLOOM_RANGE: (f64, f64) = (0.0, 3.0);
 pub const BLOOM_RADIUS_RANGE: (f64, f64) = (0.005, 0.12);
 
 impl WallpaperConfig {
-    /// Camera elevation for the current scene; the galaxy and tidal disruption have their own.
+    /// Camera elevation for the current scene; the galaxy and tidal disruption have their own, and
+    /// scenes that don't offer a tilt stay at the default.
     pub fn camera_tilt(&self) -> f64 {
         match self.scene {
             SceneKind::Galaxy => self.galaxy_view,
             SceneKind::TidalDisruption => self.tde_view,
-            _ => self.tilt,
+            s if s.has_tilt() => self.tilt,
+            _ => DEFAULT_TILT,
+        }
+    }
+
+    /// Called as `scene` changes: keeps the old scene's tilt, then brings in the new scene's.
+    fn swap_tilt(&mut self, old: SceneKind) {
+        if old.has_tilt() {
+            self.scene_tilt.insert(old.raw().to_string(), self.tilt);
+        }
+        self.tilt = self.scene_tilt.get(self.scene.raw()).copied().unwrap_or(self.shared_tilt);
+        self.normalize_tilts();
+    }
+
+    /// Drops parked tilts that mean nothing, so configs with the same tilts compare equal. Tilts
+    /// of scenes this build doesn't know stay, for the version that does.
+    pub fn normalize_tilts(&mut self) {
+        let (shared, scene) = (self.shared_tilt, self.scene.raw());
+        self.scene_tilt.retain(|name, v| {
+            *v != shared && name != scene && SceneKind::from_raw(name).map_or(true, |k| k.has_tilt())
+        });
+        if !self.scene.has_tilt() {
+            self.tilt = self.shared_tilt;
         }
     }
 
@@ -865,13 +940,19 @@ impl WallpaperConfig {
     }
 
     /// Switches scenes the way the Swift `scene` didSet does: the old scene's own image settings
-    /// are put back where they belong, then the new scene's come in.
+    /// and tilt are put back where they belong, then the new scene's come in.
     pub fn set_scene(&mut self, scene: SceneKind) {
         let old = self.scene;
         if scene == old {
             return;
         }
         self.scene = scene;
+        self.swap_image(old);
+        self.swap_tilt(old);
+    }
+
+    fn swap_image(&mut self, old: SceneKind) {
+        let scene = self.scene;
         let shared = if self.has_own_image(old) {
             let img = self.image();
             self.scene_image.insert(old.raw().to_string(), img);
@@ -898,6 +979,24 @@ impl WallpaperConfig {
         let Value::Object(mut saved) = saved else { return None };
         let Value::Object(defaults) = serde_json::to_value(WallpaperConfig::default()).ok()? else { return None };
         migrate_tuned_colors(&mut saved);
+        // from before scenes had their own tilts, when this was every scene's
+        if !saved.get("sharedTilt").is_some_and(Value::is_number) {
+            if let Some(t) = saved.get("tilt").cloned() {
+                saved.insert("sharedTilt".into(), t);
+            }
+        }
+        let saved_scene = saved.get("scene").and_then(Value::as_str).map(str::to_string);
+        // a scene this build doesn't know loads as the default one, which has a tilt of its own
+        let loaded = |c: WallpaperConfig| -> WallpaperConfig {
+            let mut c = c;
+            if let Some(name) = &saved_scene {
+                if name != c.scene.raw() {
+                    c.scene_tilt.insert(name.clone(), c.tilt);
+                    c.tilt = c.scene_tilt.get(c.scene.raw()).copied().unwrap_or(c.shared_tilt);
+                }
+            }
+            c.sanitized()
+        };
         fn merging(key: &str, value: &Value, dict: &mut Map<String, Value>) {
             if let (Value::Object(nested), Some(Value::Object(base))) = (value, dict.get_mut(key)) {
                 for (k, v) in nested {
@@ -915,7 +1014,7 @@ impl WallpaperConfig {
             merging(k, v, &mut merged);
         }
         if let Some(c) = decoded(&merged) {
-            return Some(c.sanitized());
+            return Some(loaded(c));
         }
         // something in there is bad: keep each key only if the config still decodes with it
         merged = defaults;
@@ -928,7 +1027,7 @@ impl WallpaperConfig {
                 merged = trial;
             }
         }
-        decoded(&merged).map(|c| c.sanitized())
+        decoded(&merged).map(loaded)
     }
 
     /// Clamps values the renderer would choke on (zero periods, missing stars, a zero pixel size).
@@ -945,7 +1044,7 @@ impl WallpaperConfig {
         }
         c.pixel_size = c.pixel_size.clamp(1, 16);
         c.levels = c.levels.clamp(2, 256);
-        c.fps = c.fps.clamp(1, 120);
+        c.fps = c.fps.clamp(1, FPS_LIMIT);
         c.planet_count = c.planet_count.clamp(0, 6);
         c.ringed_moon_count = c.ringed_moon_count.clamp(0, 3);
         c.proto_gaps = c.proto_gaps.clamp(1, 7);
@@ -977,7 +1076,8 @@ impl WallpaperConfig {
         clamp(&mut c.star_center_x, d.star_center_x, -1.0, 1.0);
         clamp(&mut c.star_limb_y, d.star_limb_y, -0.9, 1.0);
         clamp(&mut c.home_latitude, d.home_latitude, -90.0, 90.0);
-        clamp(&mut c.home_longitude, d.home_longitude, -180.0, 180.0);
+        c.home_longitude = kept_longitude(c.home_longitude);
+        clamp(&mut c.home_longitude, d.home_longitude, -180.0, 180.0); // only NaN is left
         clamp(&mut c.earth_distance, d.earth_distance, 1.3, 20.0);
         clamp(&mut c.brightness, d.brightness, EXPOSURE_RANGE.0, EXPOSURE_RANGE.1);
         clamp(&mut c.contrast, d.contrast, CONTRAST_RANGE.0, CONTRAST_RANGE.1);
@@ -987,6 +1087,12 @@ impl WallpaperConfig {
         clamp(&mut c.bloom, d.bloom, BLOOM_RANGE.0, BLOOM_RANGE.1);
         clamp(&mut c.bloom_radius, d.bloom_radius, BLOOM_RADIUS_RANGE.0, BLOOM_RADIUS_RANGE.1);
         clamp(&mut c.bloom_threshold, d.bloom_threshold, 0.0, 1.0);
+        // the parked image settings become the flat ones on a scene switch, so they need it too
+        for v in c.scene_image.values_mut() {
+            *v = v.sanitized();
+        }
+        c.shared_image = c.shared_image.map(|v| v.sanitized());
+        c.normalize_tilts();
         c
     }
 
@@ -1066,6 +1172,158 @@ mod tests {
         assert_eq!(c.palette.ring, rgb(1.0, 0.0, 0.0));
         assert_eq!(c.palette.receding, PaletteConfig::gargantua().receding);
         assert_eq!(c.levels, 5);
+    }
+
+    #[test]
+    fn tilt_check() {
+        // after TiltCheck.swift: each scene keeps its own tilt, through scene switches and saves
+        let all = SceneKind::ALL;
+        let tilted: Vec<SceneKind> = all.iter().copied().filter(|k| k.has_tilt()).collect();
+        let shown = |c: &WallpaperConfig, k: SceneKind| { let mut c = c.clone(); c.set_scene(k); c.camera_tilt() };
+        let shown_all = |c: &WallpaperConfig| all.iter().map(|&k| shown(c, k)).collect::<Vec<_>>();
+        let distinct = |c: &WallpaperConfig, active: SceneKind| {
+            let mut c = c.clone();
+            for (i, &k) in tilted.iter().enumerate() {
+                c.set_scene(k);
+                c.tilt = 2.0 + i as f64;
+            }
+            c.set_scene(active);
+            c
+        };
+        let saved = |c: &WallpaperConfig| WallpaperConfig::decode(&serde_json::to_string(c).unwrap()).unwrap();
+        let old_save = |scene: SceneKind, tilt: f64| {
+            let Value::Object(mut d) = serde_json::to_value(WallpaperConfig::default()).unwrap() else { unreachable!() };
+            d.remove("sceneTilt");
+            d.remove("sharedTilt");
+            d.insert("scene".into(), scene.raw().into());
+            d.insert("tilt".into(), tilt.into());
+            d
+        };
+        let load = |d: &Map<String, Value>| WallpaperConfig::decode(&Value::Object(d.clone()).to_string()).unwrap();
+        let d = WallpaperConfig::default();
+
+        // scenes without a tilt draw the same whatever is set, even set directly
+        for &k in all.iter().filter(|k| !k.has_tilt()) {
+            let (mut c, mut t) = (d.clone(), d.clone());
+            c.set_scene(k);
+            t.set_scene(k);
+            t.tilt = 20.0;
+            assert_eq!(t.bake_key(), c.bake_key(), "a tilt moved {k:?}");
+        }
+        // a tilt is its scene's only, and comes back with it by any order of visits
+        for &k in &tilted {
+            for &start in all {
+                let mut c = distinct(&d, start);
+                let mut want = shown_all(&c);
+                c.set_scene(k);
+                c.tilt = 24.5;
+                want[all.iter().position(|&x| x == k).unwrap()] = 24.5;
+                assert_eq!(shown_all(&c), want, "tilting {k:?} from {start:?} changed another scene");
+            }
+        }
+        for &start in all {
+            for c in [d.clone(), distinct(&d, start)] {
+                let mut v = c.clone();
+                v.set_scene(start);
+                let home = v.clone();
+                for &k in all.iter().chain(all.iter().rev()) {
+                    v.set_scene(k);
+                }
+                v.set_scene(start);
+                assert_eq!(v, home, "visiting every scene and coming back to {start:?} changed the settings");
+            }
+        }
+        // setting a tilt back leaves nothing behind that makes equal settings unequal
+        let mut there = d.clone();
+        there.set_scene(SceneKind::Comet);
+        there.tilt = 20.0;
+        there.set_scene(SceneKind::Eclipse);
+        there.set_scene(SceneKind::Comet);
+        there.tilt = DEFAULT_TILT;
+        there.set_scene(d.scene);
+        assert_eq!(there, d, "a tilt set and put back still reads as a change");
+        // upgrade: one shared tilt becomes every scene's, whichever scene is active
+        for &active in all {
+            for tilt in [DEFAULT_TILT, 20.0, 1.0 / 3.0, 40.0] {
+                let c = load(&old_save(active, tilt));
+                for &k in all {
+                    let mut old = d.clone();
+                    old.set_scene(k);
+                    let want = if k.has_tilt() { tilt } else { old.camera_tilt() };
+                    assert_eq!(shown(&c, k), want, "old save on {active:?} at {tilt}: {k:?}");
+                }
+                assert!(c.scene == active && c.tilt == tilt, "old save on {active:?} at {tilt}: an older version would lose it");
+                let mut again = c.clone();
+                for _ in 0..3 {
+                    again = saved(&again);
+                    assert_eq!(again, c, "old save on {active:?} at {tilt}: saving and loading changed it");
+                }
+                again.set_scene(SceneKind::Comet);
+                again.tilt = 11.0;
+                again = saved(&again);
+                assert!(tilted.iter().all(|&k| shown(&again, k) == if k == SceneKind::Comet { 11.0 } else { tilt }));
+            }
+        }
+        let partial = WallpaperConfig::decode(r#"{"tilt": 20}"#).unwrap();
+        assert!(tilted.iter().all(|&k| shown(&partial, k) == 20.0), "a file with only a tilt");
+        assert_eq!(WallpaperConfig::decode("{}").unwrap(), d, "an empty save");
+        for &active in all {
+            let c = distinct(&load(&old_save(SceneKind::Galaxy, 20.0)), active);
+            assert!(saved(&c) == c && shown_all(&saved(&c)) == shown_all(&c), "{active:?}: tilts didn't round trip");
+        }
+        // damaged and hand-edited saves
+        let Value::Object(mut stale) = serde_json::to_value(&there).unwrap() else { unreachable!() };
+        stale.insert("sceneTilt".into(), serde_json::json!({"blackHole": 9, "quasar": 20, "eclipse": DEFAULT_TILT}));
+        assert_eq!(load(&stale), d, "meaningless parked tilts made equal settings unequal");
+        let mut bad = old_save(SceneKind::Comet, 20.0);
+        bad.insert("sharedTilt".into(), "high".into());
+        bad.insert("sceneTilt".into(), 3.into());
+        let c = load(&bad);
+        assert!(tilted.iter().all(|&k| shown(&c, k) == 20.0), "damaged tilts lost the one that loads");
+        // a newer version's scene loads as the default scene with that scene's own tilt
+        let before = distinct(&d, SceneKind::Comet);
+        let Value::Object(mut newer) = serde_json::to_value(&before).unwrap() else { unreachable!() };
+        let comet_tilt = newer["tilt"].clone();
+        newer.insert("scene".into(), "aNewerScene".into());
+        newer["sceneTilt"].as_object_mut().unwrap().insert("comet".into(), comet_tilt);
+        newer.insert("tilt".into(), 24.5.into());
+        let c = load(&newer);
+        assert!(shown_all(&c) == shown_all(&before) && c.scene_tilt.get("aNewerScene") == Some(&24.5), "a newer version's scene disturbed the tilts");
+        assert_eq!(saved(&c), c, "a newer version's scene isn't stable");
+    }
+
+    #[test]
+    fn scenes_keep_their_own_tilt() {
+        let mut c = WallpaperConfig::default();
+        c.tilt = 20.0;
+        c.set_scene(SceneKind::GasGiant);
+        assert_eq!(c.tilt, DEFAULT_TILT);
+        c.tilt = 3.0;
+        // the galaxy has no tilt: it holds the shared one, and leaving it parks nothing
+        c.set_scene(SceneKind::Galaxy);
+        assert_eq!(c.tilt, DEFAULT_TILT);
+        c.set_scene(SceneKind::BlackHole);
+        assert_eq!(c.tilt, 20.0);
+        assert_eq!(c.scene_tilt.get("gasGiant"), Some(&3.0));
+        assert!(!c.scene_tilt.contains_key("blackHole") && !c.scene_tilt.contains_key("galaxy"));
+    }
+
+    #[test]
+    fn old_saves_share_their_tilt() {
+        let c = WallpaperConfig::decode(r#"{"scene":"binary","tilt":9}"#).unwrap();
+        assert_eq!((c.tilt, c.shared_tilt), (9.0, 9.0));
+        // an unknown scene loads as the default one, and its tilt is parked for it
+        let c = WallpaperConfig::decode(r#"{"scene":"futureScene","tilt":12,"sharedTilt":5}"#).unwrap();
+        assert_eq!(c.scene, SceneKind::BlackHole);
+        assert_eq!((c.tilt, c.scene_tilt.get("futureScene")), (5.0, Some(&12.0)));
+    }
+
+    #[test]
+    fn longitudes_wrap() {
+        assert_eq!(kept_longitude(200.0), -160.0);
+        assert_eq!(kept_longitude(-190.0), 170.0);
+        assert_eq!(kept_longitude(540.0), -180.0); // a tie rounds to even, as in Swift
+        assert_eq!(kept_longitude(12.5), 12.5);
     }
 
     #[test]

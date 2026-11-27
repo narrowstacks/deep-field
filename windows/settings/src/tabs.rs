@@ -94,10 +94,9 @@ pub fn scene_tab(s: &mut Settings, w: &mut Window, cx: &mut Context<Settings>) -
 
     // the scene itself heads its first group
     let customized = is_customized(&c, scene);
-    let reset_help = if scene.shares_settings() {
-        "Puts this scene's settings and colors back to their defaults. Camera tilt and planets are shared with other scenes and reset for them too."
-    } else {
-        "Puts this scene's settings and colors back to their defaults"
+    let reset_help = match scene.shared_note() {
+        Some(note) => format!("Puts this scene's settings and colors back to their defaults. {note}"),
+        None => "Puts this scene's settings and colors back to their defaults".to_string(),
     };
     let header = div()
         .flex()
@@ -148,12 +147,15 @@ pub fn scene_tab(s: &mut Settings, w: &mut Window, cx: &mut Context<Settings>) -
         }
         groups.push(g.into_element());
     }
-    let collapsed = s.camera_collapsed;
-    let mut cam = Group::new(Some(collapsible("Camera", collapsed, |s| &mut s.camera_collapsed, cx)));
-    if !collapsed {
-        cam = cam.row(camera_row(s, scene, w, cx));
+    // a scene that draws the real sky: its camera only goes where its own place and distance put it
+    if !scene.draws_real_sky() {
+        let collapsed = s.camera_collapsed;
+        let mut cam = Group::new(Some(collapsible("Camera", collapsed, |s| &mut s.camera_collapsed, cx)));
+        if !collapsed {
+            cam = cam.row(camera_row(s, scene, w, cx));
+        }
+        groups.push(cam.into_element());
     }
-    groups.push(cam.into_element());
     groups
 }
 
@@ -792,6 +794,14 @@ fn camera_row(s: &mut Settings, scene: SceneKind, w: &mut Window, cx: &mut Conte
 
 pub fn sky_tab(s: &mut Settings, w: &mut Window, cx: &mut Context<Settings>) -> Rows {
     let c = s.config().clone();
+    if c.scene.draws_real_sky() {
+        let note = format!(
+            "{} draws the real sky, so the shared sky settings and events don't apply to it. Its own Stars and Milky Way are under Scene.",
+            c.scene.title()
+        );
+        let text = div().text_size(px(12.5)).text_color(theme::secondary()).child(note);
+        return vec![Group::new(None).row(text.into_any_element()).into_element()];
+    }
     let mut seed_buttons: Vec<(&'static str, Rc<dyn Fn(&mut Settings, &mut Context<Settings>)>)> = vec![(
         "Randomize",
         Rc::new(|s: &mut Settings, cx: &mut Context<Settings>| {
@@ -898,7 +908,7 @@ pub fn image_tab(s: &mut Settings, w: &mut Window, cx: &mut Context<Settings>) -
     }
     let glow = Group::titled("Glow").rows(glow).footer("Adds a glow around bright light. Off uses no extra power.");
 
-    const SIZES: [i64; 6] = [1, 2, 3, 4, 6, 8];
+    const SIZES: [i64; 6] = PIXEL_SIZES;
     let pixel = s.segmented_row(
         "pixelSize",
         "Pixel size",
@@ -950,16 +960,18 @@ fn set_own_image(c: &mut WallpaperConfig, on: bool) {
 
 pub fn system_tab(s: &mut Settings, _w: &mut Window, cx: &mut Context<Settings>) -> Rows {
     let c = s.config().clone();
-    const RATES: [i64; 4] = [12, 24, 30, 60];
-    let fps = s.segmented_row(
-        "fps",
-        "Frame rate",
-        RATES.iter().map(|n| (format!("{n} fps"), *n == c.fps)).collect(),
-        |c, i| c.fps = RATES[i],
-        cx,
-    );
+    let rates = deepfield::wallpaper::frame_rate_choices(&s.display_rates, c.fps);
+    let items: Vec<(String, bool)> = rates.iter().map(|n| (format!("{n} fps"), *n == c.fps)).collect();
+    let picked = rates.clone();
+    // the row has room for the usual rates' segments and no more
+    let fps = if rates.len() > STANDARD_FPS.len() {
+        let menu = s.menu_button("fps", format!("{} fps", c.fps), items, move |c, i| c.fps = picked[i], cx);
+        row("Frame rate", None, menu)
+    } else {
+        s.segmented_row("fps", "Frame rate", items, move |c, i| c.fps = picked[i], cx)
+    };
     let performance = Group::titled("Performance").row(fps).footer(
-        "Rendering pauses while a full-screen app has the focus. With battery saver on it drops to 12 fps. Larger pixels and lower frame rates use less power.",
+        "Rendering pauses while a full-screen app has the focus. With battery saver on it drops to 12 fps. Higher rates use more power.",
     );
 
     let login = s.login_item;

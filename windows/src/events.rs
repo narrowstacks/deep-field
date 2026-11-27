@@ -14,6 +14,7 @@ use crate::camera::{Camera, SceneGeometry};
 use crate::config::{SceneKind, WallpaperConfig};
 use crate::gpu_types::EventsGpu;
 use crate::math::{mix, normalize, smoothstep, v4w, Rng};
+use crate::sky_cover::{self, OpenSky};
 
 /// Demo starts: event kind id -> start time in seconds (`--demo id:start`, "Show me").
 pub type DemoMap = HashMap<u64, f64>;
@@ -106,7 +107,7 @@ struct PlacementKey {
 
 struct Placement {
     key: PlacementKey,
-    dirs: Vec<DVec3>,
+    dirs: Option<Vec<DVec3>>,
     after: Rng,
 }
 
@@ -119,7 +120,14 @@ pub struct EventSchedule {
     pub demo: DemoMap,
     /// Where the current sky events appear. Finding a spot can take a dozen geodesic traces
     /// around a black hole, but it's fixed for an event's lifetime, so it's worked out once.
-    placements: Mutex<HashMap<u64, Placement>>,
+    placements: Mutex<Placements>,
+}
+
+#[derive(Default)]
+struct Placements {
+    /// The config the entries are for, in scenes where its other settings move what covers the sky.
+    config: Option<WallpaperConfig>,
+    entries: HashMap<u64, Placement>,
 }
 
 impl Clone for EventSchedule {
@@ -142,7 +150,7 @@ impl EventSchedule {
     }
 
     pub fn with_enabled(seed: u64, enabled: bool) -> Self {
-        EventSchedule { seed, enabled, demo: DemoMap::new(), placements: Mutex::new(HashMap::new()) }
+        EventSchedule { seed, enabled, demo: DemoMap::new(), placements: Mutex::new(Placements::default()) }
     }
 
     /// If an event of this kind is running at time t: its age in seconds and a generator for its
@@ -239,22 +247,38 @@ impl EventSchedule {
     }
 
     /// `count` random sky directions for the event whose generator is `rng`, advancing `rng`
-    /// past them exactly as `random_sky` would. Cached per event instance and view.
+    /// past them exactly as `random_sky` would. Where the scene's bodies cover some of the sky,
+    /// they're placed in the rest; None if none is left. Cached per event instance and view.
+    /// `start` is when the event began.
+    #[allow(clippy::too_many_arguments)]
     fn placed(&self, k: Kind, count: usize, rng: &mut Rng, cam: &Camera, c: &WallpaperConfig,
-              u_range: f64, v_range: f64) -> Vec<DVec3> {
+              u_range: f64, v_range: f64, start: f64) -> Option<Vec<DVec3>> {
         let key = PlacementKey {
             rng: rng.state, scene: c.scene, tilt: c.camera_tilt(), throat: c.throat,
             disk_size: c.disk_size, aspect: cam.aspect,
         };
+        let covered = sky_cover::covers(c.scene);
         let mut cache = self.placements.lock().unwrap();
-        if let Some(hit) = cache.get(&k.id) {
-            if hit.key == key {
+        let same_config = cache.config.as_ref() == Some(c);
+        if let Some(hit) = cache.entries.get(&k.id) {
+            if hit.key == key && (!covered || same_config) {
                 *rng = hit.after;
                 return hit.dirs.clone();
             }
         }
-        let dirs: Vec<DVec3> = (0..count).map(|_| Self::random_sky(rng, cam, c, u_range, v_range)).collect();
-        cache.insert(k.id, Placement { key, dirs: dirs.clone(), after: *rng });
+        if covered && !same_config {
+            cache.entries.clear();
+            cache.config = Some(c.clone());
+        }
+        let random = |rng: &mut Rng| -> Vec<DVec3> {
+            (0..count).map(|_| Self::random_sky(rng, cam, c, u_range, v_range)).collect()
+        };
+        let first = random(rng);
+        let dirs = match OpenSky::new(c, cam, start, k.duration) {
+            Some(sky) => sky.place(first, rng, random),
+            None => Some(first),
+        };
+        cache.entries.insert(k.id, Placement { key, dirs: dirs.clone(), after: *rng });
         dirs
     }
 
@@ -271,8 +295,14 @@ impl EventSchedule {
         // radians per pixel
         let pa = 2.0 * cam.tan_half / height_pixels as f64;
 
-        if let Some((age, mut rng)) = self.active(SUPERNOVA, c.supernovae.rate(), t, demo) {
-            let d = self.placed(SUPERNOVA, 1, &mut rng, cam, c, 0.85, 0.8)[0];
+        let placed = |k: Kind, rate: f64, count: usize, u_range: f64, v_range: f64| {
+            let (age, mut rng) = self.active(k, rate, t, demo)?;
+            let dirs = self.placed(k, count, &mut rng, cam, c, u_range, v_range, t - age)?;
+            Some((age, rng, dirs))
+        };
+
+        if let Some((age, _, dirs)) = placed(SUPERNOVA, c.supernovae.rate(), 1, 0.85, 0.8) {
+            let d = dirs[0];
             let fade_out = 1.0 - smoothstep(SUPERNOVA.duration - 30.0, SUPERNOVA.duration, age);
             let rise = smoothstep(0.0, 2.5, age);
             let core = 5.0 * rise * (0.15 + 0.85 * (-age / 18.0).exp()) * fade_out;
@@ -285,8 +315,7 @@ impl EventSchedule {
             ];
         }
 
-        if let Some((age, mut rng)) = self.active(COMET, c.comets.rate(), t, demo) {
-            let ends = self.placed(COMET, 2, &mut rng, cam, c, 0.95, 0.7);
+        if let Some((age, mut rng, ends)) = placed(COMET, c.comets.rate(), 2, 0.95, 0.7) {
             let (a, b) = (ends[0], ends[1]);
             let f = age / COMET.duration;
             let head = normalize(mix(a, b, f));
@@ -439,18 +468,36 @@ impl EventSchedule {
     }
 }
 
-/// Parses `--demo id:start,...` into a demo map; malformed pairs are skipped, as in Swift.
-pub fn parse_demo(spec: &str) -> DemoMap {
-    let mut m = DemoMap::new();
-    for pair in spec.split(',').filter(|s| !s.is_empty()) {
-        let parts: Vec<&str> = pair.split(':').filter(|s| !s.is_empty()).collect();
-        if parts.len() == 2 {
-            if let (Ok(id), Ok(start)) = (parts[0].parse::<u64>(), parts[1].parse::<f64>()) {
-                m.insert(id, start);
+/// Why one of `NAMED` can't appear in `scene`, if it's a shared sky event and the scene draws the
+/// real sky; otherwise None.
+pub fn real_sky_reason(name: &str, own_scene: Option<SceneKind>, scene: SceneKind) -> Option<String> {
+    if own_scene.is_some() || !scene.draws_real_sky() {
+        return None;
+    }
+    Some(format!("{} draws the real sky, so the {name} event can't appear there; switch scenes first (`deepfield --list-scenes` lists them)", scene.title()))
+}
+
+/// Every `--demo` given, each a comma-separated list of NAME:SECONDS (or ID:SECONDS), as event
+/// kind id to start time. An event named more than once starts at the last time given.
+pub fn demo_events(specs: &[String], scene: SceneKind) -> Result<DemoMap, String> {
+    let mut starts = DemoMap::new();
+    for spec in specs {
+        for pair in spec.split(',').filter(|s| !s.is_empty()) {
+            let parts: Vec<&str> = pair.split(':').filter(|s| !s.is_empty()).collect();
+            let found = match parts[..] {
+                [name, start] => start.parse::<f64>().ok().and_then(|s| {
+                    NAMED.iter().find(|e| e.0.eq_ignore_ascii_case(name) || e.1.id.to_string() == name).map(|e| (e, s))
+                }),
+                _ => None,
+            };
+            let Some((e, start)) = found else { return Err("--demo takes NAME:SECONDS, like supernova:300".into()) };
+            if let Some(reason) = real_sky_reason(e.0, e.2, scene) {
+                return Err(reason);
             }
+            starts.insert(e.1.id, start);
         }
     }
-    m
+    Ok(starts)
 }
 
 #[cfg(test)]
@@ -497,9 +544,10 @@ mod tests {
 
     #[test]
     fn demo_parsing() {
-        let m = parse_demo("17:5,bad,1:20.5");
-        assert_eq!(m.get(&17), Some(&5.0));
-        assert_eq!(m.get(&1), Some(&20.5));
-        assert_eq!(m.len(), 2);
+        let specs = vec!["supernova:5,COMET:7".to_string(), "17:5".to_string(), "supernova:20.5".to_string()];
+        let m = demo_events(&specs, SceneKind::BlackHole).unwrap();
+        assert_eq!((m.get(&SUPERNOVA.id), m.get(&COMET.id), m.get(&17)), (Some(&20.5), Some(&7.0), Some(&5.0)));
+        assert!(demo_events(&["bad".to_string()], SceneKind::BlackHole).is_err());
+        assert!(demo_events(&["supernova:5".to_string()], SceneKind::LiveEarth).is_err());
     }
 }

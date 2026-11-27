@@ -37,15 +37,15 @@ impl ConfigStore {
         &self.path
     }
 
+    /// Leniently, as `WallpaperConfig.decode` loads the Mac's: keys missing from older saves take
+    /// their defaults, and one bad value falls back alone instead of resetting everything.
     fn read(path: &PathBuf) -> Option<WallpaperConfig> {
         let text = std::fs::read_to_string(path).ok()?;
-        match serde_json::from_str(&text) {
-            Ok(c) => Some(c),
-            Err(e) => {
-                eprintln!("deepfield: {} is not valid ({e}); using the defaults", path.display());
-                None
-            }
+        let c = WallpaperConfig::decode(&text);
+        if c.is_none() {
+            eprintln!("deepfield: {} is not valid; using the defaults", path.display());
         }
+        c
     }
 
     pub fn save(&mut self) {

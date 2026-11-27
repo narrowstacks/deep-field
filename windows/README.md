@@ -79,7 +79,7 @@ deepfield --check-shaders
 deepfield --quit
 ```
 
-`--snapshot` takes `--config FILE`, `--no-events` and `--demo ID:START` like the macOS dev
+`--snapshot` takes `--config FILE`, `--no-events` and `--demo NAME:START` (repeatable, or comma-separated) like the macOS dev
 command line. Snapshots are deterministic (events use seed 1), so they can be compared with the
 Mac's. `--benchmark` reports GPU time per frame from timestamp queries; keep it under about 2 ms.
 `DEEPFIELD_SHADERS=shaders` loads the WGSL from that folder instead of the copy built in, so
