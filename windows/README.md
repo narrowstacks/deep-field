@@ -4,9 +4,9 @@ A port of Deep Field to Windows 10 and 11: the same scenes, drawn live behind th
 on every monitor. Rust and wgpu (Direct3D 12), with the Metal shaders translated to WGSL.
 
 This is an early port. All 21 listed scenes run, and their snapshots match the macOS reference
-renders in `docs/media/gallery`. Still to come: phone exports, and Live
-Earth following the device's location (it uses the home latitude and longitude from the
-settings).
+renders in `docs/media/gallery`. Still to come: Live Earth following the device's location (it
+uses the home latitude and longitude from the settings), and the Live Photo half of the phone
+export, which needs Apple's frameworks.
 
 Aurora from Orbit and Live Earth read the Earth maps in `Resources\Earth`: from an `Earth`
 folder beside the executable, or, for a build in the repo, found by walking up from it. Live
@@ -44,8 +44,8 @@ saver on.
 ## Customize window
 
 `deepfield-settings.exe` is the Customize window, after the macOS one: a live preview of the
-current look with the scene gallery under it, and Scene, Sky, Image and System sections beside
-it. It's built with [GPUI](https://www.gpui.rs) through
+current look with the scene gallery under it, and Scene, Sky, Image, System, Phone and Schedule
+sections beside it. It's built with [GPUI](https://www.gpui.rs) through
 [gpui-kit](https://github.com/longbridge/gpui-kit), in its own crate so GPUI's dependencies stay
 out of the wallpaper's build:
 
@@ -58,7 +58,7 @@ cargo build --release
 It edits `%APPDATA%\DeepField\config.json` (written whole and renamed into place, so the
 wallpaper never reads half a file), and picks up changes made there by the tray menu or by hand.
 The preview renders with the same library as the wallpaper, on a thread of its own. Only one
-copy runs; opening it again brings the window forward. Ctrl+1 to Ctrl+4 and Ctrl+6 (Schedule) pick a section and
+copy runs; opening it again brings the window forward. Ctrl+1 to Ctrl+6 pick a section and
 Ctrl+[ and Ctrl+] step through the scenes.
 
 The tray menu's Customize item starts `deepfield-settings.exe` from the wallpaper's own folder,
@@ -102,13 +102,20 @@ in `%APPDATA%\DeepField\Lock Screen`, which goes back when the switch is turned 
 chosen in Windows' settings meanwhile is left alone until Set Now. Its status for this window is
 in `lock-screen.json`.
 
-Not there yet: Phone.
+The Phone section recomposes the scene in portrait for an iPhone (each model's screen size, or a
+custom one), with its own zoom and subject height, previewed on the stage with the Lock Screen
+clock over it. Save Still writes the PNG, and Save Loop a 3-second H.264 MP4 whose end dissolves
+into its start (cell by cell along the dither pattern, so every cell keeps a palette color),
+written with Media Foundation and the GPU's video encoder when there is one. The Mac pairs that
+loop with the still as a Live Photo; the HEIC, the QuickTime pairing metadata and Add to Photos
+need Apple's frameworks, so they stay Mac-only.
 
 ## Command line
 
 ```
 deepfield --snapshot out.png --defaults --scene blackHole --size 1720x720 --time 300
 deepfield --benchmark --defaults --scene gasGiant --size 3840x2160
+deepfield --mobile-export outdir --device 17-pro-max --live --defaults --scene comet
 deepfield --list-scenes
 deepfield --check-shaders
 deepfield --quit
@@ -120,6 +127,10 @@ Mac's. `--lock-screen` (or `--lock-screen-smooth`) renders the lock screen still
 set, at `--size`. `--transition-from SCENE:PROGRESS[:STYLE]` renders a frame that far (0 to 1) into a
 schedule transition from SCENE to the configured look (styles: dissolve, crossfade, pan,
 driftAway, warp, blackHole, random; dissolve by default), with seed 1 like the Mac's.
+`--mobile-export OUTDIR` writes the Phone section's still as `<name>.png` (`--device` takes a
+model key or `WIDTHxHEIGHT`; `--smooth`, `--phone-pixel N`, `--zoom`, `--shift` and `--speed` as
+on the Mac); `--live` adds the loop as `<name>.mp4` and `<name> preview.mp4`, the loop three
+times. `cargo test --lib -- --ignored movie` writes a loop and decodes it back to check it.
 `--benchmark` reports GPU time per frame from timestamp queries; keep it under about 2 ms.
 `DEEPFIELD_SHADERS=shaders` loads the WGSL from that folder instead of the copy built in, so
 shader edits show up without a rebuild. `DEEPFIELD_TRACE=1` prints startup progress, and

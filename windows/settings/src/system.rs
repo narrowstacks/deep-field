@@ -173,3 +173,15 @@ pub fn first_weekday() -> i64 {
     let monday_based = if n > 1 { (buf[0] as i64 - '0' as i64).clamp(0, 6) } else { 6 };
     (monday_based + 1) % 7 + 1
 }
+
+/// Today as a phone's Lock Screen writes it above the time, "Thursday, November 26", in the
+/// user's language.
+pub fn lock_screen_date() -> String {
+    use windows::Win32::Globalization::{GetDateFormatEx, ENUM_DATE_FORMATS_FLAGS};
+    let mut buf = [0u16; 80];
+    let format = windows::core::HSTRING::from("dddd, MMMM d");
+    let n = unsafe {
+        GetDateFormatEx(PCWSTR::null(), ENUM_DATE_FORMATS_FLAGS(0), None, &format, Some(&mut buf), PCWSTR::null())
+    };
+    if n > 1 { String::from_utf16_lossy(&buf[..n as usize - 1]) } else { String::new() }
+}

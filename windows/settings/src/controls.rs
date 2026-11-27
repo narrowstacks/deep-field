@@ -72,6 +72,16 @@ impl SliderSpec {
     }
 }
 
+/// A slider's look, for `value_slider_row`.
+pub struct ValueSlider {
+    pub key: &'static str,
+    pub title: &'static str,
+    pub lo: f64,
+    pub hi: f64,
+    pub fmt: Fmt,
+    pub help: Option<&'static str>,
+}
+
 /// `slider!("Disk size", disk_size, 8.0, 18.0, f1)`: a SliderSpec for a config field.
 #[macro_export]
 macro_rules! slider {
@@ -254,6 +264,17 @@ pub struct Swatch {
 impl Settings {
     pub fn slider_row(&mut self, s: SliderSpec, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let value = (s.get)(self.config());
+        let set = s.set;
+        let spec = ValueSlider { key: s.key, title: s.title, lo: s.lo, hi: s.hi, fmt: s.fmt, help: s.help };
+        self.value_slider_row(spec, value, Rc::new(move |this: &mut Settings, v, cx: &mut Context<Settings>| {
+            this.edit(cx, |c| set(c, v));
+        }), window, cx)
+    }
+
+    /// A slider for any number, not only one in the config (the Phone section's framing).
+    pub fn value_slider_row(&mut self, s: ValueSlider, value: f64,
+                            on_change: Rc<dyn Fn(&mut Settings, f64, &mut Context<Settings>)>,
+                            window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let (lo, hi) = (s.lo as f32, s.hi as f32);
         let step = (hi - lo) / 2000.0;
         let existing = self.sliders.get(s.key).filter(|e| {
@@ -270,13 +291,12 @@ impl Settings {
             }
             None => {
                 let e = cx.new(|_| SliderState::new().min(lo).max(hi).step(step).default_value(value as f32));
-                let set = s.set;
                 self.subscriptions.push(cx.subscribe(&e, move |this: &mut Settings, _, ev: &SliderEvent, cx| {
                     // the slider works in f32; four decimals keep the saved file readable
                     let v = match ev {
                         SliderEvent::Change(v) | SliderEvent::Release(v) => (v.start() as f64 * 1e4).round() / 1e4,
                     };
-                    this.edit(cx, |c| set(c, v));
+                    on_change(this, v, cx);
                 }));
                 self.sliders.insert(s.key, e.clone());
                 e

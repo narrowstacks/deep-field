@@ -23,26 +23,29 @@ pub enum Section {
     Sky,
     Image,
     System,
+    Phone,
     Schedule,
 }
 
 impl Section {
-    /// The Mac's order; Phone will go before Schedule, which is Ctrl+6 as Cmd+6 is there.
-    pub const ALL: [Section; 5] = [Section::Scene, Section::Sky, Section::Image, Section::System, Section::Schedule];
+    /// The Mac's order, with Ctrl+1 to Ctrl+6 for its Cmd+1 to Cmd+6.
+    pub const ALL: [Section; 6] =
+        [Section::Scene, Section::Sky, Section::Image, Section::System, Section::Phone, Section::Schedule];
     pub fn title(self) -> &'static str {
         match self {
             Section::Scene => "Scene",
             Section::Sky => "Sky",
             Section::Image => "Image",
             Section::System => "System",
+            Section::Phone => "Phone",
             Section::Schedule => "Schedule",
         }
     }
 }
 
-gpui_kit::actions!(deepfield, [ShowScene, ShowSky, ShowImage, ShowSystem, ShowSchedule, PreviousScene, NextScene, CloseWindow]);
+gpui_kit::actions!(deepfield, [ShowScene, ShowSky, ShowImage, ShowSystem, ShowPhone, ShowSchedule, PreviousScene, NextScene, CloseWindow]);
 
-/// The window's keys, as on the Mac with Ctrl for Cmd: Ctrl+1 to Ctrl+4 and Ctrl+6 pick a section, Ctrl+[
+/// The window's keys, as on the Mac with Ctrl for Cmd: Ctrl+1 to Ctrl+6 pick a section, Ctrl+[
 /// and Ctrl+] step through the scenes, Ctrl+W closes.
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
@@ -50,6 +53,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("ctrl-2", ShowSky, None),
         KeyBinding::new("ctrl-3", ShowImage, None),
         KeyBinding::new("ctrl-4", ShowSystem, None),
+        KeyBinding::new("ctrl-5", ShowPhone, None),
         KeyBinding::new("ctrl-6", ShowSchedule, None),
         KeyBinding::new("ctrl-[", PreviousScene, None),
         KeyBinding::new("ctrl-]", NextScene, None),
@@ -73,7 +77,7 @@ pub struct Settings {
     last_save: Instant,
     last_reload_check: Instant,
 
-    jobs: Sender<Job>,
+    pub jobs: Sender<Job>,
     outputs: Receiver<Output>,
     pub preview: Option<Arc<RenderImage>>,
     pub preview_error: Option<String>,
@@ -87,6 +91,8 @@ pub struct Settings {
     thumb_sent: HashMap<SceneKind, (WallpaperConfig, (u32, u32), u64)>,
     thumb_generation: u64,
     pub thumbs_due: Option<Instant>,
+    /// the Phone section's options, preview and exports
+    pub phone: crate::phone_tab::PhoneState,
     /// what the wallpaper last did with the lock screen still
     pub lock_state: deepfield::lock_screen::LockState,
     /// the welcome guide, when the window is showing it instead of Customize
@@ -147,6 +153,7 @@ impl Settings {
             thumbs_due: Some(Instant::now()),
             guide: None,
             lock_state: deepfield::lock_screen::LockState::load(),
+            phone: Default::default(),
             screen: system::screen_size(),
             hwnd: None,
             sliders: HashMap::new(),
@@ -255,6 +262,22 @@ impl Settings {
                         changed = true;
                     }
                 }
+                Output::Phone { frame, generation } => {
+                    if generation == self.phone.generation {
+                        if let Some(old) = self.phone.preview.replace(to_image(frame)) {
+                            self.retired.push(old);
+                        }
+                        changed = true;
+                    }
+                }
+                Output::Progress(p) => {
+                    self.phone.progress = Some(p);
+                    changed = true;
+                }
+                Output::Exported(result) => {
+                    self.phone_exported(result);
+                    changed = true;
+                }
                 Output::Failed(e) => {
                     self.preview_error = Some(e);
                     changed = true;
@@ -309,9 +332,17 @@ impl Settings {
             self.hwnd = system::window().map(|h| h.0 as isize);
         }
         let minimized = self.hwnd.is_some_and(|h| system::is_minimized(windows::Win32::Foundation::HWND(h as *mut _)));
-        if minimized != self.paused {
-            self.paused = minimized;
-            let _ = self.jobs.send(Job::Pause(minimized));
+        // the landscape preview isn't on the stage while the phone's is
+        let phone = self.section == Section::Phone && self.guide.is_none();
+        let pause = minimized || phone;
+        if pause != self.paused {
+            self.paused = pause;
+            let _ = self.jobs.send(Job::Pause(pause));
+        }
+        if phone {
+            let fitted = self.phone_fitted(self.stage_size(window).1);
+            let s = window.scale_factor();
+            self.request_phone_preview(((fitted.0 * s).round() as u32, (fitted.1 * s).round() as u32));
         }
 
         // a new preview request whenever the look or the preview's size changes
@@ -344,7 +375,7 @@ impl Settings {
 
     // MARK: layout (Theme.swift)
 
-    fn stage_size(&self, window: &Window) -> (f32, f32) {
+    pub fn stage_size(&self, window: &Window) -> (f32, f32) {
         let v = window.viewport_size();
         let w = f32::from(v.width) - theme::INSPECTOR_W - 1.0 - 2.0 * theme::STAGE_PAD_X;
         let h = f32::from(v.height) - 2.0 * theme::STAGE_PAD_Y;
@@ -453,7 +484,20 @@ impl Settings {
 
     // MARK: rendering
 
-    fn render_stage(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_stage(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        if self.section == Section::Phone {
+            let stage = self.stage_size(window);
+            let phone = self.render_phone_stage(stage, cx);
+            return div()
+                .flex_1()
+                .h_full()
+                .min_w(px(0.0))
+                .bg(theme::stage_bg())
+                .px(px(theme::STAGE_PAD_X))
+                .py(px(theme::STAGE_PAD_Y))
+                .child(phone)
+                .into_any_element();
+        }
         let bx = self.preview_box(window);
         let fitted = self.preview_fitted(window);
         let preview = div()
@@ -517,6 +561,7 @@ impl Settings {
                     .overflow_y_scroll()
                     .child(gallery),
             )
+            .into_any_element()
     }
 
     pub fn render_gallery(&mut self, columns: usize, cx: &mut Context<Self>) -> impl IntoElement {
@@ -584,6 +629,7 @@ impl Settings {
             Section::Sky => crate::tabs::sky_tab(self, window, cx),
             Section::Image => crate::tabs::image_tab(self, window, cx),
             Section::System => crate::tabs::system_tab(self, window, cx),
+            Section::Phone => self.phone_tab(window, cx),
             Section::Schedule => crate::schedule_tab::schedule_tab(self, window, cx),
         };
         div()
@@ -633,6 +679,7 @@ impl Render for Settings {
             .on_action(cx.listener(|this, _: &ShowSky, _, cx| this.show(Section::Sky, cx)))
             .on_action(cx.listener(|this, _: &ShowImage, _, cx| this.show(Section::Image, cx)))
             .on_action(cx.listener(|this, _: &ShowSystem, _, cx| this.show(Section::System, cx)))
+            .on_action(cx.listener(|this, _: &ShowPhone, _, cx| this.show(Section::Phone, cx)))
             .on_action(cx.listener(|this, _: &ShowSchedule, _, cx| this.show(Section::Schedule, cx)))
             .on_action(cx.listener(|this, _: &PreviousScene, _, cx| this.step_scene(-1, cx)))
             .on_action(cx.listener(|this, _: &NextScene, _, cx| this.step_scene(1, cx)))

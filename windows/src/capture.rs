@@ -26,6 +26,16 @@ struct Opts {
     /// --lock-screen: the lock screen still as it would be set (--lock-screen-smooth for its
     /// smooth style), at --size
     lock_screen: Option<bool>,
+    /// `--mobile-export OUTDIR`, with `--device`, `--live`, `--smooth`, `--phone-pixel`,
+    /// `--zoom`, `--shift` and `--speed` as on the Mac
+    mobile_export: Option<String>,
+    device: Option<String>,
+    live: bool,
+    smooth: bool,
+    phone_pixel: i64,
+    zoom: f64,
+    shift: f64,
+    speed: f64,
     demo: HashMap<u64, f64>,
     frames: u32,
     /// Live Earth renders read the last fetched cloud and aurora maps instead of the bundled ones.
@@ -38,7 +48,9 @@ struct Opts {
 fn parse(args: &[String]) -> Result<Opts, String> {
     let mut o = Opts {
         snapshot: None, benchmark: false, scene: None, size: (1720, 720), time: 300.0,
-        config: None, events: true, demo_specs: vec![], preset: None, transition_from: None, lock_screen: None, demo: HashMap::new(), frames: 120,
+        config: None, events: true, demo_specs: vec![], preset: None, transition_from: None, lock_screen: None,
+        mobile_export: None, device: None, live: false, smooth: false, phone_pixel: 0, zoom: 1.0, shift: 0.0, speed: 2.0,
+        demo: HashMap::new(), frames: 120,
         live_earth_cache: false, prefetch_history: None, fetch_live_earth: false,
     };
     let mut it = args.iter();
@@ -71,6 +83,14 @@ fn parse(args: &[String]) -> Result<Opts, String> {
             "--transition-from" => o.transition_from = Some(val("--transition-from")?),
             "--lock-screen" => o.lock_screen = Some(false),
             "--lock-screen-smooth" => o.lock_screen = Some(true),
+            "--mobile-export" => o.mobile_export = Some(val("--mobile-export")?),
+            "--device" => o.device = Some(val("--device")?),
+            "--live" => o.live = true,
+            "--smooth" => o.smooth = true,
+            "--phone-pixel" => o.phone_pixel = val("--phone-pixel")?.parse().map_err(|_| "bad --phone-pixel")?,
+            "--zoom" => o.zoom = val("--zoom")?.parse().map_err(|_| "bad --zoom")?,
+            "--shift" => o.shift = val("--shift")?.parse().map_err(|_| "bad --shift")?,
+            "--speed" => o.speed = val("--speed")?.parse().map_err(|_| "bad --speed")?,
             other => return Err(format!("usage: unknown option {other}")),
         }
     }
@@ -167,6 +187,9 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
     r.earth.feeds.allow_network.set(false);
     r.earth.feeds.use_cache.set(o.live_earth_cache);
     r.earth.history.blocking.set(true);
+    if let Some(out) = &o.mobile_export {
+        return mobile_export(&r, &c, &o, std::path::Path::new(out));
+    }
     if let (Some(path), Some(smooth)) = (&o.snapshot, o.lock_screen) {
         let mut c = c.clone();
         c.lock_screen_smooth = smooth;
@@ -346,4 +369,83 @@ fn benchmark(r: &Renderer, c: &WallpaperConfig, size: (u32, u32), frames: u32) -
     let (m, p) = stats(&mut wall);
     println!("  wall clock per frame (GPU drained each time): median {m:.2} ms, p95 {p:.2} ms");
     Ok(())
+}
+
+/// `--mobile-export OUTDIR` (MobileExportCommand.swift): the Phone section's exports without the
+/// UI. Always writes the portrait still as `<name>.png` (deterministic for a given config and
+/// device). With `--live` it also writes the loop, `<name>.mp4`, standing in for the Mac's Live
+/// Photo pair, and `<name> preview.mp4`, the loop played three times.
+fn mobile_export(r: &Renderer, c: &WallpaperConfig, o: &Opts, folder: &std::path::Path) -> Result<(), String> {
+    use crate::mobile_export::{self as m, MobileOptions, PHONES};
+    let mut opts = MobileOptions::default();
+    let device = o.device.clone().unwrap_or_else(|| PHONES[0].key.to_string());
+    if let Some(p) = PHONES.iter().find(|p| p.key == device) {
+        (opts.width, opts.height) = (p.width, p.height);
+    } else {
+        let keys: Vec<_> = PHONES.iter().map(|p| p.key).collect();
+        let usage = format!("--device expects one of {} or WIDTHxHEIGHT", keys.join(", "));
+        let (w, h) = device.split_once('x').ok_or(usage.clone())?;
+        opts.width = w.parse().map_err(|_| usage.clone())?;
+        opts.height = h.parse().map_err(|_| usage)?;
+    }
+    opts.smooth = o.smooth;
+    opts.pixel_size = o.phone_pixel;
+    opts.framing.zoom = o.zoom;
+    opts.framing.shift = o.shift;
+    opts.motion_speed = o.speed;
+    let plan = m::plan(c, &opts);
+    let name = m::base_name(&plan);
+    std::fs::create_dir_all(folder).map_err(|e| format!("{}: {e}", folder.display()))?;
+    let png = folder.join(format!("{name}.png"));
+    let still = m::render_still(r, &plan);
+    write_png(&png.to_string_lossy(), plan.width, plan.height, &still)?;
+    let (sw, sh) = plan.shaded();
+    println!("{} ({}x{}, shaded {sw}x{sh}, cells {} px)", png.display(), plan.width, plan.height, plan.factor);
+    if !o.live {
+        return Ok(());
+    }
+    let t0 = std::time::Instant::now();
+    let movie = folder.join(format!("{name}.mp4"));
+    m::write_movie(r, &plan, &movie, 1, |_| {})?;
+    println!("{} ({} frames, {} s at {}x, in {} ms)", movie.display(), plan.loop_.frames(), plan.loop_.duration,
+             plan.loop_.speed, t0.elapsed().as_millis());
+    let preview = folder.join(format!("{name} preview.mp4"));
+    m::write_movie(r, &plan, &preview, 3, |_| {})?;
+    println!("{}", preview.display());
+    Ok(())
+}
+
+/// Scales shaded cells up by a whole `factor` and crops them to `tw` x `th` from the top left
+/// (the shaded size is rounded up, so the last cells overhang), as the Mac's
+/// `FrameCapture.upscaled`. Nearest keeps the dither cells crisp; otherwise it's bilinear, with
+/// pixel centers lined up as a smooth scaler samples.
+pub fn upscaled(cells: &[u8], w: u32, h: u32, factor: u32, tw: u32, th: u32, nearest: bool) -> Vec<u8> {
+    let factor = factor.max(1);
+    if factor == 1 && w == tw && h == th {
+        return cells.to_vec();
+    }
+    let mut out = vec![0u8; (tw * th * 4) as usize];
+    let at = |x: u32, y: u32, k: usize| cells[((y.min(h - 1) * w + x.min(w - 1)) * 4) as usize + k] as f32;
+    let f = factor as f32;
+    for y in 0..th {
+        for x in 0..tw {
+            let d = ((y * tw + x) * 4) as usize;
+            if nearest {
+                let s = (((y / factor).min(h - 1) * w + (x / factor).min(w - 1)) * 4) as usize;
+                out[d..d + 4].copy_from_slice(&cells[s..s + 4]);
+            } else {
+                let fx = ((x as f32 + 0.5) / f - 0.5).max(0.0);
+                let fy = ((y as f32 + 0.5) / f - 0.5).max(0.0);
+                let (x0, y0) = (fx as u32, fy as u32);
+                let (tx, ty) = (fx - x0 as f32, fy - y0 as f32);
+                for k in 0..3 {
+                    let top = at(x0, y0, k) * (1.0 - tx) + at(x0 + 1, y0, k) * tx;
+                    let bottom = at(x0, y0 + 1, k) * (1.0 - tx) + at(x0 + 1, y0 + 1, k) * tx;
+                    out[d + k] = (top * (1.0 - ty) + bottom * ty).round() as u8;
+                }
+                out[d + 3] = 255;
+            }
+        }
+    }
+    out
 }

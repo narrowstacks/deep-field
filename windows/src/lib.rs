@@ -20,6 +20,7 @@ pub mod live_earth_feeds;
 pub mod lock_screen;
 pub mod gpu_types;
 pub mod math;
+pub mod mobile_export;
 pub mod palette;
 pub mod presets;
 pub mod planets;

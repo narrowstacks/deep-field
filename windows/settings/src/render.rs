@@ -8,6 +8,8 @@ use std::time::{Duration, Instant};
 
 use deepfield::config::{SceneKind, WallpaperConfig};
 use deepfield::events::EventSchedule;
+use deepfield::mobile_export::Plan;
+use std::path::PathBuf;
 use deepfield::renderer::{Baked, Renderer};
 
 /// An RGBA8 frame.
@@ -24,11 +26,20 @@ pub enum Job {
     /// Stop animating the preview (the window is minimized).
     Pause(bool),
     Thumbnail { kind: SceneKind, config: WallpaperConfig, cells: (u32, u32), shown: (u32, u32), generation: u64 },
+    /// The Phone section's preview: the portrait still at its export size, fitted to `shown`.
+    Phone { plan: Plan, shown: (u32, u32), generation: u64 },
+    /// A phone export, written to `path`: the still as a PNG, or the loop as an MP4.
+    Export { plan: Plan, path: PathBuf, movie: bool },
 }
 
 pub enum Output {
     Preview(Frame),
     Thumbnail { kind: SceneKind, frame: Frame, generation: u64 },
+    Phone { frame: Frame, generation: u64 },
+    /// how far a phone export has got, 0 to 1
+    Progress(f64),
+    /// a phone export finished: the file, or what went wrong
+    Exported(Result<PathBuf, String>),
     Failed(String),
 }
 
@@ -76,12 +87,14 @@ fn worker(rx: Receiver<Job>, out: Sender<Output>) {
     let mut demos = deepfield::demo::DemoWatcher::default();
     let none = HashMap::new();
     let mut thumbs: Vec<Job> = Vec::new();
+    let mut phone: Option<(Plan, (u32, u32), u64)> = None;
+    let mut exports: Vec<(Plan, PathBuf, bool)> = Vec::new();
     let mut next_frame = Instant::now();
     let mut warmed = false;
 
     loop {
         // wait for work, or for the next preview frame
-        let timeout = if !thumbs.is_empty() {
+        let timeout = if !thumbs.is_empty() || phone.is_some() || !exports.is_empty() {
             Duration::ZERO
         } else if preview.is_some() && !paused {
             next_frame.saturating_duration_since(Instant::now())
@@ -108,6 +121,9 @@ fn worker(rx: Receiver<Job>, out: Sender<Output>) {
                 }
                 Job::Pause(p) => paused = p,
                 t @ Job::Thumbnail { .. } => thumbs.push(t),
+                // only the newest phone preview counts
+                Job::Phone { plan, shown, generation } => phone = Some((plan, shown, generation)),
+                Job::Export { plan, path, movie } => exports.push((plan, path, movie)),
             }
         }
 
@@ -148,6 +164,33 @@ fn worker(rx: Receiver<Job>, out: Sender<Output>) {
                 if next_frame < Instant::now() {
                     next_frame = Instant::now();
                 }
+            }
+        }
+
+        // A phone export, start to finish: the user asked for it and waits on it, so the
+        // previews hold still meanwhile.
+        if !exports.is_empty() {
+            let (plan, path, movie) = exports.remove(0);
+            let result = if movie {
+                let tx = out.clone();
+                deepfield::mobile_export::write_movie(&r, &plan, &path, 1, move |p| {
+                    let _ = tx.send(Output::Progress(p));
+                })
+            } else {
+                let still = deepfield::mobile_export::render_still(&r, &plan);
+                deepfield::capture::write_png(&path.to_string_lossy(), plan.width, plan.height, &still)
+            };
+            if out.send(Output::Exported(result.map(|_| path))).is_err() {
+                return;
+            }
+            continue;
+        }
+
+        if let Some((plan, shown, generation)) = phone.take() {
+            let still = deepfield::mobile_export::render_still(&r, &plan);
+            let frame = fit(&still, plan.width, plan.height, shown);
+            if out.send(Output::Phone { frame, generation }).is_err() {
+                return;
             }
         }
 

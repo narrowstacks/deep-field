@@ -23,7 +23,7 @@ use crate::renderer::Renderer;
 /// Smooth stills are shaded at up to about this many pixels (larger screens render at half or a
 /// third of their resolution and are scaled up smoothly), which keeps the one-off bake under
 /// roughly 0.5 GB for the black hole.
-const MAX_SHADED_PIXELS: f64 = 6_000_000.0;
+pub const MAX_SHADED_PIXELS: f64 = 6_000_000.0;
 
 const LEFT_ALONE: &str = "Not updated: you chose another lock screen picture. Use Set Now to replace it.";
 
@@ -111,36 +111,6 @@ pub fn representative_time(c: &WallpaperConfig) -> f64 {
         // star close-up: between eruptions
         _ => 130.0,
     }
-}
-
-/// Shaded cells blown up to the screen: with crisp edges like the live wallpaper (dithered), or
-/// bilinearly (a smooth still shaded below native resolution).
-pub fn upscale(cells: &[u8], w: u32, h: u32, tw: u32, th: u32, nearest: bool) -> Vec<u8> {
-    let mut out = vec![0u8; (tw * th * 4) as usize];
-    let at = |x: u32, y: u32, k: usize| cells[((y.min(h - 1) * w + x.min(w - 1)) * 4) as usize + k] as f32;
-    for y in 0..th {
-        for x in 0..tw {
-            let d = ((y * tw + x) * 4) as usize;
-            if nearest {
-                let (sx, sy) = ((x as u64 * w as u64 / tw as u64) as u32, (y as u64 * h as u64 / th as u64) as u32);
-                let s = ((sy * w + sx) * 4) as usize;
-                out[d..d + 4].copy_from_slice(&cells[s..s + 4]);
-            } else {
-                // pixel centers line up, as a smooth scaler samples
-                let fx = ((x as f32 + 0.5) * w as f32 / tw as f32 - 0.5).max(0.0);
-                let fy = ((y as f32 + 0.5) * h as f32 / th as f32 - 0.5).max(0.0);
-                let (x0, y0) = (fx as u32, fy as u32);
-                let (tx, ty) = (fx - x0 as f32, fy - y0 as f32);
-                for k in 0..3 {
-                    let top = at(x0, y0, k) * (1.0 - tx) + at(x0 + 1, y0, k) * tx;
-                    let bottom = at(x0, y0 + 1, k) * (1.0 - tx) + at(x0 + 1, y0 + 1, k) * tx;
-                    out[d + k] = (top * (1.0 - ty) + bottom * ty).round() as u8;
-                }
-                out[d + 3] = 255;
-            }
-        }
-    }
-    out
 }
 
 /// FNV-1a, enough to tell one picture from another.
@@ -288,7 +258,7 @@ pub fn render_still(r: &Renderer, c: &WallpaperConfig, size: (u32, u32)) -> Vec<
     };
     let (w, h) = (tw.div_ceil(factor), th.div_ceil(factor));
     let cells = crate::capture::render_cells(r, &cfg, w, h, representative_time(&cfg), false, &Default::default());
-    upscale(&cells, w, h, tw, th, !cfg.lock_screen_smooth)
+    crate::capture::upscaled(&cells, w, h, factor, tw, th, !cfg.lock_screen_smooth)
 }
 
 fn worker(jobs: Receiver<Job>) {
@@ -426,19 +396,6 @@ mod tests {
         let mut t = s.clone();
         t.pixel_size = 6;
         assert!(look(&s) == look(&t));
-    }
-
-    #[test]
-    fn upscale_keeps_crisp_cells_and_smooth_gradients() {
-        let cells = [0u8, 0, 0, 255, 200, 100, 50, 255];
-        let crisp = upscale(&cells, 2, 1, 4, 1, true);
-        assert_eq!(&crisp[0..4], &[0, 0, 0, 255]);
-        assert_eq!(&crisp[4..8], &[0, 0, 0, 255]);
-        assert_eq!(&crisp[8..12], &[200, 100, 50, 255]);
-        let smooth = upscale(&cells, 2, 1, 4, 1, false);
-        // the second pixel sits a quarter of the way from the first cell's center to the second's
-        assert_eq!(smooth[4], 50);
-        assert_eq!(smooth[16 - 4], 200);
     }
 }
 

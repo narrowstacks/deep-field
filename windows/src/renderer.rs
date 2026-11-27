@@ -761,6 +761,15 @@ impl Renderer {
     /// image itself.
     pub fn encode_frame(&self, enc: &mut wgpu::CommandEncoder, target: &wgpu::Texture, baked: &Baked, elapsed: f64,
                         c: &WallpaperConfig, events: &EventSchedule, demo: &HashMap<u64, f64>) {
+        self.encode_frame_orbit(enc, target, baked, elapsed, c, events, demo, None);
+    }
+
+    /// `encode_frame`, with planets and star orbits held at `orbit_time` if given (phone loops,
+    /// which are too short for an orbit to read as motion and have to come round to the start).
+    #[allow(clippy::too_many_arguments)]
+    pub fn encode_frame_orbit(&self, enc: &mut wgpu::CommandEncoder, target: &wgpu::Texture, baked: &Baked,
+                              elapsed: f64, c: &WallpaperConfig, events: &EventSchedule, demo: &HashMap<u64, f64>,
+                              orbit_time: Option<f64>) {
         let (tw, th) = (target.width(), target.height());
         let bloom_amount = c.bloom + c.scene.extra_bloom();
         let bloom = bloom_amount > 0.0;
@@ -769,8 +778,8 @@ impl Renderer {
         }
         let aspect = tw as f64 / th as f64;
         let cam = if baked.camera.aspect == aspect { baked.camera.clone() } else { Camera::new(c, aspect) };
-        let planets = crate::planets::planets_gpu(c, elapsed);
-        let stars = crate::star_system::stars(c, elapsed);
+        let planets = crate::planets::planets_gpu(c, orbit_time.unwrap_or(elapsed));
+        let stars = crate::star_system::stars(c, orbit_time.unwrap_or(elapsed));
         let lights = crate::star_system::lights(c, &stars);
         // a lensed scene baked without shells can't show planets (until the rebake catches up)
         let planet_count = if Self::lensing(c.scene) > 0.0 && !baked.shells { 0 } else { planets.len() };

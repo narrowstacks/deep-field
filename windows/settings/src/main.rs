@@ -6,6 +6,7 @@
 mod app;
 mod controls;
 mod model;
+mod phone_tab;
 mod presets_menu;
 mod render;
 mod schedule_tab;

@@ -375,6 +375,12 @@ impl Default for PhoneFraming {
 }
 
 impl PhoneFraming {
+    /// What Reset Framing sets in `scene`. The shift is hidden where the real sky is drawn, so it's
+    /// kept there for the scenes that use it.
+    pub fn reset(&self, scene: SceneKind) -> PhoneFraming {
+        PhoneFraming { zoom: 1.0, shift: if scene.draws_real_sky() { self.shift } else { 0.0 } }
+    }
+
     /// Per scene: the frame's horizontal half extent, where the subject's center sits (v in
     /// [-1, 1], up positive), and the horizontal aim.
     pub fn layout(scene: SceneKind) -> (f64, f64, f64) {
