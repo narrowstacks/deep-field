@@ -4,6 +4,8 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+- An early Windows 10 and 11 version, built from source in the `windows` folder: every scene on every monitor, with the Customize window, presets, the schedule, the welcome guide, the lock screen still and phone wallpapers. There's no installer yet; see `windows/README.md`.
+
 ## [0.4.10] - 2026-11-25
 
 - Presets: a preset that matches your settings shows as current again after you edit a scene's own image settings and visit other scenes.
