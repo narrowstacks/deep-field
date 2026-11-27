@@ -9,6 +9,7 @@
 //! into Progman just below the icon view.
 
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle};
@@ -21,9 +22,13 @@ use windows::Win32::System::Threading::INFINITE;
 use windows::Win32::UI::HiDpi::{SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2};
 use windows::Win32::UI::WindowsAndMessaging::*;
 
+use crate::config::WallpaperConfig;
 use crate::config_store::ConfigStore;
 use crate::events::EventSchedule;
 use crate::renderer::{Baked, Renderer};
+use crate::transition::TransitionStyle;
+use crate::presets::PresetStore;
+use crate::schedule::{self, ScheduleState, ScheduleStore, SystemCalendar, WallpaperSchedule};
 use crate::tray::{Tray, TrayAction};
 
 /// Where wallpaper windows go: the window to parent to, and (24H2+) the icon view to stay below.
@@ -133,14 +138,43 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
     }
 }
 
+/// A transition in progress on one screen (WallpaperView.Fade): the look being left, drawn from
+/// its own bake and mixed with the new look by `Renderer::encode_transition`.
+pub struct Fade {
+    baked: Rc<Baked>,
+    config: WallpaperConfig,
+    /// `Renderer::elapsed` when it began
+    start: f64,
+    duration: f64,
+    seed: f32,
+    style: TransitionStyle,
+    /// the two frames' targets, at the shaded size, made once per fade
+    targets: Option<(wgpu::Texture, wgpu::Texture)>,
+}
+
+impl Fade {
+    /// Eased progress, or None once it's over.
+    fn progress(&self, now: f64) -> Option<f64> {
+        let u = (now - self.start) / self.duration.max(0.001);
+        if u >= 1.0 {
+            return None;
+        }
+        let x = u.max(0.0);
+        Some(x * x * (3.0 - 2.0 * x))
+    }
+}
+
 /// One monitor's wallpaper: its window, swap chain, bake and frame target.
-struct Screen {
+pub struct Screen {
     hwnd: HWND,
     surface: wgpu::Surface<'static>,
     format: wgpu::TextureFormat,
     size: (u32, u32),
     cells: Option<wgpu::Texture>,
-    baked: Option<Baked>,
+    /// Shared with a fade while the outgoing look is drawn from it, so a re-bake then makes new
+    /// textures instead of overwriting the ones the outgoing frame still reads.
+    baked: Option<Rc<Baked>>,
+    fade: Option<Fade>,
 }
 
 impl Screen {
@@ -194,7 +228,7 @@ impl Screen {
                 alpha_mode: wgpu::CompositeAlphaMode::Auto,
                 view_formats: vec![],
             });
-            Some(Screen { hwnd, surface, format, size: (w, h), cells: None, baked: None })
+            Some(Screen { hwnd, surface, format, size: (w, h), cells: None, baked: None, fade: None })
         }
     }
 
@@ -206,24 +240,92 @@ impl Screen {
             self.cells = Some(r.make_target(cw, ch, wgpu::TextureUsages::empty()));
             self.baked = None;
         }
+        if let Some(f) = &mut self.fade {
+            if (f.baked.width, f.baked.height) != (cw, ch) {
+                // a different pixel size (or a resize) needs the outgoing look traced at the new size
+                f.baked = Rc::new(r.bake(cw, ch, &f.config, None));
+                f.targets = None;
+            }
+        }
         let stale = match &self.baked {
             Some(b) => !b.matches(c) || (b.width, b.height) != (cw, ch),
             None => true,
         };
         if stale {
-            self.baked = Some(r.bake(cw, ch, c, self.baked.take()));
+            // while fading, the outgoing frame may still be drawing from the current textures, and
+            // then the Rc is shared, so nothing is reused
+            let old = self.baked.take().and_then(|b| Rc::try_unwrap(b).ok());
+            self.baked = Some(Rc::new(r.bake(cw, ch, c, old)));
         }
         let frame = match self.surface.get_current_texture() {
             Ok(f) => f,
             Err(_) => return, // lost or outdated: skip this frame, the next reconfigure fixes it
         };
         let cells = self.cells.as_ref().unwrap();
+        let baked = self.baked.as_ref().unwrap();
+        let demo = HashMap::new();
         let mut enc = r.device.create_command_encoder(&Default::default());
-        r.encode_frame(&mut enc, cells, self.baked.as_ref().unwrap(), elapsed, c, events, &HashMap::new());
+        let progress = self.fade.as_ref().and_then(|f| f.progress(elapsed));
+        match (progress, &mut self.fade) {
+            (Some(progress), Some(f)) => {
+                if f.targets.is_none() {
+                    f.targets = Some((r.make_target(cw, ch, wgpu::TextureUsages::empty()),
+                                      r.make_target(cw, ch, wgpu::TextureUsages::empty())));
+                }
+                let (a, b) = f.targets.as_ref().unwrap();
+                r.encode_frame(&mut enc, a, &f.baked, elapsed, &f.config, events, &demo);
+                r.encode_frame(&mut enc, b, baked, elapsed, c, events, &demo);
+                r.encode_transition(&mut enc, cells, a, b, progress, f.seed, f.style, &f.config, c);
+            }
+            _ => {
+                self.fade = None;
+                r.encode_frame(&mut enc, cells, baked, elapsed, c, events, &demo);
+            }
+        }
         let view = frame.texture.create_view(&Default::default());
         r.encode_present(&mut enc, cells, &view, self.format, self.size, px);
         r.queue.submit([enc.finish()]);
         frame.present();
+    }
+
+    /// Keeps the bake on screen as the outgoing frame (WallpaperView.startFade). With nothing of
+    /// the old look on screen yet, there's nothing to fade from, so the switch just cuts.
+    fn start_fade(&mut self, from: &WallpaperConfig, start: f64, seconds: f64, style: TransitionStyle) {
+        self.fade = match &self.baked {
+            Some(old) if seconds > 0.0 && old.matches(from) => Some(Fade {
+                baked: old.clone(),
+                config: from.clone(),
+                start,
+                duration: seconds,
+                seed: random_seed(),
+                style,
+                targets: None,
+            }),
+            _ => None,
+        };
+    }
+
+    /// Paused partway through a transition: ends it, so the next frame drawn is the new look.
+    fn end_fade(&mut self) -> bool {
+        self.fade.take().is_some()
+    }
+}
+
+/// A different pattern or direction for each screen's transition, 0 to 100 like the Mac's.
+fn random_seed() -> f32 {
+    let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.subsec_nanos()).unwrap_or(0);
+    // spread the clock's low bits over the range with a multiplicative hash
+    (n.wrapping_mul(2_654_435_761) % 100_000) as f32 / 1000.0
+}
+
+/// Starts a schedule transition from `from` on every screen, over `seconds` (0 cuts). Call it
+/// just before the config switches to the new look; Random is resolved here, once, so every
+/// screen plays the same style (ConfigStore.transition does it as the switch is made).
+pub fn start_transition(screens: &mut [Screen], r: &Renderer, from: &WallpaperConfig, seconds: f64, style: TransitionStyle) {
+    let style = style.resolved();
+    let start = r.elapsed();
+    for s in screens {
+        s.start_fade(from, start, seconds, style);
     }
 }
 
@@ -310,6 +412,11 @@ pub fn run() -> Result<(), String> {
     let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(1);
     let events = EventSchedule::new(seed);
     let mut screens = build_screens(&r);
+    let mut schedules = ScheduleStore::load();
+    let mut sched_state = ScheduleState::load_from(&ScheduleState::path());
+    tray.update_schedule(&schedules.schedule);
+    // the first switch cuts straight over, since nothing is on screen yet
+    run_schedule(&schedules, &mut sched_state, &mut store, &presets, &mut screens, &r, false);
     let mut paused = false;
     let mut next = Instant::now();
     let mut last_config_check = Instant::now();
@@ -352,6 +459,27 @@ pub fn run() -> Result<(), String> {
                     }
                 }
                 TrayAction::Request(r) => crate::tray::request_customize(r),
+                TrayAction::ToggleSchedule => {
+                    if schedules.schedule.entries.is_empty() {
+                        crate::tray::request_customize("show-schedule");
+                    } else {
+                        let mut s = schedules.schedule.clone();
+                        s.enabled = !s.enabled;
+                        if let Some(old) = schedules.set(s) {
+                            schedule_changed(&old, &schedules, &mut sched_state);
+                            run_schedule(&schedules, &mut sched_state, &mut store, &presets, &mut screens, &r, true);
+                        }
+                    }
+                    tray.update_schedule(&schedules.schedule);
+                }
+                TrayAction::SkipSchedule => {
+                    if let Some(s) = schedules.schedule.skipped(schedule::now(), &SystemCalendar) {
+                        if let Some(old) = schedules.set(s) {
+                            schedule_changed(&old, &schedules, &mut sched_state);
+                            run_schedule(&schedules, &mut sched_state, &mut store, &presets, &mut screens, &r, true);
+                        }
+                    }
+                }
                 TrayAction::TogglePause => paused = !paused,
                 TrayAction::EditSettings => crate::tray::open(store.path().as_os_str()),
                 TrayAction::Quit => break 'run,
@@ -362,6 +490,18 @@ pub fn run() -> Result<(), String> {
         if last_config_check.elapsed() > Duration::from_secs(1) {
             last_config_check = Instant::now();
             if store.reload_if_changed() {
+                tray.update(&store.config, paused);
+                tray.update_presets(&presets, &store.config);
+            }
+            // the schedule edited in the Customize window
+            if let Some(old) = schedules.reload_if_changed() {
+                schedule_changed(&old, &schedules, &mut sched_state);
+                tray.update_schedule(&schedules.schedule);
+            }
+            // Each second, rather than only at the next switch's time: that also catches waking
+            // from sleep, a new clock time or time zone, and an edit. A slot switches only once.
+            if schedules.schedule.enabled {
+                run_schedule(&schedules, &mut sched_state, &mut store, &presets, &mut screens, &r, true);
                 tray.update(&store.config, paused);
                 tray.update_presets(&presets, &store.config);
             }
@@ -386,6 +526,15 @@ pub fn run() -> Result<(), String> {
                 let elapsed = r.elapsed();
                 for s in &mut screens {
                     s.draw(&r, &store, &events, elapsed);
+                }
+            } else if paused && !fullscreen_app_covers() && store.config.scene.is_ported() {
+                // Paused partway through a transition: end on the new look. Covered by a full
+                // screen app this waits until it shows again, so nothing is drawn unseen.
+                let elapsed = r.elapsed();
+                for s in &mut screens {
+                    if s.end_fade() {
+                        s.draw(&r, &store, &events, elapsed);
+                    }
                 }
             }
         }
@@ -417,4 +566,28 @@ pub fn quit_running() -> bool {
         let _ = EnumChildWindows(GetDesktopWindow(), Some(ask_to_quit), LPARAM(&mut found as *mut bool as isize));
     }
     found
+}
+
+/// Runs the schedule now (Scheduler.evaluate): switches with a transition when an entry is due,
+/// and records the switch for the Customize window's status line.
+fn run_schedule(schedules: &ScheduleStore, state: &mut ScheduleState, store: &mut ConfigStore, presets: &PresetStore,
+                screens: &mut [Screen], r: &Renderer, fade: bool) {
+    let before = state.clone();
+    let e = schedule::evaluate(&schedules.schedule, schedule::now(), &store.config, &presets.presets, state, fade,
+                               &SystemCalendar);
+    if let Some(sw) = e.switch {
+        start_transition(screens, r, &store.config, sw.seconds, sw.style);
+        store.config = sw.config;
+        store.save();
+    }
+    if *state != before {
+        state.save_to(&ScheduleState::path());
+    }
+}
+
+/// Turning the schedule on shows the current entry now, even if its slot was already shown.
+fn schedule_changed(old: &WallpaperSchedule, schedules: &ScheduleStore, state: &mut ScheduleState) {
+    if schedules.schedule.enabled && !old.enabled {
+        state.last_slot = None;
+    }
 }

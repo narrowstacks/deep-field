@@ -137,3 +137,35 @@ pub fn screen_size() -> (u32, u32) {
     let (w, h) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
     if w > 0 && h > 0 { (w as u32, h as u32) } else { (2560, 1440) }
 }
+
+/// The user's locale's weekday names, for the schedule's day buttons: (shortest, full) for each
+/// day as the schedule counts them, index 0 = Sunday ... 6 = Saturday.
+pub fn weekday_names() -> Vec<(String, String)> {
+    use windows::Win32::Globalization::{GetLocaleInfoEx, LOCALE_SDAYNAME1, LOCALE_SSHORTESTDAYNAME1};
+    const FALLBACK: [(&str, &str); 7] = [("S", "Sunday"), ("M", "Monday"), ("T", "Tuesday"), ("W", "Wednesday"),
+                                         ("T", "Thursday"), ("F", "Friday"), ("S", "Saturday")];
+    let info = |lctype: u32| -> Option<String> {
+        let mut buf = [0u16; 80];
+        let n = unsafe { GetLocaleInfoEx(PCWSTR::null(), lctype, Some(&mut buf)) };
+        (n > 1).then(|| String::from_utf16_lossy(&buf[..n as usize - 1]))
+    };
+    (0..7)
+        .map(|i| {
+            // Windows numbers its day names from Monday (1) to Sunday (7)
+            let win = (i + 6) % 7;
+            let short = info(LOCALE_SSHORTESTDAYNAME1 + win).unwrap_or_else(|| FALLBACK[i as usize].0.into());
+            let full = info(LOCALE_SDAYNAME1 + win).unwrap_or_else(|| FALLBACK[i as usize].1.into());
+            (short, full)
+        })
+        .collect()
+}
+
+/// The first day of the week in the user's locale, as the schedule counts days (1 = Sunday).
+pub fn first_weekday() -> i64 {
+    use windows::Win32::Globalization::{GetLocaleInfoEx, LOCALE_IFIRSTDAYOFWEEK};
+    let mut buf = [0u16; 4];
+    let n = unsafe { GetLocaleInfoEx(PCWSTR::null(), LOCALE_IFIRSTDAYOFWEEK, Some(&mut buf)) };
+    // "0" is Monday ... "6" is Sunday
+    let monday_based = if n > 1 { (buf[0] as i64 - '0' as i64).clamp(0, 6) } else { 6 };
+    (monday_based + 1) % 7 + 1
+}

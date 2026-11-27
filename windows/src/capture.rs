@@ -7,6 +7,7 @@ use std::time::Instant;
 use crate::config::{SceneKind, WallpaperConfig};
 use crate::events::EventSchedule;
 use crate::renderer::Renderer;
+use crate::transition::TransitionStyle;
 
 struct Opts {
     snapshot: Option<String>,
@@ -20,6 +21,8 @@ struct Opts {
     demo_specs: Vec<String>,
     /// `--preset NAME|FILE`: a saved preset, palette, scene color preset or .deepfield file
     preset: Option<String>,
+    /// `--transition-from SCENE:PROGRESS[:STYLE]`: a frame partway through a schedule transition
+    transition_from: Option<String>,
     demo: HashMap<u64, f64>,
     frames: u32,
     /// Live Earth renders read the last fetched cloud and aurora maps instead of the bundled ones.
@@ -32,7 +35,7 @@ struct Opts {
 fn parse(args: &[String]) -> Result<Opts, String> {
     let mut o = Opts {
         snapshot: None, benchmark: false, scene: None, size: (1720, 720), time: 300.0,
-        config: None, events: true, demo_specs: vec![], preset: None, demo: HashMap::new(), frames: 120,
+        config: None, events: true, demo_specs: vec![], preset: None, transition_from: None, demo: HashMap::new(), frames: 120,
         live_earth_cache: false, prefetch_history: None, fetch_live_earth: false,
     };
     let mut it = args.iter();
@@ -62,6 +65,7 @@ fn parse(args: &[String]) -> Result<Opts, String> {
             "--earth-timelapse" => crate::scenes::live_earth::set_time_lapse(val("--earth-timelapse")?.parse().map_err(|_| "bad --earth-timelapse")?),
             "--demo" => o.demo_specs.push(val("--demo")?),
             "--preset" => o.preset = Some(val("--preset")?),
+            "--transition-from" => o.transition_from = Some(val("--transition-from")?),
             other => return Err(format!("usage: unknown option {other}")),
         }
     }
@@ -159,7 +163,8 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
     r.earth.feeds.use_cache.set(o.live_earth_cache);
     r.earth.history.blocking.set(true);
     if let Some(path) = &o.snapshot {
-        let img = snapshot(&r, &c, o.size, o.time, o.events, &o.demo);
+        let transition = o.transition_from.as_deref().map(|s| transition_from(s, &c)).transpose()?;
+        let img = snapshot(&r, &c, o.size, o.time, o.events, &o.demo, transition.as_ref());
         write_png(path, o.size.0, o.size.1, &img)?;
         return Ok(());
     }
@@ -184,12 +189,65 @@ pub fn render_cells(r: &Renderer, c: &WallpaperConfig, w: u32, h: u32, time: f64
     r.read_rgba(&target)
 }
 
+/// A frame partway into a schedule transition (FrameCapture.Transition): the look being left and
+/// how far (0 to 1) the switch to the current one has gone.
+pub struct Transition {
+    pub from: WallpaperConfig,
+    pub progress: f64,
+    pub style: TransitionStyle,
+}
+
+/// Parses `SCENE:PROGRESS[:STYLE]` (as the Mac's `--transition-from`): the look being left is the
+/// current settings switched to SCENE, as picking it in the gallery would.
+fn transition_from(spec: &str, c: &WallpaperConfig) -> Result<Transition, String> {
+    let usage = "--transition-from expects <scene>:<progress>[:<style>]";
+    let parts: Vec<&str> = spec.split(':').collect();
+    if parts.len() < 2 {
+        return Err(usage.into());
+    }
+    let kind = SceneKind::from_raw(parts[0]).ok_or(usage)?;
+    let progress: f64 = parts[1].parse().map_err(|_| usage)?;
+    let style = match parts.get(2) {
+        Some(s) => TransitionStyle::from_raw(s).ok_or(usage)?,
+        None => TransitionStyle::Dissolve,
+    };
+    let mut from = c.clone();
+    from.set_scene(kind);
+    Ok(Transition { from, progress, style })
+}
+
+/// `render_cells` partway through a transition: both looks with their own bakes, mixed with seed
+/// 1 as the Mac's snapshots do.
+#[allow(clippy::too_many_arguments)]
+pub fn render_transition_cells(r: &Renderer, c: &WallpaperConfig, w: u32, h: u32, time: f64, events_enabled: bool,
+                               demo: &HashMap<u64, f64>, t: &Transition) -> Vec<u8> {
+    let baked = r.bake(w, h, c, None);
+    let from_baked = r.bake(w, h, &t.from, None);
+    let target = r.make_target(w, h, wgpu::TextureUsages::COPY_SRC);
+    let a = r.make_target(w, h, wgpu::TextureUsages::empty());
+    let b = r.make_target(w, h, wgpu::TextureUsages::empty());
+    let mut events = EventSchedule::new(1);
+    events.enabled = events_enabled;
+    events.demo = demo.clone();
+    let mut enc = r.device.create_command_encoder(&Default::default());
+    r.encode_frame(&mut enc, &a, &from_baked, time, &t.from, &events, demo);
+    r.encode_frame(&mut enc, &b, &baked, time, c, &events, demo);
+    r.encode_transition(&mut enc, &target, &a, &b, t.progress, 1.0, t.style, &t.from, c);
+    r.queue.submit([enc.finish()]);
+    r.read_rgba(&target)
+}
+
 /// A frame upscaled with nearest-neighbor like the live wallpaper, anchored at the top left and
 /// cropped to `size`.
-pub fn snapshot(r: &Renderer, c: &WallpaperConfig, size: (u32, u32), time: f64, events: bool, demo: &HashMap<u64, f64>) -> Vec<u8> {
+#[allow(clippy::too_many_arguments)]
+pub fn snapshot(r: &Renderer, c: &WallpaperConfig, size: (u32, u32), time: f64, events: bool, demo: &HashMap<u64, f64>,
+                transition: Option<&Transition>) -> Vec<u8> {
     let px = c.pixel_size.max(1) as u32;
     let (w, h) = (size.0.div_ceil(px), size.1.div_ceil(px));
-    let cells = render_cells(r, c, w, h, time, events, demo);
+    let cells = match transition {
+        Some(t) => render_transition_cells(r, c, w, h, time, events, demo, t),
+        None => render_cells(r, c, w, h, time, events, demo),
+    };
     let mut out = vec![0u8; (size.0 * size.1 * 4) as usize];
     for y in 0..size.1 {
         for x in 0..size.0 {

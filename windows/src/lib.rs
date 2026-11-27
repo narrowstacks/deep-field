@@ -9,6 +9,7 @@ pub mod camera;
 pub mod capture;
 pub mod color_presets;
 pub mod config;
+pub mod customization;
 pub mod config_store;
 pub mod earth_maps;
 pub mod events;
@@ -21,11 +22,13 @@ pub mod presets;
 pub mod planets;
 pub mod renderer;
 pub mod scene_params;
+pub mod schedule;
 pub mod scenes;
 pub mod shader;
 pub mod sky_cover;
 pub mod sky_planets;
 pub mod star_system;
+pub mod transition;
 pub mod tray;
 pub mod wallpaper;
 
@@ -36,6 +39,8 @@ Deep Field for Windows
   deepfield --snapshot OUT.png   render one frame to a PNG
       [--scene KIND] [--size WxH] [--time SECONDS] [--defaults | --config FILE]
       [--preset NAME|FILE]       a saved preset, palette, scene color preset or .deepfield file
+      [--transition-from SCENE:PROGRESS[:STYLE]]
+                                 a frame partway (0 to 1) through a schedule transition from SCENE
       [--no-events] [--demo NAME:START,...]
       [--live-earth-cache]       Live Earth: the last fetched clouds and aurora, not the bundled ones
       [--earth-timelapse N]      Live Earth: its clock runs N times as fast from its moment

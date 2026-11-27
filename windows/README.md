@@ -4,9 +4,9 @@ A port of Deep Field to Windows 10 and 11: the same scenes, drawn live behind th
 on every monitor. Rust and wgpu (Direct3D 12), with the Metal shaders translated to WGSL.
 
 This is an early port. All 21 listed scenes run, and their snapshots match the macOS reference
-renders in `docs/media/gallery`. Still to come: schedules, transitions, the lock screen still
-and phone exports, and Live Earth following the device's location (it uses the home latitude
-and longitude from the settings).
+renders in `docs/media/gallery`. Still to come: the lock screen still and phone exports, and Live
+Earth following the device's location (it uses the home latitude and longitude from the
+settings).
 
 Aurora from Orbit and Live Earth read the Earth maps in `Resources\Earth`: from an `Earth`
 folder beside the executable, or, for a build in the repo, found by walking up from it. Live
@@ -31,10 +31,10 @@ That builds two programs: `deepfield.exe`, the command line (a console program),
 no console). `deepfield` with no arguments starts the wallpaper and returns. For a build to hand
 out, use `cargo build --profile dist` (thin LTO; plain release builds skip it to stay quick).
 
-A tray icon appears in the notification area: pick a scene, preset or pixel size, pause, open the
-settings file, or quit. Settings live in `%APPDATA%\DeepField\config.json`, with the same keys as
-the macOS app's saved config, so a config exported from a Mac reads here. Edits to the file show
-up within a second.
+A tray icon appears in the notification area: pick a scene, preset or pixel size, turn the
+schedule on or skip ahead, pause, open the settings file, or quit. Settings live in
+`%APPDATA%DeepFieldnfig.json`, with the same keys as the macOS app's saved config, so a
+config exported from a Mac reads here. Edits to the file show up within a second.
 
 The wallpaper pauses while a full-screen app has the focus, and drops to 12 fps with battery
 saver on.
@@ -56,7 +56,7 @@ cargo build --release
 It edits `%APPDATA%\DeepField\config.json` (written whole and renamed into place, so the
 wallpaper never reads half a file), and picks up changes made there by the tray menu or by hand.
 The preview renders with the same library as the wallpaper, on a thread of its own. Only one
-copy runs; opening it again brings the window forward. Ctrl+1 to Ctrl+4 pick a section and
+copy runs; opening it again brings the window forward. Ctrl+1 to Ctrl+4 and Ctrl+6 (Schedule) pick a section and
 Ctrl+[ and Ctrl+] step through the scenes.
 
 The tray menu's Customize item starts `deepfield-settings.exe` from the wallpaper's own folder,
@@ -72,8 +72,14 @@ and writes. Presets live in `%APPDATA%\DeepField\presets.json` (the Mac's own li
 the tray menu lists them too; its Save, Import and Export open this window with that dialog
 showing (asked through a `customize-request` file in the same folder).
 
-Not there yet: Phone, Schedule, the lock screen still, and the Show Me buttons that start an
-event in the running wallpaper.
+The Schedule section rotates through presets and scenes, or switches at set times on chosen
+days, each switch moving into the next with one of the Mac's transitions. It's kept in
+`%APPDATA%\DeepField\schedule.json`, in the Mac's format; the wallpaper runs it (the tray menu
+can turn it on and skip ahead) and records each switch in `schedule-state.json` for the status
+line.
+
+Not there yet: Phone, the lock screen still, and the Show Me buttons that start an event in the
+running wallpaper.
 
 ## Command line
 
@@ -87,7 +93,10 @@ deepfield --quit
 
 `--snapshot` takes `--config FILE`, `--preset NAME|FILE`, `--no-events` and `--demo NAME:START` (repeatable, or comma-separated) like the macOS dev
 command line. Snapshots are deterministic (events use seed 1), so they can be compared with the
-Mac's. `--benchmark` reports GPU time per frame from timestamp queries; keep it under about 2 ms.
+Mac's. `--transition-from SCENE:PROGRESS[:STYLE]` renders a frame that far (0 to 1) into a
+schedule transition from SCENE to the configured look (styles: dissolve, crossfade, pan,
+driftAway, warp, blackHole, random; dissolve by default), with seed 1 like the Mac's.
+`--benchmark` reports GPU time per frame from timestamp queries; keep it under about 2 ms.
 `DEEPFIELD_SHADERS=shaders` loads the WGSL from that folder instead of the copy built in, so
 shader edits show up without a rebuild. `DEEPFIELD_TRACE=1` prints startup progress, and
 `WGPU_BACKEND=vulkan` picks Vulkan instead of Direct3D 12 (at the time of writing NVIDIA's Vulkan

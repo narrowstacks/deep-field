@@ -8,6 +8,7 @@ mod controls;
 mod model;
 mod presets_menu;
 mod render;
+mod schedule_tab;
 mod system;
 mod tabs;
 mod theme;

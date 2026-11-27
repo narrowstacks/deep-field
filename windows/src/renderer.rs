@@ -118,6 +118,11 @@ pub struct Renderer {
     /// Text over finished frames (`labelFragment`), blended onto CELL_FORMAT targets.
     label_layout: wgpu::BindGroupLayout,
     label_pipeline: wgpu::RenderPipeline,
+    /// The schedule's transitions between two finished frames (`transitionFragment`).
+    transition_layout: wgpu::BindGroupLayout,
+    transition_pipeline: wgpu::RenderPipeline,
+    /// Linear and mirrored, as the transitions sample a moved frame (Metal's mirrored_repeat).
+    mirrored: wgpu::Sampler,
     /// The Earth maps and live layers, loaded on first use.
     pub earth: EarthState,
 }
@@ -202,7 +207,8 @@ impl Renderer {
     /// through naga first, so they name the WGSL file and line.
     pub fn new() -> Result<Renderer, String> {
         for (label, parts) in [("bake", shader::BAKE), ("frame", shader::FRAME), ("auroraLUT", shader::AURORA_LUT),
-                               ("labels", shader::LABELS), ("bloom", shader::BLOOM), ("present", shader::PRESENT)] {
+                               ("labels", shader::LABELS), ("bloom", shader::BLOOM), ("transition", shader::TRANSITION),
+                               ("present", shader::PRESENT)] {
             shader::validate(label, parts).map_err(|e| format!("shader module {label} failed to compile:\n{e}"))?;
         }
         trace("validated");
@@ -261,6 +267,7 @@ impl Renderer {
         let present_module = module("present", shader::PRESENT);
         let aurora_lut_module = module("auroraLUT", shader::AURORA_LUT);
         let label_module = module("labels", shader::LABELS);
+        let transition_module = module("transition", shader::TRANSITION);
         trace("modules");
 
         let cs = wgpu::ShaderStages::COMPUTE;
@@ -310,6 +317,10 @@ impl Renderer {
             tex_entry(30, fs, UNFILTERABLE), tex_entry(33, fs, FILTERABLE),
         ]);
         let present_layout = layout("present", &[tex_entry(0, fs, UNFILTERABLE), buffer_entry(1, fs, false)]);
+        let transition_layout = layout("transition", &[
+            tex_entry(0, fs, FILTERABLE), tex_entry(1, fs, FILTERABLE), buffer_entry(2, fs, false),
+            buffer_entry(18, fs, true), sampler_entry(19, fs),
+        ]);
 
         let pipeline_layout = |l: &wgpu::BindGroupLayout| {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[l], push_constant_ranges: &[] })
@@ -335,6 +346,8 @@ impl Renderer {
         let bloom_blur = compute(&bloom_module, &blur_layout, "bloomBlur");
         let image_pipeline = Self::render_pipeline(&device, &bloom_module, &pipeline_layout(&image_layout), "imageFragment", CELL_FORMAT);
         let aurora_lut_pipeline = compute(&aurora_lut_module, &aurora_lut_layout, "auroraLUT");
+        let transition_pipeline = Self::render_pipeline(&device, &transition_module, &pipeline_layout(&transition_layout),
+                                                        "transitionFragment", CELL_FORMAT);
         // labels: solid letters and a soft shadow blended over the finished frame, its alpha kept
         let label_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("labelFragment"),
@@ -417,6 +430,14 @@ impl Renderer {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
+        let mirrored = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("mirrored"),
+            address_mode_u: wgpu::AddressMode::MirrorRepeat,
+            address_mode_v: wgpu::AddressMode::MirrorRepeat,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
         // the Earth maps' sampler: linear with linear mips, wrapping east-west, clamped at the poles
         let mip_repeat = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("mipRepeat"),
@@ -436,6 +457,9 @@ impl Renderer {
             aurora_lut,
             label_layout,
             label_pipeline,
+            transition_layout,
+            transition_pipeline,
+            mirrored,
             earth: EarthState::default(),
             frames: Arc::new(FrameCompiler { device: device.clone(), module: frame_module, layout: pipeline_layout(&frame_layout), state: Mutex::new(HashMap::new()), done: Condvar::new() }),
             present_pipeline_layout: pipeline_layout(&present_layout),
@@ -981,6 +1005,47 @@ impl Renderer {
             occlusion_query_set: None,
         });
         pass.set_pipeline(&self.label_pipeline);
+        pass.set_bind_group(0, &group, &[]);
+        pass.draw(0..3, 0..1);
+    }
+
+    /// Mixes two finished frames into `target` with a transition (`transitionFragment`):
+    /// `progress` 0 shows `from`, 1 shows `to`. `seed` varies the pattern or direction, and the
+    /// two configs give the levels and dither the mix is dithered back onto.
+    #[allow(clippy::too_many_arguments)]
+    pub fn encode_transition(&self, enc: &mut wgpu::CommandEncoder, target: &wgpu::Texture, from: &wgpu::Texture,
+                             to: &wgpu::Texture, progress: f64, seed: f32, style: crate::transition::TransitionStyle,
+                             from_config: &WallpaperConfig, to_config: &WallpaperConfig) {
+        let params: [V4; 2] = [
+            [progress.clamp(0.0, 1.0) as f32, seed, style.resolved().shader_index(), 0.0],
+            [from_config.levels as f32, from_config.dither.shader_index(), to_config.levels as f32, to_config.dither.shader_index()],
+        ];
+        let pbuf = self.uniform(bytemuck::cast_slice(&params));
+        let (fv, tv) = (from.create_view(&Default::default()), to.create_view(&Default::default()));
+        let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("transition"),
+            layout: &self.transition_layout,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&fv) },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&tv) },
+                wgpu::BindGroupEntry { binding: 2, resource: pbuf.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 18, resource: self.blue_noise.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 19, resource: wgpu::BindingResource::Sampler(&self.mirrored) },
+            ],
+        });
+        let view = target.create_view(&Default::default());
+        let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("transition"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        pass.set_pipeline(&self.transition_pipeline);
         pass.set_bind_group(0, &group, &[]);
         pass.draw(0..3, 0..1);
     }

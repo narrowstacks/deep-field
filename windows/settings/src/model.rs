@@ -5,7 +5,6 @@
 
 use deepfield::config::*;
 use deepfield::palette::{rgb, Rgb};
-use serde_json::{Map, Value};
 
 // MARK: titles
 
@@ -147,100 +146,9 @@ pub fn blurb(s: SceneKind) -> &'static str {
     }
 }
 
-// MARK: per-scene reset
+// MARK: per-scene reset (in the library, for the schedule too)
 
-/// Saved keys that belong to a scene's own settings (`ownKeys` in SceneCustomization.swift): a
-/// prefix matches keys that continue with a capital letter, so "pulsar" doesn't take the sky's
-/// "pulsars". Camera tilt and the planets are shared, so resetting one scene resets them for all.
-fn own_keys(kind: SceneKind) -> (Vec<&'static str>, Vec<&'static str>, Vec<&'static str>) {
-    use SceneKind::*;
-    let planets = ["planetCount", "planetSize", "planetOrbitMinutes", "planetSeed", "planetRings"];
-    let disk = vec!["receding", "approaching", "core", "ring"];
-    let with = |mut a: Vec<&'static str>, b: &[&'static str]| {
-        a.extend_from_slice(b);
-        a
-    };
-    match kind {
-        BlackHole => (vec![], with(vec!["diskSize", "diskSpeed", "photonRing", "tilt"], &planets), disk),
-        Wormhole => (vec![], with(vec!["throat", "photonRing", "wormholeEvents", "tilt"], &planets), vec!["ring", "farA", "farB"]),
-        Binary => (vec![], with(vec!["binaryStars", "starSeparation", "starOrbitMinutes", "tilt"], &planets), vec![]),
-        Trinary => (vec![], with(vec!["trinaryStars", "starSeparation", "starOrbitMinutes", "tilt"], &planets), vec![]),
-        Galaxy => (
-            vec![],
-            vec!["galaxyType", "galaxyArms", "galaxyPitch", "galaxyView", "galaxyRotationMinutes", "darkMatter", "galaxySize"],
-            vec!["galaxyCore", "galaxyArms", "galaxyNebula", "galaxyDust"],
-        ),
-        TidalDisruption => (vec!["tde"], vec!["diskSpeed"], disk),
-        Pulsar => (vec!["pulsar"], vec!["tilt"], vec![]),
-        Nebula => (vec!["nebula"], vec!["tilt"], vec![]),
-        PlanetaryNebula => (vec!["planetary"], vec!["tilt"], vec![]),
-        RingedPlanet => (vec!["ringed"], vec!["tilt"], vec![]),
-        AuroraOrbit => (vec!["aurora"], vec!["tilt"], vec![]),
-        LiveEarth => (vec!["earth"], vec![], vec![]),
-        GasGiant => (vec!["gas"], vec!["tilt"], vec![]),
-        ProtoplanetaryDisk => (vec!["proto"], vec!["tilt"], vec![]),
-        NeutronMerger => (vec!["merger"], vec!["tilt"], vec![]),
-        BlackHoleMerger => (vec!["bbh"], vec!["tilt"], vec![]),
-        DysonSwarm => (vec!["dyson"], vec!["tilt"], vec![]),
-        RoguePlanet => (vec!["rogue"], vec!["tilt"], vec![]),
-        Eclipse => (vec!["eclipse"], vec!["tilt"], vec![]),
-        Quasar => (vec!["quasar"], vec![], vec![]),
-        Comet => (vec!["comet"], vec!["tilt"], vec![]),
-        StellarSurface => (
-            vec![],
-            vec!["closeStar", "starSpots", "starFlares", "starRotation", "starZoom", "starCenterX", "starLimbY", "tilt"],
-            vec![],
-        ),
-    }
-}
-
-fn owns(kind: SceneKind, key: &str) -> bool {
-    let (prefixes, keys, _) = own_keys(kind);
-    keys.contains(&key)
-        || prefixes.iter().any(|p| key.strip_prefix(p).and_then(|rest| rest.chars().next()).is_some_and(|c| c.is_uppercase()))
-}
-
-fn json(c: &WallpaperConfig) -> Map<String, Value> {
-    match serde_json::to_value(c) {
-        Ok(Value::Object(m)) => m,
-        _ => Map::new(),
-    }
-}
-
-/// `c` with `kind`'s own settings put back to their defaults; the sky, image, system settings
-/// and the other scenes stay as they are.
-pub fn resetting_scene(c: &WallpaperConfig, kind: SceneKind) -> WallpaperConfig {
-    let mut dict = json(c);
-    let defaults = json(&WallpaperConfig::default());
-    for (k, v) in &defaults {
-        // `tilt` is the active scene's; another scene's is parked
-        if owns(kind, k) && (k != "tilt" || kind == c.scene) {
-            dict.insert(k.clone(), v.clone());
-        }
-    }
-    let (_, _, palette_keys) = own_keys(kind);
-    if !palette_keys.is_empty() {
-        if let (Some(Value::Object(p)), Some(Value::Object(dp))) = (dict.get("palette").cloned(), defaults.get("palette")) {
-            let mut p = p;
-            for k in palette_keys {
-                if let Some(v) = dp.get(k) {
-                    p.insert(k.to_string(), v.clone());
-                }
-            }
-            dict.insert("palette".into(), Value::Object(p));
-        }
-    }
-    let Ok(mut out) = serde_json::from_value::<WallpaperConfig>(Value::Object(dict)) else { return c.clone() };
-    if kind.has_tilt() && kind != c.scene {
-        out.scene_tilt.insert(kind.raw().to_string(), deepfield::config::DEFAULT_TILT);
-        out.normalize_tilts();
-    }
-    out
-}
-
-pub fn is_customized(c: &WallpaperConfig, kind: SceneKind) -> bool {
-    resetting_scene(c, kind) != *c
-}
+pub use deepfield::customization::{is_customized, resetting_scene};
 
 // MARK: color presets (in the library, for the command line too)
 
@@ -344,43 +252,5 @@ pub fn scene_note(c: &WallpaperConfig) -> Option<String> {
             "Without dark matter the outer disk lags behind. Real galaxies don't do this.".into()
         }),
         _ => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn reset_covers_scene_keys_only() {
-        let mut c = WallpaperConfig::default();
-        c.gas_wind = 3.0;
-        c.star_density = 2.0;
-        c.pulsars = false;
-        assert!(is_customized(&c, SceneKind::GasGiant));
-        assert!(!is_customized(&c, SceneKind::Pulsar));
-        let r = resetting_scene(&c, SceneKind::GasGiant);
-        assert_eq!(r.gas_wind, 1.0);
-        assert_eq!(r.star_density, 2.0);
-    }
-
-    #[test]
-    fn reset_puts_back_each_scenes_own_tilt() {
-        // the slider and the reset agree about which scenes have a tilt
-        for &k in SceneKind::ALL {
-            assert_eq!(k.has_tilt(), owns(k, "tilt"), "{k:?}");
-        }
-        let mut c = WallpaperConfig::default();
-        c.set_scene(SceneKind::Comet);
-        c.tilt = 20.0;
-        c.set_scene(SceneKind::BlackHole);
-        c.tilt = 12.0;
-        // another scene's parked tilt counts as its customization, and resets alone
-        assert!(is_customized(&c, SceneKind::Comet));
-        let r = resetting_scene(&c, SceneKind::Comet);
-        assert_eq!((r.tilt, r.scene_tilt.get("comet")), (12.0, None));
-        // the active scene's
-        let r = resetting_scene(&c, SceneKind::BlackHole);
-        assert_eq!((r.tilt, r.scene_tilt.get("comet")), (DEFAULT_TILT, Some(&20.0)));
     }
 }

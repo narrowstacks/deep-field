@@ -12,6 +12,10 @@ pub enum TrayAction {
     Preset(String),
     /// asks the Customize window to save, import or export (see `customize_request`)
     Request(&'static str),
+    /// turns the schedule on or off (or, with nothing in it yet, opens it in Customize)
+    ToggleSchedule,
+    /// the schedule's next entry now
+    SkipSchedule,
     PixelSize(i64),
     TogglePause,
     EditSettings,
@@ -28,6 +32,10 @@ pub struct Tray {
     presets_menu: Submenu,
     presets: Vec<(String, CheckMenuItem)>,
     requests: Vec<(&'static str, MenuItem)>,
+    menu: Menu,
+    schedule: CheckMenuItem,
+    skip: MenuItem,
+    skip_shown: bool,
     customize: MenuId,
     edit: MenuId,
     quit: MenuId,
@@ -75,21 +83,25 @@ impl Tray {
             let _ = size_menu.append(item);
         }
         let presets_menu = Submenu::new("Presets", true);
+        let schedule = CheckMenuItem::new("Change on Schedule", true, false, None);
+        let skip = MenuItem::new("Next in Schedule", true, None);
         let customize = MenuItem::new("Customize...", true, None);
         let pause = MenuItem::new("Pause", true, None);
         let edit = MenuItem::new("Edit Settings File...", true, None);
         let quit = MenuItem::new("Quit Deep Field", true, None);
-        let _ = menu.append_items(&[&customize, &PredefinedMenuItem::separator(), &scene_menu, &presets_menu, &size_menu,
+        let _ = menu.append_items(&[&customize, &PredefinedMenuItem::separator(), &scene_menu, &presets_menu, &schedule,
+                                    &size_menu,
                                     &PredefinedMenuItem::separator(), &pause, &edit,
                                     &PredefinedMenuItem::separator(), &quit]);
         let icon = TrayIconBuilder::new()
-            .with_menu(Box::new(menu))
+            .with_menu(Box::new(menu.clone()))
             .with_tooltip("Deep Field")
             .with_icon(icon())
             .build()
             .expect("tray icon");
         let mut tray = Tray {
-            _icon: icon, scenes, sizes, presets_menu, presets: Vec::new(), requests: Vec::new(),
+            _icon: icon, scenes, sizes, presets_menu, presets: Vec::new(), requests: Vec::new(), menu, schedule, skip,
+            skip_shown: false,
             customize: customize.id().clone(), edit: edit.id().clone(),
             quit: quit.id().clone(), pause,
         };
@@ -114,6 +126,12 @@ impl Tray {
         }
         if let Some((n, _)) = self.sizes.iter().find(|(_, i)| *i.id() == id) {
             return Some(TrayAction::PixelSize(*n));
+        }
+        if id == *self.schedule.id() {
+            return Some(TrayAction::ToggleSchedule);
+        }
+        if id == *self.skip.id() {
+            return Some(TrayAction::SkipSchedule);
         }
         if id == *self.pause.id() {
             return Some(TrayAction::TogglePause);
@@ -165,6 +183,24 @@ impl Tray {
         }
     }
 
+
+    /// The schedule items as the Mac's menu has them: with nothing scheduled yet the toggle
+    /// opens Customize to set it up, and Next shows only while a rotation of two or more runs.
+    pub fn update_schedule(&mut self, s: &crate::schedule::WallpaperSchedule) {
+        self.schedule.set_checked(s.enabled);
+        self.schedule.set_text(if s.entries.is_empty() { "Set Up Schedule..." } else { "Change on Schedule" });
+        let show = s.enabled && s.mode == crate::schedule::Mode::Rotate && s.entries.len() > 1;
+        if show != self.skip_shown {
+            if show {
+                // just below the toggle: Customize, separator, Scene, Presets, the toggle
+                let _ = self.menu.insert(&self.skip, 5);
+            } else {
+                let _ = self.menu.remove(&self.skip);
+            }
+            self.skip_shown = show;
+        }
+    }
+
     /// Moves the preset check mark to the current look.
     pub fn update_presets(&self, store: &crate::presets::PresetStore, c: &WallpaperConfig) {
         let current = store.current(c).map(|p| p.id.clone());
@@ -174,9 +210,9 @@ impl Tray {
     }
 }
 
-/// Where the tray asks the Customize window to open one of its preset dialogs: the request's
-/// name, read and removed by the window within half a second, whether it was open already or
-/// is just starting.
+/// Where the tray asks the Customize window to open one of its preset dialogs, or the Schedule
+/// section to set one up: the request's name, read and removed by the window within half a
+/// second, whether it was open already or is just starting.
 pub fn customize_request_path() -> std::path::PathBuf {
     crate::config_store::dir().join("customize-request")
 }

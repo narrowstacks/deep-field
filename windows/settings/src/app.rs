@@ -23,23 +23,26 @@ pub enum Section {
     Sky,
     Image,
     System,
+    Schedule,
 }
 
 impl Section {
-    pub const ALL: [Section; 4] = [Section::Scene, Section::Sky, Section::Image, Section::System];
+    /// The Mac's order; Phone will go before Schedule, which is Ctrl+6 as Cmd+6 is there.
+    pub const ALL: [Section; 5] = [Section::Scene, Section::Sky, Section::Image, Section::System, Section::Schedule];
     pub fn title(self) -> &'static str {
         match self {
             Section::Scene => "Scene",
             Section::Sky => "Sky",
             Section::Image => "Image",
             Section::System => "System",
+            Section::Schedule => "Schedule",
         }
     }
 }
 
-gpui_kit::actions!(deepfield, [ShowScene, ShowSky, ShowImage, ShowSystem, PreviousScene, NextScene, CloseWindow]);
+gpui_kit::actions!(deepfield, [ShowScene, ShowSky, ShowImage, ShowSystem, ShowSchedule, PreviousScene, NextScene, CloseWindow]);
 
-/// The window's keys, as on the Mac with Ctrl for Cmd: Ctrl+1 to Ctrl+4 pick a section, Ctrl+[
+/// The window's keys, as on the Mac with Ctrl for Cmd: Ctrl+1 to Ctrl+4 and Ctrl+6 pick a section, Ctrl+[
 /// and Ctrl+] step through the scenes, Ctrl+W closes.
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
@@ -47,6 +50,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("ctrl-2", ShowSky, None),
         KeyBinding::new("ctrl-3", ShowImage, None),
         KeyBinding::new("ctrl-4", ShowSystem, None),
+        KeyBinding::new("ctrl-6", ShowSchedule, None),
         KeyBinding::new("ctrl-[", PreviousScene, None),
         KeyBinding::new("ctrl-]", NextScene, None),
         KeyBinding::new("ctrl-w", CloseWindow, None),
@@ -62,6 +66,8 @@ pub struct Settings {
     pub store: ConfigStore,
     /// the saved presets, shared with the tray menu through presets.json
     pub presets: deepfield::presets::PresetStore,
+    /// the schedule, which the wallpaper runs
+    pub schedule: deepfield::schedule::ScheduleStore,
     pub section: Section,
     dirty: bool,
     last_save: Instant,
@@ -118,6 +124,7 @@ impl Settings {
             focus,
             store: ConfigStore::load(),
             presets: deepfield::presets::PresetStore::load(),
+            schedule: deepfield::schedule::ScheduleStore::load(),
             section: Section::Scene,
             dirty: false,
             last_save: Instant::now(),
@@ -261,6 +268,10 @@ impl Settings {
                 self.flash("Settings changed outside this window");
                 changed = true;
             }
+            // the schedule turned on or skipped from the tray menu
+            if self.schedule.reload_if_changed().is_some() {
+                changed = true;
+            }
             // presets applied from the tray menu
             if self.presets.reload_if_changed() {
                 changed = true;
@@ -273,6 +284,7 @@ impl Settings {
                     "save-preset" => self.prompt_save_preset(window, cx),
                     "import-preset" => self.prompt_import_presets(cx),
                     "export-preset" => self.prompt_export_preset(None, window, cx),
+                    "show-schedule" => self.section = Section::Schedule,
                     _ => {}
                 }
                 changed = true;
@@ -556,6 +568,7 @@ impl Settings {
             Section::Sky => crate::tabs::sky_tab(self, window, cx),
             Section::Image => crate::tabs::image_tab(self, window, cx),
             Section::System => crate::tabs::system_tab(self, window, cx),
+            Section::Schedule => crate::schedule_tab::schedule_tab(self, window, cx),
         };
         div()
             .w(px(theme::INSPECTOR_W))
@@ -589,6 +602,7 @@ impl Render for Settings {
             .on_action(cx.listener(|this, _: &ShowSky, _, cx| this.show(Section::Sky, cx)))
             .on_action(cx.listener(|this, _: &ShowImage, _, cx| this.show(Section::Image, cx)))
             .on_action(cx.listener(|this, _: &ShowSystem, _, cx| this.show(Section::System, cx)))
+            .on_action(cx.listener(|this, _: &ShowSchedule, _, cx| this.show(Section::Schedule, cx)))
             .on_action(cx.listener(|this, _: &PreviousScene, _, cx| this.step_scene(-1, cx)))
             .on_action(cx.listener(|this, _: &NextScene, _, cx| this.step_scene(1, cx)))
             .on_action(cx.listener(|this, _: &CloseWindow, window, _| {

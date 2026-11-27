@@ -66,6 +66,13 @@ pub const BLOOM: &[Part] = &[
     wgsl!("bloom.wgsl"),
 ];
 
+/// The schedule's transitions, mixing two finished frames (output.wgsl for the dither patterns).
+pub const TRANSITION: &[Part] = &[
+    wgsl!("common.wgsl"),
+    wgsl!("output.wgsl"),
+    wgsl!("transition.wgsl"),
+];
+
 /// The nearest-neighbor upscale onto a screen.
 pub const PRESENT: &[Part] = &[
     wgsl!("common.wgsl"),
@@ -138,7 +145,7 @@ pub fn validate(label: &str, parts: &[Part]) -> Result<(), String> {
 /// `--check-shaders`: validates every module, printing each error.
 pub fn check() -> bool {
     let mut ok = true;
-    for (label, parts) in [("bake", BAKE), ("frame", FRAME), ("auroraLUT", AURORA_LUT), ("labels", LABELS), ("bloom", BLOOM), ("present", PRESENT)] {
+    for (label, parts) in [("bake", BAKE), ("frame", FRAME), ("auroraLUT", AURORA_LUT), ("labels", LABELS), ("bloom", BLOOM), ("transition", TRANSITION), ("present", PRESENT)] {
         match validate(label, parts) {
             Ok(()) => println!("{label}: ok"),
             Err(e) => {
