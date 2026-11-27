@@ -199,7 +199,7 @@ struct CLIService {
         let c = store.config
         var new: WallpaperConfig
         if a.has("--all") {
-            new = UserPreset(name: "", config: WallpaperConfig()).applied(over: c)
+            new = UserPreset(name: "", config: WallpaperConfig(), includesPlace: true).applied(over: c)
         } else if !a.positional.isEmpty {
             let defaults = ConfigKeys.object(WallpaperConfig())
             let list = try a.positional.map { key -> ConfigKeys.Assignment in
@@ -218,15 +218,16 @@ struct CLIService {
 
     private func keys(_ args: [String]) throws {
         let a = try ParsedArgs(args, values: ["--scene"], flags: ["--all", "--names", "--json"])
-        let c = store.config
-        let dict = ConfigKeys.object(c)
+        var c = store.config
         let list: [String]
         if a.has("--all") {
             list = ConfigKeys.allPaths(c)
         } else {
-            let kind = try a.value("--scene").map { try SceneKind.named($0, listedOnly: false) } ?? c.scene
-            list = WallpaperConfig.sceneKeys(kind) + ConfigKeys.imageKeys
+            // switched to, for the tilt and image settings that scene has
+            if let name = a.value("--scene") { c.scene = try SceneKind.named(name, listedOnly: false) }
+            list = WallpaperConfig.sceneKeys(c.scene) + ConfigKeys.imageKeys
         }
+        let dict = ConfigKeys.object(c)
         if a.has("--names") { list.forEach { o.print($0) }; return }
         let rows = list.compactMap { key -> (String, String, String)? in
             guard let v = ConfigKeys.value(at: key.split(separator: ".").map(String.init), in: dict) else { return nil }
@@ -291,7 +292,7 @@ struct CLIService {
 
     private func preset(_ args: [String]) throws {
         guard let sub = args.first else { throw CLIError("usage: deepfield preset apply|save|delete|rename|export|import ...") }
-        let a = try ParsedArgs(Array(args.dropFirst()), values: ["--fade", "--style", "--name"], flags: [])
+        let a = try ParsedArgs(Array(args.dropFirst()), values: ["--fade", "--style", "--name"], flags: ["--with-place"])
         let p = a.positional
         let presetStore = PresetStore.shared
         func find(_ name: String) throws -> UserPreset {
@@ -306,14 +307,16 @@ struct CLIService {
             try commit(try applyChanges(Array(p.dropFirst()), preset: name, to: store.config), a)
         case "save":
             guard let name = p.first else { throw CLIError("usage: deepfield preset save NAME") }
-            let saved = presetStore.saveCurrent(as: name)
+            let saved = presetStore.saveCurrent(as: name, includePlace: a.has("--with-place") ? true : nil)
             o.print("Saved \u{201C}\(saved.name)\u{201D}")
         case "delete":
             guard let name = p.first else { throw CLIError("usage: deepfield preset delete NAME") }
             presetStore.delete(try find(name))
         case "rename":
             guard p.count == 2 else { throw CLIError("usage: deepfield preset rename OLD NEW") }
-            presetStore.rename(try find(p[0]), to: p[1])
+            guard presetStore.rename(try find(p[0]), to: p[1]) else {
+                throw CLIError("can't rename to \u{201C}\(p[1])\u{201D}: the name is empty or another preset has it")
+            }
         case "export":
             // export [NAME] FILE: a saved preset, or the current settings
             guard let path = p.last else { throw CLIError("usage: deepfield preset export [NAME] FILE.deepfield") }
@@ -321,7 +324,7 @@ struct CLIService {
                 : UserPreset(name: a.value("--name") ?? presetStore.current?.name ?? store.config.scene.title, config: store.config)
             var url = URL(fileURLWithPath: PresetLookup.resolve(path, cwd: cwd))
             if url.pathExtension.isEmpty { url.appendPathExtension(PresetStore.fileExtension) }
-            guard let data = PresetStore.fileData(for: preset) else { throw CLIError("couldn't encode the preset") }
+            guard let data = PresetStore.fileData(for: preset, includePlace: a.has("--with-place")) else { throw CLIError("couldn't encode the preset") }
             try data.write(to: url, options: .atomic)
             o.print(url.path)
         case "import":
@@ -340,7 +343,9 @@ struct CLIService {
     private func events(_ args: [String]) throws {
         let a = try ParsedArgs(args, flags: ["--names", "--json", "--all"])
         let current = store.config.scene
-        let list = EventSchedule.named.filter { a.has("--all") || a.has("--names") || $0.scene == nil || $0.scene == current }
+        let list = EventSchedule.named.filter {
+            a.has("--all") || a.has("--names") || $0.scene == current || ($0.scene == nil && !current.drawsRealSky)
+        }
         if a.has("--names") { list.forEach { o.print($0.name) }; return }
         if a.has("--json") {
             o.print(ConfigKeys.json(list.map { ["name": $0.name, "id": Int($0.kind.id), "scene": $0.scene?.rawValue ?? "sky"] }, pretty: true))
@@ -348,9 +353,12 @@ struct CLIService {
         }
         let w = list.map(\.name.count).max() ?? 0
         for e in list {
-            o.print("\(e.name.padding(toLength: w + 2, withPad: " ", startingAt: 0))\(String(e.kind.id).padding(toLength: 4, withPad: " ", startingAt: 0))\(e.scene?.title ?? "sky (every scene)")")
+            o.print("\(e.name.padding(toLength: w + 2, withPad: " ", startingAt: 0))\(String(e.kind.id).padding(toLength: 4, withPad: " ", startingAt: 0))\(e.scene?.title ?? "sky (shared)")")
         }
-        if !a.has("--all") { o.print("(this scene's and the sky's; --all lists every scene's)") }
+        if !a.has("--all") {
+            o.print(list.isEmpty ? "(none in \(current.title); --all lists every scene's)"
+                                 : "(this scene's and the sky's; --all lists every scene's)")
+        }
     }
 
     private func event(_ args: [String]) throws {
@@ -361,6 +369,8 @@ struct CLIService {
             throw CLIError("no event called \u{201C}\(name)\u{201D}; `deepfield events --all` lists them")
         }
         try requireApp("show")
+        if let reason = EventSchedule.realSkyReason(e, in: store.config.scene) { throw CLIError(reason) }
+        if let reason = store.hiddenReason(e.kind) { throw CLIError(reason) }
         if let s = e.scene, s != store.config.scene {
             o.warn("note: \(e.name) happens in \(s.title); switch with `deepfield scene \(s.rawValue)` to see it")
         }

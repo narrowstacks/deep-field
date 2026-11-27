@@ -42,6 +42,8 @@ enum CLI {
             `deepfield keys --all` every one. Numbers, true/false (or on/off), hex colors and choices:
               deepfield set bloom=0.6 pixelSize=4 dither=blueNoise
               deepfield set palette.core=#ffd27a diskSpeed=1.5
+            tilt is the current scene's own; with scene=NAME in the same command, before or after it, the
+            new scene's.
             """, service: true),
         Command(name: "keys", summary: "List settings with their values and types", usage: """
             deepfield keys [--scene NAME] [--all] [--names] [--json]
@@ -59,13 +61,14 @@ enum CLI {
             """, service: true),
         Command(name: "preset", summary: "Apply, save, delete, rename, export or import presets", usage: """
             deepfield preset apply NAME|FILE.deepfield [KEY=VALUE...] [--fade SECONDS] [--style STYLE]
-            deepfield preset save NAME
+            deepfield preset save NAME [--with-place]
             deepfield preset delete NAME
             deepfield preset rename OLD NEW
-            deepfield preset export [NAME] FILE.deepfield    (the current settings without NAME)
+            deepfield preset export [NAME] FILE.deepfield [--with-place]    (the current settings without NAME)
             deepfield preset import FILE.deepfield...
 
             apply also takes a palette preset ("Synthwave") or one of the scene's color presets.
+            --with-place includes Live Earth's latitude and longitude, left out otherwise.
             """, service: true),
         Command(name: "events", summary: "List events you can trigger", usage: """
             deepfield events [--all] [--names|--json]
@@ -300,10 +303,12 @@ enum CLI {
 }
 
 /// Options for one command: `--name value` (or `--name=value`) for those in `values`, bare
-/// flags for those in `flags`, and everything else positional.
+/// flags for those in `flags`, and everything else positional. An option given more than once
+/// keeps its last value in `options`, and every value in order in `allOptions`.
 struct ParsedArgs {
     var positional: [String] = []
     var options: [String: String] = [:]
+    var allOptions: [String: [String]] = [:]
     var flags: Set<String> = []
 
     init(_ args: [String], values: Set<String> = [], flags allowed: Set<String> = []) throws {
@@ -322,13 +327,16 @@ struct ParsedArgs {
                     inline = String(a[a.index(after: eq)...])
                 }
                 if values.contains(name) {
+                    let value: String
                     if let inline {
-                        options[name] = inline
+                        value = inline
                     } else {
                         guard i + 1 < args.count else { throw CLIError("\(name) needs a value") }
-                        options[name] = args[i + 1]
+                        value = args[i + 1]
                         i += 1
                     }
+                    options[name] = value
+                    allOptions[name, default: []].append(value)
                 } else if allowed.contains(name) {
                     // a flag can carry an optional value as --flag=value (render's --loop=2)
                     flags.insert(name)
@@ -346,6 +354,8 @@ struct ParsedArgs {
 
     func has(_ flag: String) -> Bool { flags.contains(flag) }
     func value(_ option: String) -> String? { options[option] }
+    /// Every value given for a repeatable option, in order.
+    func values(_ option: String) -> [String] { allOptions[option] ?? [] }
 
     func double(_ option: String) throws -> Double? {
         guard let s = options[option] else { return nil }

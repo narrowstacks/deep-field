@@ -11,10 +11,21 @@ struct LiveEarthSections: View {
                 set: { store.config.earthFrozenTime = $0.timeIntervalSince1970.rounded() })
     }
 
+    /// Only the toggle freezes at now: presets and other outside changes don't go through this
+    /// setter, so they keep their date. One assignment, so the old date's clouds never download.
+    private var freezeTime: Binding<Bool> {
+        Binding(get: { store.config.earthFreezeTime },
+                set: { on in
+                    var c = store.config
+                    if on && !c.earthFreezeTime { c.earthFrozenTime = Date().timeIntervalSince1970.rounded() }
+                    c.earthFreezeTime = on
+                    store.config = c
+                })
+    }
+
     var body: some View {
         Section {
             Toggle("Use this Mac's location", isOn: $store.config.homeFromDevice)
-                .onChange(of: store.config.homeFromDevice) { _, on in if on { location.request() } }
             if store.config.homeFromDevice {
                 LabeledContent("Location") {
                     HStack {
@@ -26,13 +37,11 @@ struct LiveEarthSections: View {
                 }
             } else {
                 LabeledContent("Latitude") {
-                    TextField("Latitude", value: $store.config.homeLatitude, format: .number.precision(.fractionLength(0...4)))
-                        .labelsHidden().multilineTextAlignment(.trailing).frame(width: 110)
+                    DegreesField(title: "Latitude", value: $store.config.homeLatitude, kept: WallpaperConfig.keptLatitude)
                         .help("Degrees, north positive (-90 to 90)")
                 }
                 LabeledContent("Longitude") {
-                    TextField("Longitude", value: $store.config.homeLongitude, format: .number.precision(.fractionLength(0...4)))
-                        .labelsHidden().multilineTextAlignment(.trailing).frame(width: 110)
+                    DegreesField(title: "Longitude", value: $store.config.homeLongitude, kept: WallpaperConfig.keptLongitude)
                         .help("Degrees, east positive (-180 to 180)")
                 }
             }
@@ -43,14 +52,13 @@ struct LiveEarthSections: View {
         }
 
         Section {
-            Toggle("Freeze time", isOn: $store.config.earthFreezeTime)
-                .onChange(of: store.config.earthFreezeTime) { _, on in
-                    if on { store.config.earthFrozenTime = Date().timeIntervalSince1970.rounded() }
-                }
+            Toggle("Freeze time", isOn: freezeTime)
             if store.config.earthFreezeTime {
                 DatePicker("Moment", selection: frozenDate, displayedComponents: [.date, .hourAndMinute])
                 LabeledContent("") {
                     Button("Now") { store.config.earthFrozenTime = Date().timeIntervalSince1970.rounded() }
+                        .accessibilityLabel("Set Moment to Now")
+                        .accessibilityInputLabels(["Now", "Set Moment to Now"])   // the shown word first, for Voice Control
                 }
             }
         } header: {
@@ -116,5 +124,41 @@ struct LiveEarthSections: View {
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .full
         return f.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+/// A coordinate. The setting follows the typing, always in range; the text stays as typed until
+/// Return or leaving the field, since showing the kept value sooner would break up "200.5".
+private struct DegreesField: View {
+    let title: String
+    @Binding var value: Double
+    let kept: (Double) -> Double
+
+    /// The text being typed, shown while the setting still has the value it gave.
+    @State private var draft: (text: String, value: Double)?
+    @FocusState private var focused: Bool
+
+    private static let format = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(0...4))
+
+    private var text: Binding<String> {
+        Binding(get: {
+            if let draft, draft.value == value { return draft.text }
+            return value.formatted(Self.format)
+        }, set: { new in
+            // also called without a change, which mustn't round the setting to the digits shown
+            guard new != self.text.wrappedValue else { return }
+            var v = value
+            if let typed = try? Self.format.parseStrategy.parse(new), typed.isFinite { v = kept(typed) }
+            draft = (new, v)
+            if v != value { value = v }
+        })
+    }
+
+    var body: some View {
+        TextField(title, text: text)
+            .labelsHidden().multilineTextAlignment(.trailing).frame(width: 110)
+            .focused($focused)
+            .onSubmit { draft = nil }
+            .onChange(of: focused) { if !focused { draft = nil } }
     }
 }

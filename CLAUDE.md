@@ -59,6 +59,13 @@ What the owner has consistently asked for: soft edges and gradual falloff (no ha
 crisp outlines), saturated and varied color, visible motion in real time, and flashes and
 twinkles used sparingly. Ground scenes in real physics, tuned for looks.
 
+## Changelog and credit
+
+- Every user-facing change adds a line under `## [Unreleased]` in `CHANGELOG.md`, in the same PR. A PR with nothing user-facing uses the `no-changelog` label.
+- A change by anyone other than the owner ends its line with credit: `Thanks to @username ([#22](link to the PR)).` Use the GitHub username of the PR's author (`gh pr view N --json author`), and name co-authors too. Someone who reported a bug or suggested a feature in an issue is credited the same way, linking the issue.
+- When merging a PR without a changelog line, or without the credit, add it before the merge or straight after.
+- Before a release, compare the commits since the last tag (`git log vX.Y.Z..`) with Unreleased, and add any contributor or change that's missing. Release notes are copied from the changelog.
+
 ## Releasing
 
 1. Write user-facing notes under `## [Unreleased]` in `CHANGELOG.md` as you go.

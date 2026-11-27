@@ -139,7 +139,7 @@ enum FocusWallpaper {
         guard preset != nil || scene != nil else {
             // the Focus ended (or its filter was emptied): put the earlier settings back
             if let data = defaults.data(forKey: key), let saved = WallpaperConfig.decode(data) {
-                store.config = UserPreset(name: "", config: saved).applied(over: store.config)
+                store.config = UserPreset(name: "", config: saved, includesPlace: true).applied(over: store.config)
             }
             defaults.removeObject(forKey: key)
             // a scheduled switch that came due during the Focus happens now
@@ -149,6 +149,8 @@ enum FocusWallpaper {
         // only the first Focus to change things saves; switching between Focuses keeps it
         if defaults.data(forKey: key) == nil, let data = try? JSONEncoder().encode(store.config) {
             defaults.set(data, forKey: key)
+            // the filter may pick the look that's already up, and then no setting changes
+            Scheduler.shared.objectWillChange.send()
         }
         if let preset, let p = PresetStore.shared.presets.first(where: { $0.id == preset }) {
             PresetStore.shared.apply(p)

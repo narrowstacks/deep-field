@@ -8,13 +8,23 @@ struct PresetsMenu: View {
 
     var body: some View {
         let current = presets.current
+        ViewThatFits(in: .horizontal) {
+            presetsMenuContent(current)
+                .fixedSize()
+            presetsMenuContent(current)
+        }
+        .id(current?.name ?? "")
+    }
+
+    @ViewBuilder
+    private func presetsMenuContent(_ currentPreset: UserPreset?) -> some View {
         Menu {
             if presets.presets.isEmpty {
                 Text("No saved presets yet")
             } else {
                 ForEach(presets.presets) { preset in
                     Button { presets.apply(preset) } label: {
-                        if preset.id == current?.id {
+                        if preset.id == currentPreset?.id {
                             Label(preset.name, systemImage: "checkmark")
                         } else {
                             Text(preset.name)
@@ -36,16 +46,27 @@ struct PresetsMenu: View {
                 Menu("Rename") {
                     ForEach(presets.presets) { p in Button("\(p.name)…") { presets.promptToRename(p) } }
                 }
+                Menu("Include Live Earth's Place") {
+                    ForEach(presets.presets) { p in
+                        Toggle(p.name, isOn: Binding(get: { p.includesPlace },
+                                                     set: { presets.setIncludesPlace($0, for: p) }))
+                    }
+                }
                 Menu("Delete") {
                     ForEach(presets.presets) { p in Button("\(p.name)…") { presets.confirmDelete(p) } }
                 }
             }
         } label: {
-            Label(current?.name ?? "Presets", systemImage: "square.stack")
+            Label(currentPreset?.name ?? "Presets", systemImage: "square.stack")
                 .lineLimit(1)
+                .truncationMode(.tail)
+                // on the label, since on the menu its icon's name is read instead
+                .accessibilityLabel("Presets")
         }
         .menuStyle(.borderlessButton)
-        .fixedSize()
+        .accessibilityValue(currentPreset?.name ?? "")
+        // on the menu, since the label's don't reach it. Voice Control goes by the shown name first.
+        .accessibilityInputLabels(currentPreset.map { [$0.name, "Presets"] } ?? ["Presets"])
         .help("Save, apply, import and export your customizations")
     }
 }

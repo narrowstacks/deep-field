@@ -208,6 +208,7 @@ struct SwatchGrid: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(item.name) colors")
+                .accessibilityInputLabels([item.name, "\(item.name) colors"])   // the shown name first, for Voice Control
                 .accessibilityAddTraits(item.selected ? [.isSelected] : [])
             }
         }

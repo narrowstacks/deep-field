@@ -38,8 +38,10 @@ enum DevCommands {
             try? data.write(to: URL(fileURLWithPath: path))
             let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
             let back = PresetStore.preset(from: dict)
-            print(back?.config == preset.config ? "round trip OK" : "round trip MISMATCH")
-            exit(back?.config == preset.config ? 0 : 1)
+            // the file leaves out Live Earth's place
+            let ok = back?.config == preset.config.withPlace(of: WallpaperConfig())
+            print(ok ? "round trip OK" : "round trip MISMATCH")
+            exit(ok ? 0 : 1)
         }
         if let path = args.value("--preset-check") {
             // dev: load a .deepfield file the way Import does and print what it holds

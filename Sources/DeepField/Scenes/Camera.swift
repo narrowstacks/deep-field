@@ -21,6 +21,12 @@ struct PhoneFraming: Codable, Equatable {
     var zoom = 1.0      // > 1 moves in closer
     var shift = 0.0     // moves the subject up (+) or down (-), as a fraction of the screen height
 
+    /// What Reset Framing sets in `scene`. The shift is hidden where the real sky is drawn, so it's
+    /// kept there for the scenes that use it.
+    func reset(in scene: SceneKind) -> PhoneFraming {
+        PhoneFraming(shift: scene.drawsRealSky ? shift : 0)
+    }
+
     /// Per scene: the horizontal half extent of the frame (tangent units; for the screen-space
     /// scenes, their own units), where the subject's center sits (v in [-1, 1], up positive),
     /// and the horizontal aim.

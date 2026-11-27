@@ -22,7 +22,8 @@ Everything is in `Sources/DeepField`:
 
 - `App/`: entry point, app delegate and menu bar, the per-screen wallpaper windows, runtime flags.
 - `Config/`: the settings model (`WallpaperConfig`, whose Codable keys are the saved format;
-  `SceneCustomization` holds per-scene image settings and which keys each scene's Reset covers),
+  `SceneCustomization` holds per-scene image settings and tilts (`tilt` is always the active
+  scene's, `sceneTilt` and `sharedTilt` hold the others'), and which keys each scene's Reset covers),
   scene kinds and options, star types, palettes and presets, and `ConfigStore`.
 - `Scenes/`: CPU-side scene state: camera, planets, star systems, galaxy kinematics, the event
   schedule, and per-frame parameters for the newer scenes (`SceneParams`, `TidalDisruption`).
@@ -87,7 +88,8 @@ An older nebula scene (pillars, dark clouds) is in the code but hidden from the 
   compositor scales it up with nearest-neighbor filtering, so the GPU shades about 1/9 of the
   pixels.
 - **Low frame rate.** 24 fps by default, capped at 12 in Low Power Mode and at 8 under thermal
-  pressure.
+  pressure. The saved rate can be up to 1000, and a slower display runs at its own maximum
+  (`Config/FrameRate.swift`).
 - **Stops when nobody can see it.** The display link pauses when the wallpaper window is fully
   covered (`NSWindow.occlusionState`), when the displays sleep, and when you switch users.
 - **Events are scheduled on the CPU** from a seeded hash per time slot, so there is no
@@ -185,8 +187,8 @@ build/DeepField.app/Contents/MacOS/DeepField --capture-ui out.png -captureTab N 
 defaults write com.narrowstacks.DeepField debug -bool true     # log bake times, fps, pause/resume
 .build/release/DeepField --preset-roundtrip out.deepfield [--scene ...] [--config ...]   # write a preset file, read it back, compare
 .build/release/DeepField --preset-check file.deepfield         # load a preset file the way Import does
-.build/release/DeepField --check-customization                 # per-scene reset and image settings, on plain configs
-.build/release/DeepField --check-schedule                      # which entry rotation and timed schedules pick, DST included
+.build/release/DeepField --check-customization                 # per-scene reset, tilt and image settings, on plain configs
+.build/release/DeepField --check-schedule                      # which entry rotation and timed schedules pick, DST included, and the status line
 .build/release/DeepField --snapshot out.png --defaults --scene galaxy --transition-from ringedPlanet:0.5:blackHole
     # halfway through a schedule transition (dissolve, crossfade, pan, driftAway, warp, blackHole)
 build/DeepField.app/Contents/MacOS/DeepField --welcome          # show the first-launch guide
@@ -215,22 +217,32 @@ starting at t = 300 s (`--time`), and the CPU time spent encoding each frame.
 
 ## Releasing
 
-The version lives in `VERSION`, and each release has a section in `CHANGELOG.md`. To ship:
+The version lives in `VERSION`, and each release has a section in `CHANGELOG.md`. User-facing
+notes go under `## [Unreleased]` as changes land. To ship:
 
-1. Set `VERSION` (for example `0.2.0`), move the `Unreleased` notes into a `## [0.2.0]` section, and commit.
-2. Tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
+1. Set `VERSION` (for example `0.2.0`) and rename `Unreleased` to `## [0.2.0] - <date>` (CI
+   checks a section exists for `VERSION`). Commit and push `main`.
+2. Push an annotated tag: `git tag -a v0.2.0 -m "Deep Field 0.2.0" && git push origin v0.2.0`.
 
 The [Release workflow](../.github/workflows/release.yml) then builds a universal app on the
 self-hosted Mac runner, signs it with the Developer ID certificate, packages and notarizes the
 DMG, signs a Sparkle appcast, and publishes both to a GitHub release. Installed copies pick up
 the new version from `releases/latest/download/appcast.xml`. A tag with a suffix
-(`v0.2.0-beta.1`) becomes a prerelease, which the update feed skips.
+(`v0.2.0-beta.1`) becomes a prerelease, which the update feed skips. The GitHub release shows the
+version's `CHANGELOG.md` section as Markdown; the update window shows it as plain text, with links
+reduced to their text and code spans quoted (`scripts/release/plain-notes.sh`).
+
+For a full release, the workflow then pushes an empty `[deploy]` commit to
+narrowstacks/deep-field-website so the website rebuilds with it. If that step fails, push
+`chore: ship Deep Field 0.2.0 [deploy]` there by hand.
+
 [CI](../.github/workflows/ci.yml) builds every push and pull request on GitHub-hosted runners.
 
 Secrets the release needs: `APPLE_DEVELOPER_ID_P12_B64` and `APPLE_DEVELOPER_ID_P12_PASSWORD`
 (the Developer ID Application certificate), `APPLE_NOTARY_API_KEY_B64`, `APPLE_NOTARY_API_KEY_ID`
 and `APPLE_NOTARY_API_ISSUER_ID` (an App Store Connect API key for notarization), and
-`SPARKLE_ED_PRIVATE_KEY` (the update signing key; its public half is `SUPublicEDKey` in `build.sh`).
+`SPARKLE_ED_PRIVATE_KEY` (the update signing key; its public half is `SUPublicEDKey` in `build.sh`),
+and `WEBSITE_DEPLOY_TOKEN` (pushes the website's deploy commit).
 
 ## App icon, logo and media
 

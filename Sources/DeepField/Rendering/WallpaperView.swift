@@ -30,13 +30,24 @@ final class WallpaperView: NSView {
     private var seenTransition = 0
 
     /// Preview mode: render exactly what a screen of this pixel size would show, scaled down to fit.
-    private let previewOf: CGSize?
+    /// A new size re-centers 1:1, since the old pan points at another part of the scene.
+    var previewOf: CGSize? {
+        didSet {
+            guard previewOf != oldValue else { return }
+            pan = .zero
+            layoutDrawable()
+        }
+    }
 
     // debug counters
     private var framesSinceLog = 0
     private var lastLog = CACurrentMediaTime()
 
-    var externallyPaused = false { didSet { updateRunning() } }
+    /// Pause Animation: the window can still be seen, so it has to hold a finished frame.
+    var userPaused = false { didSet { updateRunning() } }
+    /// The display is asleep or another user's session is on it. Kept apart from `userPaused`
+    /// because no frame drawn now would be seen.
+    var displayHidden = false { didSet { updateRunning() } }
 
     /// Preview only: show the drawable at the wallpaper's real cell size, centered and cropped,
     /// instead of scaled to fit, so pixel size, levels and dither can be judged.
@@ -207,14 +218,16 @@ final class WallpaperView: NSView {
 
     /// Keeps the bake on screen as the outgoing frame. The new look gets a bake of its own (no
     /// texture reuse, which would overwrite the old one), unless both share the same bake.
+    /// With the display link stopped only one frame gets drawn, so that cuts to the new look
+    /// instead of holding the transition's first frame, which is the old one.
     private func startFade(_ t: ConfigStore.Transition) {
         rebakeWork?.cancel()
-        if let old = baked, old.matches(t.from), previewOf == nil || window != nil {
+        if let old = baked, old.matches(t.from), shouldRun {
             fade = Fade(baked: old, config: t.from, start: t.start, duration: t.duration,
                         seed: Float.random(in: 0..<100), style: t.style, targets: nil)
             if !old.matches(config) { baked = nil }
         } else {
-            fade = nil   // nothing of the old look on screen yet, so just switch
+            fade = nil   // stopped, or nothing of the old look on screen yet, so just switch
         }
         layoutDrawable()
     }
@@ -268,30 +281,41 @@ final class WallpaperView: NSView {
     }
 
     private var isOnScreen: Bool {
-        guard let window else { return false }
+        guard let window, !displayHidden else { return false }
         return window.occlusionState.contains(.visible) || Settings.ignoreOcclusion
     }
+
+    private var shouldRun: Bool { isOnScreen && !userPaused }
 
     private func updateRunning() {
         guard let link else { return }
         let fps = Settings.effectiveFPS
         link.preferredFrameRateRange = CAFrameRateRange(minimum: Float(min(fps, 10)), maximum: Float(fps), preferred: Float(fps))
-        let shouldRun = isOnScreen && !externallyPaused
+        // With two drawables, `nextDrawable` waits about 2 ms on the compositor every frame, too much
+        // of the 6 ms there is at 165 fps.
+        let drawables = fps > 60 ? 3 : 2
+        if metalLayer.maximumDrawableCount != drawables { metalLayer.maximumDrawableCount = drawables }
+        let shouldRun = shouldRun
         if link.isPaused == shouldRun {
             link.isPaused = !shouldRun
             if Settings.debug {
                 NSLog("DeepField: %@ rendering on %@ (occlusion visible=%d, paused=%d)",
                       shouldRun ? "resume" : "stop", window?.screen?.localizedName ?? "?",
-                      isOnScreen ? 1 : 0, externallyPaused ? 1 : 0)
+                      isOnScreen ? 1 : 0, userPaused ? 1 : 0)
             }
             if shouldRun { lastFrame = 0; render() }
+        }
+        // Paused partway through a transition: end on the new look. Out of sight this waits until
+        // the window shows again, so nothing is drawn that can't be seen.
+        if userPaused, isOnScreen, fade != nil {
+            fade = nil
+            render()
         }
     }
 
     @objc private func tick(_ l: CADisplayLink) {
         let now = l.timestamp
-        // The display link may fire faster than asked on high refresh displays; skip extra ticks.
-        if now - lastFrame < 0.75 / Settings.effectiveFPS { return }
+        guard FrameRate.isDue(after: now - lastFrame, fps: Settings.effectiveFPS) else { return }
         lastFrame = now
         render()
     }

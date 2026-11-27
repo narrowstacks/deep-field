@@ -6,46 +6,39 @@ import SwiftUI
 /// against a black sky.
 struct CustomizeView: View {
     @ObservedObject private var store = ConfigStore.shared
-    @StateObject private var thumbnails = SceneThumbnails(reference: CustomizeView.reference)
+    @ObservedObject private var thumbnails: SceneThumbnails
     /// Normally Scene; `-captureTab N` picks another for `--capture-ui`, and the menu bar can ask for one.
     @State private var section: CustomizeSection
     /// Owned here so the stage's phone preview and the Phone section share it.
     @State private var showPhoneClock = true
     @State private var actualPixels = false
 
-    init(initialSection: CustomizeSection? = nil) {
+    init(thumbnails: SceneThumbnails, initialSection: CustomizeSection? = nil) {
+        self.thumbnails = thumbnails
         _section = State(initialValue: initialSection ?? CustomizeSection(rawValue: Settings.captureTab) ?? .scene)
-    }
-
-    /// The main screen's size in pixels: the preview renders exactly what it would show.
-    static var reference: CGSize {
-        guard let s = NSScreen.main else { return CGSize(width: 2880, height: 1800) }
-        return CGSize(width: s.frame.width * s.backingScaleFactor, height: s.frame.height * s.backingScaleFactor)
     }
 
     var body: some View {
         HStack(spacing: 0) {
-            StageView(store: store, thumbnails: thumbnails, section: section, reference: Self.reference,
+            StageView(store: store, thumbnails: thumbnails, section: section,
                       showPhoneClock: showPhoneClock, actualPixels: $actualPixels)
                 .frame(minWidth: Theme.stageWidth, maxWidth: .infinity)
                 .background(Theme.stageBackground)
             Divider()
-            VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    Picker("Section", selection: $section) {
-                        ForEach(CustomizeSection.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    PresetsMenu()
+            VStack(alignment: .trailing, spacing: 12) {
+                Picker("Section", selection: $section) {
+                    ForEach(CustomizeSection.allCases) { Text($0.title).tag($0) }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .padding(.bottom, 4)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                PresetsMenu()
                 inspector
             }
+            .padding(.top, 12)
+            .padding(.horizontal, 20)
             .frame(width: Theme.inspectorWidth)
             .background(Theme.inspectorBackground)
+            .padding(.bottom, 12)
         }
         .frame(minWidth: Theme.windowSize.width, maxWidth: .infinity,
                minHeight: Theme.minWindowHeight, maxHeight: .infinity)

@@ -33,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             CLIServer.start()
             LockScreenStill.shared.start()
             Scheduler.shared.start()
-            LocationProvider.shared.refreshIfFollowing()
+            LocationProvider.shared.start()
         } else {
             LiveEarthFeeds.shared.allowNetwork = false
         }
@@ -96,8 +96,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func applyPause() {
-        let paused = userPaused || screensAsleep || sessionInactive
-        windows.forEach { $0.wallpaper.externallyPaused = paused }
+        windows.forEach {
+            $0.wallpaper.displayHidden = screensAsleep || sessionInactive
+            $0.wallpaper.userPaused = userPaused
+        }
     }
 
     // MARK: welcome guide

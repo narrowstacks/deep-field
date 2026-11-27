@@ -4,6 +4,50 @@ All notable changes to Deep Field. Versions follow [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-11-25
+
+- Presets: a preset that matches your settings shows as current again after you edit a scene's own image settings and visit other scenes.
+- `deepfield render` now shows every event given with `--demo` when the flag is repeated, instead of only the last one.
+- The scene gallery's thumbnails no longer show an event started with Show Me soon after launch.
+- Lock screen still: the status says why displays couldn't be updated, lists each reason when none could be, and keeps saying a still stays because its original picture is gone. It also no longer shows an event started with Show Me.
+- Voice Control: controls answer to the words they show, such as a preset's name, Show Me, Now, Reset, a weekday or a color set's name.
+- The update window's release notes no longer show Markdown: links show only their text, and commands are in quotes.
+
+## [0.4.9] - 2026-11-25
+
+- Presets and exported preset files now leave out Live Earth's place (which can be your Mac's location) unless you choose to include it: tick the box when saving or exporting, use Include Live Earth's Place in the Presets menu for presets you already have, or add `--with-place` on the command line. Files exported before this update still contain it.
+- Live Earth asks for your Mac's location whenever following it is turned on, including by a preset or the command line.
+- Saving a preset suggests an unused name and asks before replacing one, and renaming can't give two presets the same name.
+- Welcome guide: the lock screen and login choices now wait for the last button, so Not Now leaves them alone. Opened with Deep Field already on the desktop, it says that changes show there as you make them.
+- Welcome guide: turning a look off, or Undo All, goes back to your own settings instead of the defaults.
+- Fixed a crash when switching scenes after loading a damaged preset.
+- With the animation paused, scheduled switches and `--fade` now cut straight to the new scene instead of leaving the old one up, and pausing partway through a transition ends on the new scene.
+- Schedule: editing a rotation (its looks, their order, the interval or shuffle) no longer switches the wallpaper early, and turning a rotation on starts at its first look with a full interval.
+- Schedule: a shuffled rotation of two looks now alternates, instead of sometimes showing the same one twice in a row. One that's running when you update may switch once then.
+- Phone: the whole preview and its size now fit in short windows, and custom sizes show the size that will be exported.
+- Phone: the scene gallery beside the preview goes to one column where two don't fit, so it's no longer cut off on wide screens.
+- Live Earth no longer offers the Sky section's settings and Camera Tilt, which do nothing there since it draws the real sky, and `deepfield event supernova` and `comet` now say they can't appear there.
+- `deepfield render --demo` with `supernova` or `comet` now gives the same error for Live Earth, instead of rendering without the event.
+- Live Earth no longer offers Phone's Subject height or the welcome guide's Busier sky, which did nothing there. Both keep what you set for other scenes.
+- Live Earth: a preset, the schedule or the command line turning on Freeze time keeps its own date, instead of switching to now while Customize is open.
+- Customize and the welcome guide: moving the window to a display of another shape, or changing its resolution, no longer stretches the preview, and the preview and gallery now follow the display the window is on instead of the one with keyboard focus.
+- Schedule: the status line keeps up with switches and edits, and says when a Focus filter or a change by hand is showing something else.
+- VoiceOver: sliders read their name and the value shown beside them. In the schedule, weekday buttons read the day's full name and whether it's selected, and each entry's time, look and options menu say which entry they belong to.
+- VoiceOver: titles are no longer read twice, the live previews have a name, and buttons, menus and fields say what they act on, such as which event a Show Me button starts, what a Reset button resets, and which schedule entry a weekday belongs to.
+- Black Hole Merger's Detection and Eclipse's Composition now list Custom only while the settings match none of their choices, so you can't pick it just to have it snap back.
+- Frame rate now offers each connected display's own refresh rate, such as 165 fps, and keeps up as displays are plugged in or unplugged. Saved rates can go up to 1000 fps (it was 120); a slower display runs at its own maximum. Higher rates use more power.
+- Pixel size, Frame rate, and the Schedule's Every and Length always show the current value, including one set by a preset, the `deepfield` command or an edited save.
+- Live Earth: latitude and longitude stay in range as you enter them (a longitude past 180 goes around, so 200 is -160), and turning off this Mac's location clears its error and any request still running.
+- Phone: the preview keeps up with your changes while a Live Photo exports, and a custom size outside 320 to 4096 changes to the size that will be exported when you press Return or leave the field.
+- Lock screen still: Set Now no longer stays disabled on "Rendering…" when an update finds no display to set, and the status line says when nothing was updated and why.
+- Lock screen still: the status says your picture was restored only when one was, and after updating some displays it also counts any that failed or were disconnected.
+- Customize: changing a setting redraws only the gallery thumbnails it affects, and one that failed to draw is tried again at the next change.
+- Supernovae and comets now appear in open sky, instead of sometimes behind the planet, star or ground, and Show Me and `deepfield event` say so when none is visible.
+- Every scene now keeps its own camera Tilt. Your scenes and presets keep the tilt they have now, and changing it in one scene leaves the others alone, Quasar's background included (it has no Tilt, and always uses the default). On the command line, `tilt` is the current scene's.
+- Reset's help now says which settings each scene really shares with others, and resetting puts back only that scene's tilt.
+- Schedule: a photon ring changed on Star Meets Black Hole now counts as changed by hand.
+- Customize: a long preset name no longer overflows the inspector. The Presets menu now has its own row and shortens names that don't fit. Thanks to @zacharyarney ([#22](https://github.com/narrowstacks/deep-field/pull/22)).
+
 ## [0.4.8] - 2026-11-18
 
 - A `deepfield` command for the terminal: switch scenes and presets, change any setting of the running wallpaper, trigger events, control the schedule, and render stills, videos, time-lapses, GIFs and frame sequences. Install it with `DeepField.app/Contents/MacOS/DeepField install`, and see `deepfield help`.

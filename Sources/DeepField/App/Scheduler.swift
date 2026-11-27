@@ -1,15 +1,17 @@
 import AppKit
+import Combine
 
 /// Runs the schedule: works out which entry is due, switches to it with a transition, and sets a
 /// timer for the next switch. Each switch happens once, when its slot begins (see
 /// `WallpaperSchedule.Slot.key`), so changes made by hand in between stay until the next one.
 /// A Focus filter takes precedence: nothing switches while one is on.
-final class Scheduler {
+final class Scheduler: ObservableObject {
     static let shared = Scheduler()
 
     private var timer: Timer?
     private var started = false
     private let lastKey = "scheduleLastSlot"
+    private let lookKey = "scheduleLastLook"
 
     private var store: ScheduleStore { .shared }
 
@@ -30,9 +32,10 @@ final class Scheduler {
     }
 
     func scheduleChanged(from old: WallpaperSchedule) {
-        guard started else { return }
-        // turning it on shows the current entry now, even if its slot was already shown
+        // turning it on shows the current entry now, even if its slot was already shown; before the
+        // guard, so it also counts when the command line does it for the next launch
         if store.schedule.enabled && !old.enabled { UserDefaults.standard.removeObject(forKey: lastKey) }
+        guard started else { return }
         evaluate()
     }
 
@@ -44,9 +47,22 @@ final class Scheduler {
         store.schedule = s
     }
 
+    /// What the Schedule section says now. `objectWillChange` fires when the clock, a switch or a
+    /// Focus filter could have changed it.
+    var status: String {
+        let d = UserDefaults.standard
+        let last = d.string(forKey: lastKey), look = d.dictionary(forKey: lookKey)
+        return ScheduleStatus(
+            schedule: store.schedule, config: ConfigStore.shared.config, presets: PresetStore.shared.presets,
+            focusActive: focusActive, lastSlot: last,
+            lastLook: look?["slot"] as? String == last ? (look?["config"] as? Data).flatMap(WallpaperConfig.decode) : nil
+        ).text(at: Date())
+    }
+
     private var focusActive: Bool { UserDefaults.standard.data(forKey: "focusRestoreConfig") != nil }
 
     func evaluate(fade: Bool = true) {
+        objectWillChange.send()
         timer?.invalidate()
         timer = nil
         let s = store.schedule
@@ -60,12 +76,18 @@ final class Scheduler {
             timer = t
         }
         let d = UserDefaults.standard
-        guard !focusActive, d.string(forKey: lastKey) != slot.key else { return }
+        // an entry removed before it could show (during a Focus) isn't switched to
+        guard !focusActive, d.string(forKey: lastKey) != slot.key,
+              s.entries.contains(where: { $0.id == slot.entry.id }) else { return }
         let store = ConfigStore.shared
         // a deleted preset leaves the wallpaper as it is
         if let new = slot.entry.target.applied(over: store.config) {
             store.transition(to: new, seconds: fade ? s.fadeSeconds : 0, style: s.transition)
         }
         d.set(slot.key, forKey: lastKey)
+        // kept with its slot, so an old one is never compared after a switch by a version without it
+        if let look = try? JSONEncoder().encode(store.config) {
+            d.set(["slot": slot.key, "config": look] as [String: Any], forKey: lookKey)
+        }
     }
 }

@@ -1,12 +1,24 @@
 import AppKit
 import SwiftUI
 
-/// The live wallpaper renderer, embedded. Renders at the main screen's resolution and scales down.
+/// The live wallpaper renderer, embedded. Renders at the resolution of the window's screen and scales down.
 struct LivePreview: NSViewRepresentable {
     let reference: CGSize
     let actualPixels: Bool
     func makeNSView(context: Context) -> WallpaperView { WallpaperView(frame: .zero, previewOf: reference) }
-    func updateNSView(_ nsView: WallpaperView, context: Context) { nsView.actualPixels = actualPixels }
+    func updateNSView(_ nsView: WallpaperView, context: Context) {
+        nsView.previewOf = reference
+        nsView.actualPixels = actualPixels
+    }
+}
+
+extension View {
+    /// One image to VoiceOver: the renderer draws into a layer, which says nothing about itself.
+    func livePreviewElement(of scene: SceneKind) -> some View {
+        accessibilityElement()
+            .accessibilityLabel("Live preview of \(scene.title)")
+            .accessibilityAddTraits(.isImage)
+    }
 }
 
 /// The window's left column: the preview (or the phone preview), a caption and the scrolling
@@ -15,10 +27,12 @@ struct StageView: View {
     @ObservedObject var store: ConfigStore
     @ObservedObject var thumbnails: SceneThumbnails
     let section: CustomizeSection
-    let reference: CGSize
     let showPhoneClock: Bool
     @Binding var actualPixels: Bool
     @ObservedObject private var status = StageStatus.shared
+    @ObservedObject private var phone = PhoneExporter.shared
+    @State private var scrollerWidth = PhoneStage.scrollerWidth
+    private var reference: CGSize { thumbnails.reference }
 
     /// `--capture-ui` only: `cacheDisplay` can't read a Metal layer, so captures show a still.
     @State private var captureStill: CGImage?
@@ -26,9 +40,14 @@ struct StageView: View {
     var body: some View {
         Group {
             if section == .phone {
-                HStack(alignment: .top, spacing: 20) {
-                    PhoneStage(store: store, showClock: showPhoneClock)
-                    ScrollView { SceneGallery(store: store, thumbnails: thumbnails, columns: 2) }
+                GeometryReader { geo in
+                    let preview = PhoneStage.previewSize(phone.options, stageHeight: geo.size.height)
+                    let columns = PhoneStage.galleryColumns(thumbnail: CGFloat(thumbnails.size.width), preview: preview.width,
+                                                            stage: geo.size.width, scroller: scrollerWidth)
+                    HStack(alignment: .top, spacing: PhoneStage.gallerySpacing) {
+                        PhoneStage(store: store, showClock: showPhoneClock, fitted: preview)
+                        ScrollView { SceneGallery(store: store, thumbnails: thumbnails, columns: columns) }
+                    }
                 }
             } else {
                 GeometryReader { geo in
@@ -49,6 +68,10 @@ struct StageView: View {
         .padding(.horizontal, Theme.stagePadding)
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // connecting a mouse can change it while the window is open
+        .onReceive(NotificationCenter.default.publisher(for: NSScroller.preferredScrollerStyleDidChangeNotification)) { _ in
+            scrollerWidth = PhoneStage.scrollerWidth
+        }
     }
 
     /// The preview grows with the window: the stage's full width, and as tall as leaves the
@@ -77,6 +100,7 @@ struct StageView: View {
                 }
                 .onAppear { renderCaptureStill() }
                 .onChange(of: store.config) { renderCaptureStill() }
+                .onChange(of: reference) { renderCaptureStill() }
             } else {
                 LivePreview(reference: reference, actualPixels: actualPixels)
             }
@@ -84,6 +108,7 @@ struct StageView: View {
         .frame(width: fitted.width, height: fitted.height)
         .background(Color.black)
         .overlay(Rectangle().stroke(Theme.hairline))
+        .livePreviewElement(of: store.config.scene)
         .frame(width: box.width)
     }
 

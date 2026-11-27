@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The phone preview on the stage while the Phone section is selected, in place of the
@@ -6,13 +7,39 @@ struct PhoneStage: View {
     @ObservedObject var store: ConfigStore
     @ObservedObject private var phone = PhoneExporter.shared
     let showClock: Bool
+    /// The preview's size, from `previewSize`. The stage needs it too, to lay out the gallery beside it.
+    let fitted: CGSize
 
+    static let gallerySpacing: CGFloat = 20
     private static let box = CGSize(width: 394, height: 676)
+    private static let captionHeight: CGFloat = 30
+
+    /// The preview's size on a stage this tall, which it shares with its caption.
+    static func previewSize(_ options: MobileOptions, stageHeight: CGFloat) -> CGSize {
+        // the exported size, which is what the preview renders
+        let size = CGSize(width: MobileOptions.clampedSide(options.width), height: MobileOptions.clampedSide(options.height))
+        // shrinks to fit short windows; capped so the gallery keeps its room in tall ones
+        let boxHeight = min(box.height, max(stageHeight - captionHeight, 1))
+        return Theme.fit(size, in: CGSize(width: box.width, height: boxHeight))
+    }
+
+    /// Two thumbnail columns beside the preview, or one where two and the scroller don't fit. Short
+    /// by under half a Retina pixel still fits: layout rounds it away, and the default phone on a
+    /// wide screen is that close.
+    static func galleryColumns(thumbnail: CGFloat, preview: CGFloat, stage: CGFloat, scroller: CGFloat) -> Int {
+        stage - preview - gallerySpacing >= thumbnail * 2 + 10 + scroller - 0.25 ? 2 : 1
+    }
+
+    /// The room a scroller takes from the gallery: none unless scroll bars are always shown, since
+    /// otherwise it draws over the content.
+    static var scrollerWidth: CGFloat {
+        NSScroller.preferredScrollerStyle == .legacy ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
+    }
 
     var body: some View {
         let options = phone.options
-        let aspect = CGFloat(options.width) / CGFloat(max(options.height, 1))
-        let h = min(Self.box.height, Self.box.width / aspect), w = h * aspect
+        let width = MobileOptions.clampedSide(options.width), height = MobileOptions.clampedSide(options.height)
+        let w = fitted.width, h = fitted.height
         VStack(alignment: .leading, spacing: 0) {
             ZStack {
                 Color.black
@@ -21,29 +48,33 @@ struct PhoneStage: View {
                 } else {
                     ProgressView()
                 }
-                if showClock { clockGuide(height: h) }
+                if showClock { clockGuide(in: fitted) }
             }
             .frame(width: w, height: h)
             .clipShape(RoundedRectangle(cornerRadius: w * 0.12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: w * 0.12, style: .continuous).stroke(.secondary.opacity(0.5)))
-            Text("\(options.width) × \(options.height)" + (options.smooth ? ", smooth" : ""))
+            .livePreviewElement(of: store.config.scene)
+            Text("\(width) × \(height)" + (options.smooth ? ", smooth" : ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .frame(height: 30)
+                .fixedSize()   // a caption wider than its preview would shrink, and narrow the gallery too
+                .frame(height: Self.captionHeight)
         }
         .onAppear { phone.appear() }
         .onDisappear { phone.disappear() }
     }
 
     /// Roughly where the Lock Screen puts the date and the time.
-    private func clockGuide(height h: CGFloat) -> some View {
-        VStack(spacing: 0) {
+    private func clockGuide(in size: CGSize) -> some View {
+        // the text follows the height, until a custom size narrower than any iPhone would cut it off
+        let h = size.height, textScale = min(h, size.width * 2.2)
+        return VStack(spacing: 0) {
             Text(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                .font(.system(size: h * 0.022, weight: .semibold))
+                .font(.system(size: textScale * 0.022, weight: .semibold))
                 .padding(.top, h * 0.1)
             Text("9:41")
-                .font(.system(size: h * 0.12, weight: .semibold, design: .rounded))
+                .font(.system(size: textScale * 0.12, weight: .semibold, design: .rounded))
             Spacer()
         }
         .foregroundStyle(.white.opacity(0.85))
@@ -76,13 +107,18 @@ struct PhoneTab: View {
                 Text("Custom size").tag("custom")
             }
             if phone.model == "custom" {
-                LabeledContent("Size in pixels") {
+                LabeledContent {
                     HStack {
-                        TextField("Width", value: $phone.options.width, format: .number.grouping(.never)).frame(width: 70)
-                        Text("×")
-                        TextField("Height", value: $phone.options.height, format: .number.grouping(.never)).frame(width: 70)
+                        // what Voice Control users say; only the row's title shows, so it names the first
+                        PixelsField(title: "Width in pixels", value: $phone.options.width)
+                            .accessibilityInputLabels(["Width", "Width in pixels", "Size in pixels"])
+                        Text("×").accessibilityHidden(true)
+                        PixelsField(title: "Height in pixels", value: $phone.options.height)
+                            .accessibilityInputLabels(["Height", "Height in pixels"])
                     }
                     .labelsHidden()
+                } label: {
+                    Text("Size in pixels").accessibilityHidden(true)   // each field says it
                 }
             } else {
                 LabeledContent("Size in pixels", value: "\(phone.options.width) × \(phone.options.height)")
@@ -106,14 +142,18 @@ struct PhoneTab: View {
                 }
             }
             SliderRow(title: "Zoom", value: $phone.options.framing.zoom, range: 0.6...1.8) { String(format: "%.2f×", $0) }
-            SliderRow(title: "Subject height", value: $phone.options.framing.shift, range: -0.25...0.25) {
-                String(format: "%+.0f%%", $0 * 100)
+            // it moves the camera's aim, which a scene that draws the real sky doesn't use
+            if !store.config.scene.drawsRealSky {
+                SliderRow(title: "Subject height", value: $phone.options.framing.shift, range: -0.25...0.25) {
+                    String(format: "%+.0f%%", $0 * 100)
+                }
             }
             HStack {
                 Toggle("Show the Lock Screen clock", isOn: $showClock)
                 Spacer()
-                Button("Reset Framing") { phone.options.framing = PhoneFraming() }
-                    .disabled(phone.options.framing == PhoneFraming())
+                let reset = phone.options.framing.reset(in: store.config.scene)
+                Button("Reset Framing") { phone.options.framing = reset }
+                    .disabled(phone.options.framing == reset)
             }
         } header: {
             GroupHeader(title: "Look")
@@ -124,16 +164,19 @@ struct PhoneTab: View {
 
     private var exportSection: some View {
         Section {
-            LabeledContent("Still") {
+            LabeledContent {
                 HStack {
-                    Picker("Format", selection: $phone.stillFormat) {
+                    Picker("Still format", selection: $phone.stillFormat) {
                         Text("PNG").tag(MobileExport.StillFormat.png)
                         Text("HEIC").tag(MobileExport.StillFormat.heic)
                     }
                     .labelsHidden()
+                    .accessibilityInputLabels(["Still", "Still format", "Format"])   // the row's shown title first, for Voice Control
                     .frame(width: 80)
                     Button("Save Still…") { phone.saveStill() }
                 }
+            } label: {
+                Text("Still").accessibilityHidden(true)   // both controls say it
             }
             Picker("Live Photo motion", selection: $phone.options.motionSpeed) {
                 Text("1×").tag(1.0)
@@ -164,5 +207,39 @@ struct PhoneTab: View {
                 .help("Orbits are held still in the loop. iOS 17 and later can play Live Photo wallpapers when the Lock Screen wakes, but often shows \"Motion not available\" for ones not taken with the Camera.")
         }
         .disabled(phone.busy)
+    }
+}
+
+/// One side of a custom size. The setting follows the typing, always in range; the text stays as
+/// typed until Return or leaving the field, since clamping it sooner would break up "1320" at "1".
+private struct PixelsField: View {
+    let title: String
+    @Binding var value: Int
+
+    /// The text being typed, shown while the setting still has the value it gave.
+    @State private var draft: (text: String, value: Int)?
+    @FocusState private var focused: Bool
+
+    private static let format = IntegerFormatStyle<Int>.number.grouping(.never)
+
+    private var text: Binding<String> {
+        Binding(get: {
+            if let draft, draft.value == value { return draft.text }
+            return value.formatted(Self.format)
+        }, set: { new in
+            // also called without a change, as when the field takes focus
+            guard new != self.text.wrappedValue else { return }
+            let v = (try? Self.format.parseStrategy.parse(new)).map(MobileOptions.clampedSide) ?? value
+            draft = (new, v)
+            if v != value { value = v }
+        })
+    }
+
+    var body: some View {
+        TextField(title, text: text)
+            .frame(width: 70)
+            .focused($focused)
+            .onSubmit { draft = nil }
+            .onChange(of: focused) { if !focused { draft = nil } }
     }
 }

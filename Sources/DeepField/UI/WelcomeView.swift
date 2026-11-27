@@ -3,17 +3,26 @@ import SwiftUI
 
 /// The first-launch guide. The desktop stays as it was until the last step's Set as Wallpaper,
 /// so nothing changes under someone who only opened the app to look. Every step shows the
-/// scene large, live, with the settings as they stand.
+/// scene large, live, with the settings as they stand. Opened again later, with the scene already
+/// on the desktop, its changes show there as they're made, and it says so.
 struct WelcomeView: View {
     enum Step: Int, CaseIterable { case hello, scene, tweaks, finish }
 
     @ObservedObject private var store = ConfigStore.shared
-    @StateObject private var thumbnails = SceneThumbnails(reference: CustomizeView.reference)
+    @ObservedObject private var thumbnails: SceneThumbnails
     @State private var step: Step
     @State private var launchAtLogin = LoginItem.isEnabled
+    /// The lock screen choice, if one was made. It replaces the desktop picture, so it waits for
+    /// the last step's button.
+    @State private var lockScreenChoice: Bool?
+    /// The settings as the guide opened, which the tweaks undo to.
+    @State private var base = ConfigStore.shared.config
+    /// The scene was already on the desktop as the guide opened.
+    @State private var onDesktop = Settings.wallpaperEnabled && !Settings.capturingUI
     let finish: (_ setWallpaper: Bool) -> Void
 
-    init(startAt: Step = .hello, finish: @escaping (_ setWallpaper: Bool) -> Void) {
+    init(thumbnails: SceneThumbnails, startAt: Step = .hello, finish: @escaping (_ setWallpaper: Bool) -> Void) {
+        self.thumbnails = thumbnails
         _step = State(initialValue: startAt)
         self.finish = finish
     }
@@ -25,7 +34,7 @@ struct WelcomeView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             VStack(alignment: .leading, spacing: 10) {
-                WelcomePreview(store: store, box: Self.previewBox)
+                WelcomePreview(store: store, reference: thumbnails.reference, box: Self.previewBox)
                 Text("Live preview of \(store.config.scene.title), as it will look on your desktop")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -64,7 +73,9 @@ struct WelcomeView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Welcome to Deep Field").font(.title.weight(.semibold))
             Text("Deep Field puts a moving space scene behind your windows: black holes, galaxies, auroras, ringed planets and more, drawn as dithered pixel art.")
-            Text("Your desktop stays as it is for now. Take a minute to pick a scene and try a few looks, and set it as your wallpaper at the end if you like it.")
+            Text(onDesktop
+                 ? "Take a minute to pick a scene and try a few looks. Changes show on your desktop as you make them."
+                 : "Your desktop stays as it is for now. Take a minute to pick a scene and try a few looks, and set it as your wallpaper at the end if you like it.")
                 .foregroundStyle(.secondary)
             Label("Afterwards, Deep Field lives in the menu bar.", systemImage: "circle.circle")
                 .foregroundStyle(.secondary)
@@ -94,10 +105,10 @@ struct WelcomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
             ScrollView {
                 VStack(spacing: 8) {
-                    ForEach(Tweak.all) { tweak in
+                    ForEach(Tweak.offered(in: store.config.scene)) { tweak in
                         TweakRow(tweak: tweak, on: tweak.isOn(store.config)) {
                             var c = store.config
-                            if tweak.isOn(c) { tweak.undo(&c) } else { tweak.apply(&c) }
+                            if tweak.isOn(c) { tweak.turnOff(&c, base: base) } else { tweak.apply(&c) }
                             store.config = c
                         }
                     }
@@ -105,21 +116,22 @@ struct WelcomeView: View {
                 .padding(.vertical, 2)
             }
             Button("Undo All") {
-                var c = store.config
-                Tweak.all.forEach { $0.undo(&c) }
-                store.config = c
+                store.config = Tweak.undoingAll(store.config, to: base)
             }
-            .disabled(!Tweak.all.contains { $0.isOn(store.config) })
+            .disabled(Tweak.undoingAll(store.config, to: base) == store.config)
         }
     }
 
     private var finishStep: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Ready when you are").font(.title2.weight(.semibold))
-            Text("Set as Wallpaper puts \(store.config.scene.title) on every display. You can change anything later from the menu bar icon, under Customize.")
+            Text(onDesktop
+                 ? "\(store.config.scene.title) is on every display. You can change anything later from the menu bar icon, under Customize."
+                 : "Set as Wallpaper puts \(store.config.scene.title) on every display. You can change anything later from the menu bar icon, under Customize.")
                 .fixedSize(horizontal: false, vertical: true)
             Toggle("Open Deep Field when you log in", isOn: $launchAtLogin)
-            Toggle("Show a still of this scene on the lock screen", isOn: $store.config.lockScreenStill)
+            Toggle("Show a still of this scene on the lock screen", isOn: Binding(
+                get: { lockScreenChoice ?? store.config.lockScreenStill }, set: { lockScreenChoice = $0 }))
             Text("The lock screen can't animate, so it shows a still. Your own picture comes back if you turn this off.")
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -137,12 +149,14 @@ struct WelcomeView: View {
             }
         }
         .animation(.easeOut(duration: 0.2), value: step)
+        .accessibilityElement()
         .accessibilityLabel("Step \(step.rawValue + 1) of \(Step.allCases.count)")
+        .accessibilityAddTraits(.isStaticText)
     }
 
     private var navigation: some View {
         HStack {
-            if step == .finish {
+            if step == .finish && !onDesktop {
                 Button("Not Now") { done(false) }
                     .help("Close the guide without changing your desktop. Turn it on later from the menu bar icon.")
             } else if step != .hello {
@@ -150,7 +164,7 @@ struct WelcomeView: View {
             }
             Spacer()
             if step == .finish {
-                Button("Set as Wallpaper") { done(true) }
+                Button(onDesktop ? "Done" : "Set as Wallpaper") { done(true) }
                     .keyboardShortcut(.defaultAction)
             } else {
                 Button(step == .hello ? "Get Started" : "Continue") { move(1) }
@@ -166,13 +180,17 @@ struct WelcomeView: View {
     }
 
     private func done(_ setWallpaper: Bool) {
-        if launchAtLogin != LoginItem.isEnabled { LoginItem.setEnabled(launchAtLogin) }
-        finish(setWallpaper)
+        if setWallpaper {
+            if launchAtLogin != LoginItem.isEnabled { LoginItem.setEnabled(launchAtLogin) }
+            if let lockScreenChoice { store.config.lockScreenStill = lockScreenChoice }
+        }
+        // Done leaves Show on Desktop as it is, in case it was switched off meanwhile
+        finish(setWallpaper && !onDesktop)
     }
 }
 
 /// One example tweak: a name, what it does, and how to turn it on and back off. Off puts the
-/// fields it touched back to their defaults.
+/// fields it touches back to what they were when the guide opened.
 struct Tweak: Identifiable {
     let id: String
     let title: String
@@ -180,39 +198,67 @@ struct Tweak: Identifiable {
     let symbol: String
     let isOn: (WallpaperConfig) -> Bool
     let apply: (inout WallpaperConfig) -> Void
-    let undo: (inout WallpaperConfig) -> Void
+    let restore: (inout WallpaperConfig, WallpaperConfig) -> Void
+    /// Changes only the shared sky.
+    var skyOnly = false
+
+    /// The tweaks that show in `scene`. Undo All covers the rest too, so one turned on in another
+    /// scene isn't stuck on.
+    static func offered(in scene: SceneKind) -> [Tweak] {
+        all.filter { !($0.skyOnly && scene.drawsRealSky) }
+    }
+
+    /// `base`, with the image settings it has for `c`'s scene in place.
+    private static func base(_ base: WallpaperConfig, for c: WallpaperConfig) -> WallpaperConfig {
+        var b = base
+        b.scene = c.scene
+        return b
+    }
+
+    /// Puts its fields back to `base`'s, or to the defaults when `base` had the tweak on already.
+    func turnOff(_ c: inout WallpaperConfig, base: WallpaperConfig) {
+        let b = Self.base(base, for: c)
+        restore(&c, isOn(b) ? WallpaperConfig() : b)
+    }
+
+    static func undoingAll(_ c: WallpaperConfig, to base: WallpaperConfig) -> WallpaperConfig {
+        let b = Self.base(base, for: c)
+        var c = c
+        all.forEach { $0.restore(&c, b) }
+        return c
+    }
 
     static let all: [Tweak] = {
-        let d = WallpaperConfig()
         return [
             Tweak(id: "chunky", title: "Chunkier pixels", detail: "Twice the pixel size, more retro", symbol: "square.grid.3x3",
                   isOn: { $0.pixelSize >= 5 },
                   apply: { $0.pixelSize = 6 },
-                  undo: { $0.pixelSize = d.pixelSize }),
+                  restore: { $0.pixelSize = $1.pixelSize }),
             Tweak(id: "smooth", title: "Smooth", detail: "Full resolution and many more colors", symbol: "drop",
                   isOn: { $0.pixelSize == 1 && $0.levels >= 32 },
                   apply: { $0.pixelSize = 1; $0.levels = 64 },
-                  undo: { $0.pixelSize = d.pixelSize; $0.levels = d.levels }),
+                  restore: { $0.pixelSize = $1.pixelSize; $0.levels = $1.levels }),
             Tweak(id: "retro", title: "Coarse dither", detail: "A 4×4 pattern and only three shades per color", symbol: "checkerboard.rectangle",
                   isOn: { $0.dither == .bayer4 && $0.levels <= 3 },
                   apply: { $0.dither = .bayer4; $0.levels = 3 },
-                  undo: { $0.dither = d.dither; $0.levels = d.levels }),
+                  restore: { $0.dither = $1.dither; $0.levels = $1.levels }),
             Tweak(id: "glow", title: "Glow", detail: "Bright parts bloom into the dark", symbol: "sparkles",
                   isOn: { $0.bloom >= 0.9 },
                   apply: { $0.bloom = 1.2 },
-                  undo: { $0.bloom = d.bloom }),
+                  restore: { $0.bloom = $1.bloom }),
             Tweak(id: "vivid", title: "Vivid", detail: "Stronger color and a little more light", symbol: "paintpalette",
                   isOn: { $0.saturation >= 1.7 },
                   apply: { $0.saturation = 1.8; $0.brightness = 1.35 },
-                  undo: { $0.saturation = d.saturation; $0.brightness = d.brightness }),
+                  restore: { $0.saturation = $1.saturation; $0.brightness = $1.brightness }),
             Tweak(id: "moody", title: "Moody", detail: "More contrast and darker corners", symbol: "circle.lefthalf.filled",
                   isOn: { $0.vignette >= 0.4 },
                   apply: { $0.contrast = 1.3; $0.vignette = 0.55 },
-                  undo: { $0.contrast = d.contrast; $0.vignette = d.vignette }),
+                  restore: { $0.contrast = $1.contrast; $0.vignette = $1.vignette }),
             Tweak(id: "busy", title: "Busier sky", detail: "Supernovae, comets and twinkles more often", symbol: "star",
                   isOn: { $0.supernovae == .often },
                   apply: { $0.supernovae = .often; $0.comets = .often; $0.twinkles = .often },
-                  undo: { $0.supernovae = d.supernovae; $0.comets = d.comets; $0.twinkles = d.twinkles }),
+                  restore: { $0.supernovae = $1.supernovae; $0.comets = $1.comets; $0.twinkles = $1.twinkles },
+                  skyOnly: true),
         ]
     }()
 }
@@ -250,15 +296,15 @@ private struct TweakRow: View {
     }
 }
 
-/// The large live preview, fitted to the main screen's shape. During a window capture (which
-/// can't read a Metal layer) it shows a rendered still instead.
+/// The large live preview, fitted to the shape of the window's screen. During a window
+/// capture (which can't read a Metal layer) it shows a rendered still instead.
 private struct WelcomePreview: View {
     @ObservedObject var store: ConfigStore
+    let reference: CGSize
     let box: CGSize
     @State private var still: CGImage?
 
     var body: some View {
-        let reference = CustomizeView.reference
         let fitted = Theme.fit(reference, in: box)
         return Group {
             if Settings.capturingUI {
@@ -266,8 +312,9 @@ private struct WelcomePreview: View {
                     Color.black
                     if let still { Image(decorative: still, scale: 1).resizable().interpolation(.high) }
                 }
-                .onAppear { renderStill(reference) }
-                .onChange(of: store.config) { renderStill(reference) }
+                .onAppear { renderStill() }
+                .onChange(of: store.config) { renderStill() }
+                .onChange(of: reference) { renderStill() }
             } else {
                 LivePreview(reference: reference, actualPixels: false)
             }
@@ -276,10 +323,11 @@ private struct WelcomePreview: View {
         .background(Color.black)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.hairline))
+        .livePreviewElement(of: store.config.scene)
         .frame(width: box.width)
     }
 
-    private func renderStill(_ reference: CGSize) {
+    private func renderStill() {
         let px = CGFloat(store.config.pixelSize)
         let w = Int((reference.width / px).rounded(.up)), h = Int((reference.height / px).rounded(.up))
         still = FrameCapture.render(config: store.config, width: w, height: h, time: 300, eventsEnabled: false)
@@ -296,13 +344,15 @@ final class WelcomeWindowController {
     func show(startAt step: WelcomeView.Step = .hello, onFinish: @escaping (Bool) -> Void) {
         self.onFinish = onFinish
         if window == nil {
-            let view = WelcomeView(startAt: step) { [weak self] setWallpaper in self?.finish(setWallpaper) }
+            let thumbnails = SceneThumbnails()
+            let view = WelcomeView(thumbnails: thumbnails, startAt: step) { [weak self] setWallpaper in self?.finish(setWallpaper) }
             let w = NSWindow(contentViewController: NSHostingController(rootView: view))
             w.title = "Welcome to Deep Field"
             w.styleMask = [.titled, .closable, .miniaturizable]
             w.appearance = NSAppearance(named: .darkAqua)
             w.isReleasedWhenClosed = false
             w.center()
+            thumbnails.follow(w)
             closeObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in self?.closed() }
             window = w

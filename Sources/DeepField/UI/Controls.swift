@@ -8,11 +8,18 @@ struct SliderRow: View {
     var format: (Double) -> String = { String(format: "%.2f", $0) }
 
     var body: some View {
-        LabeledContent(title) {
+        // The slider speaks for the whole row, so VoiceOver doesn't repeat the title and value. It's
+        // the real one, since that is what takes keyboard focus.
+        LabeledContent {
             HStack {
                 Slider(value: $value, in: range)
+                    .accessibilityLabel(title)
+                    .accessibilityValue(format(value))
                 Text(format(value)).monospacedDigit().frame(width: 56, alignment: .trailing).foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
+        } label: {
+            Text(title).accessibilityHidden(true)
         }
     }
 }
@@ -26,9 +33,13 @@ struct FrequencyRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(title)
+                Text(title).accessibilityHidden(true)   // the picker says it
                 Spacer()
-                if let demo { DemoButton(title: "Show Me", action: demo) }
+                if let demo {
+                    // Voice Control goes by the shown words first; the event tells the buttons apart
+                    DemoButton(title: "Show Me", action: demo).accessibilityLabel("Show Me, \(title)")
+                        .accessibilityInputLabels(["Show Me", "Show Me \(title)"])
+                }
             }
             Picker(title, selection: $value) {
                 ForEach(Frequency.allCases) { Text($0.title).tag($0) }
@@ -57,7 +68,7 @@ struct DemoGrid: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Show me").foregroundStyle(.secondary)
+            Text("Show me").foregroundStyle(.secondary).accessibilityHidden(true)   // each button says it
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)],
                       alignment: .leading, spacing: 6) {
                 ForEach(demos, id: \.1.id) { title, kind in
@@ -65,6 +76,8 @@ struct DemoGrid: View {
                         store.demo(kind)
                         StageStatus.shared.flash(title.prefix(1) + title.dropFirst().lowercased() + " started")
                     }
+                        .accessibilityLabel("Show Me, \(title)")
+                        .accessibilityInputLabels([title, "Show Me \(title)"])   // the shown title first, for Voice Control
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
