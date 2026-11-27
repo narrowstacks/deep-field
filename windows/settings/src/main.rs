@@ -6,6 +6,7 @@
 mod app;
 mod controls;
 mod model;
+mod presets_menu;
 mod render;
 mod system;
 mod tabs;

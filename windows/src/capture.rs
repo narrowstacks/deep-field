@@ -18,6 +18,8 @@ struct Opts {
     events: bool,
     /// every `--demo` given, checked against the scene once the config is known
     demo_specs: Vec<String>,
+    /// `--preset NAME|FILE`: a saved preset, palette, scene color preset or .deepfield file
+    preset: Option<String>,
     demo: HashMap<u64, f64>,
     frames: u32,
     /// Live Earth renders read the last fetched cloud and aurora maps instead of the bundled ones.
@@ -30,7 +32,7 @@ struct Opts {
 fn parse(args: &[String]) -> Result<Opts, String> {
     let mut o = Opts {
         snapshot: None, benchmark: false, scene: None, size: (1720, 720), time: 300.0,
-        config: None, events: true, demo_specs: vec![], demo: HashMap::new(), frames: 120,
+        config: None, events: true, demo_specs: vec![], preset: None, demo: HashMap::new(), frames: 120,
         live_earth_cache: false, prefetch_history: None, fetch_live_earth: false,
     };
     let mut it = args.iter();
@@ -59,6 +61,7 @@ fn parse(args: &[String]) -> Result<Opts, String> {
             "--prefetch-history" => o.prefetch_history = Some(val("--prefetch-history")?.parse().map_err(|_| "bad --prefetch-history")?),
             "--earth-timelapse" => crate::scenes::live_earth::set_time_lapse(val("--earth-timelapse")?.parse().map_err(|_| "bad --earth-timelapse")?),
             "--demo" => o.demo_specs.push(val("--demo")?),
+            "--preset" => o.preset = Some(val("--preset")?),
             other => return Err(format!("usage: unknown option {other}")),
         }
     }
@@ -80,12 +83,39 @@ fn config(o: &mut Opts) -> Result<WallpaperConfig, String> {
         // as the Mac's `c.scene = ...` does, bringing in the scene's own tilt and image settings
         c.set_scene(s);
     }
+    if let Some(p) = &o.preset {
+        apply_preset(p, &mut c)?;
+    }
     if !c.scene.is_ported() {
         // still rendered, so a scene can be checked while it's being ported
         eprintln!("deepfield: note: the {} scene isn't marked as ported yet", c.scene.raw());
     }
     o.demo = crate::events::demo_events(&o.demo_specs, c.scene)?;
     Ok(c)
+}
+
+/// Presets by name (PresetLookup in the Mac's ConfigKeys.swift): the user's saved presets first,
+/// then the palette presets, then the scene's own color presets; or a `.deepfield` file.
+fn apply_preset(name: &str, c: &mut WallpaperConfig) -> Result<(), String> {
+    use crate::presets::{read_file, PresetStore, FILE_EXTENSION};
+    let lower = name.to_lowercase();
+    if lower.ends_with(&format!(".{FILE_EXTENSION}")) || lower.ends_with(".json") || std::path::Path::new(name).is_file() {
+        *c = read_file(std::path::Path::new(name))?.applied(c);
+        return Ok(());
+    }
+    if let Some(p) = PresetStore::load().named(name) {
+        *c = p.applied(c);
+        return Ok(());
+    }
+    if let Some((_, p)) = crate::palette::PaletteConfig::presets().into_iter().find(|(n, _)| n.eq_ignore_ascii_case(name)) {
+        c.palette = p;
+        return Ok(());
+    }
+    if let Some(p) = crate::color_presets::color_presets(c.scene).into_iter().find(|p| p.name.eq_ignore_ascii_case(name)) {
+        p.apply(c);
+        return Ok(());
+    }
+    Err(format!("no preset called \u{201C}{name}\u{201D}"))
 }
 
 pub fn run_cli(args: &[String]) -> Result<(), String> {

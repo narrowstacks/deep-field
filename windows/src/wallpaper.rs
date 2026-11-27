@@ -305,7 +305,8 @@ pub fn run() -> Result<(), String> {
     let mut store = ConfigStore::load();
     // every scene ready before it is picked, the current one first
     r.warm(store.config.scene, &[Renderer::scene_format(&store.config)], 6);
-    let tray = Tray::new(&store.config);
+    let mut tray = Tray::new(&store.config);
+    let mut presets = crate::presets::PresetStore::load();
     let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(1);
     let events = EventSchedule::new(seed);
     let mut screens = build_screens(&r);
@@ -344,16 +345,29 @@ pub fn run() -> Result<(), String> {
                     store.config.pixel_size = n;
                     store.save();
                 }
+                TrayAction::Preset(id) => {
+                    if let Some(p) = presets.by_id(&id) {
+                        store.config = p.applied(&store.config);
+                        store.save();
+                    }
+                }
+                TrayAction::Request(r) => crate::tray::request_customize(r),
                 TrayAction::TogglePause => paused = !paused,
                 TrayAction::EditSettings => crate::tray::open(store.path().as_os_str()),
                 TrayAction::Quit => break 'run,
             }
             tray.update(&store.config, paused);
+            tray.update_presets(&presets, &store.config);
         }
         if last_config_check.elapsed() > Duration::from_secs(1) {
             last_config_check = Instant::now();
             if store.reload_if_changed() {
                 tray.update(&store.config, paused);
+                tray.update_presets(&presets, &store.config);
+            }
+            // presets saved, renamed or deleted in the Customize window
+            if presets.reload_if_changed() {
+                tray.set_presets(&presets, &store.config);
             }
         }
 

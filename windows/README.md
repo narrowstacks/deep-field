@@ -31,7 +31,7 @@ That builds two programs: `deepfield.exe`, the command line (a console program),
 no console). `deepfield` with no arguments starts the wallpaper and returns. For a build to hand
 out, use `cargo build --profile dist` (thin LTO; plain release builds skip it to stay quick).
 
-A tray icon appears in the notification area: pick a scene or pixel size, pause, open the
+A tray icon appears in the notification area: pick a scene, preset or pixel size, pause, open the
 settings file, or quit. Settings live in `%APPDATA%\DeepField\config.json`, with the same keys as
 the macOS app's saved config, so a config exported from a Mac reads here. Edits to the file show
 up within a second.
@@ -66,8 +66,14 @@ System section's start-at-login switch adds a `Deep Field` value under
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` pointing at `deepfield-wallpaper.exe`
 (found the same way).
 
-Not there yet: presets (save, import, export), Phone, Schedule, the lock screen still, and the
-Show Me buttons that start an event in the running wallpaper.
+The Presets menu under the section picker saves the current look under a name, applies, renames
+and deletes presets, and imports and exports `.deepfield` files, the same files the Mac app reads
+and writes. Presets live in `%APPDATA%\DeepField\presets.json` (the Mac's own list format), and
+the tray menu lists them too; its Save, Import and Export open this window with that dialog
+showing (asked through a `customize-request` file in the same folder).
+
+Not there yet: Phone, Schedule, the lock screen still, and the Show Me buttons that start an
+event in the running wallpaper.
 
 ## Command line
 
@@ -79,7 +85,7 @@ deepfield --check-shaders
 deepfield --quit
 ```
 
-`--snapshot` takes `--config FILE`, `--no-events` and `--demo NAME:START` (repeatable, or comma-separated) like the macOS dev
+`--snapshot` takes `--config FILE`, `--preset NAME|FILE`, `--no-events` and `--demo NAME:START` (repeatable, or comma-separated) like the macOS dev
 command line. Snapshots are deterministic (events use seed 1), so they can be compared with the
 Mac's. `--benchmark` reports GPU time per frame from timestamp queries; keep it under about 2 ms.
 `DEEPFIELD_SHADERS=shaders` loads the WGSL from that folder instead of the copy built in, so

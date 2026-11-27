@@ -7,6 +7,7 @@ pub mod astronomy;
 pub mod blue_noise;
 pub mod camera;
 pub mod capture;
+pub mod color_presets;
 pub mod config;
 pub mod config_store;
 pub mod earth_maps;
@@ -16,6 +17,7 @@ pub mod live_earth_feeds;
 pub mod gpu_types;
 pub mod math;
 pub mod palette;
+pub mod presets;
 pub mod planets;
 pub mod renderer;
 pub mod scene_params;
@@ -33,6 +35,7 @@ Deep Field for Windows
   deepfield                      start the live wallpaper (tray icon to change scenes or quit)
   deepfield --snapshot OUT.png   render one frame to a PNG
       [--scene KIND] [--size WxH] [--time SECONDS] [--defaults | --config FILE]
+      [--preset NAME|FILE]       a saved preset, palette, scene color preset or .deepfield file
       [--no-events] [--demo NAME:START,...]
       [--live-earth-cache]       Live Earth: the last fetched clouds and aurora, not the bundled ones
       [--earth-timelapse N]      Live Earth: its clock runs N times as fast from its moment

@@ -45,6 +45,10 @@ pub fn secondary() -> Hsla {
 pub fn accent() -> Hsla {
     hex(0xe5534b)
 }
+/// a problem with what was typed (the Mac's system orange)
+pub fn warning() -> Hsla {
+    hex(0xff9f0a)
+}
 pub fn control_bg() -> Hsla {
     white(0.09)
 }

@@ -8,19 +8,26 @@ use crate::config::{SceneKind, WallpaperConfig};
 pub enum TrayAction {
     Customize,
     Scene(SceneKind),
+    /// a saved preset, by id
+    Preset(String),
+    /// asks the Customize window to save, import or export (see `customize_request`)
+    Request(&'static str),
     PixelSize(i64),
     TogglePause,
     EditSettings,
     Quit,
 }
 
-const PIXEL_SIZES: [i64; 5] = [1, 2, 3, 4, 6];
+use crate::config::PIXEL_SIZES;
 
 pub struct Tray {
     _icon: TrayIcon,
     scenes: Vec<(SceneKind, CheckMenuItem)>,
     sizes: Vec<(i64, CheckMenuItem)>,
     pause: MenuItem,
+    presets_menu: Submenu,
+    presets: Vec<(String, CheckMenuItem)>,
+    requests: Vec<(&'static str, MenuItem)>,
     customize: MenuId,
     edit: MenuId,
     quit: MenuId,
@@ -67,11 +74,12 @@ impl Tray {
         for (_, item) in &sizes {
             let _ = size_menu.append(item);
         }
+        let presets_menu = Submenu::new("Presets", true);
         let customize = MenuItem::new("Customize...", true, None);
         let pause = MenuItem::new("Pause", true, None);
         let edit = MenuItem::new("Edit Settings File...", true, None);
         let quit = MenuItem::new("Quit Deep Field", true, None);
-        let _ = menu.append_items(&[&customize, &PredefinedMenuItem::separator(), &scene_menu, &size_menu,
+        let _ = menu.append_items(&[&customize, &PredefinedMenuItem::separator(), &scene_menu, &presets_menu, &size_menu,
                                     &PredefinedMenuItem::separator(), &pause, &edit,
                                     &PredefinedMenuItem::separator(), &quit]);
         let icon = TrayIconBuilder::new()
@@ -80,10 +88,13 @@ impl Tray {
             .with_icon(icon())
             .build()
             .expect("tray icon");
-        Tray {
-            _icon: icon, scenes, sizes, customize: customize.id().clone(), edit: edit.id().clone(),
+        let mut tray = Tray {
+            _icon: icon, scenes, sizes, presets_menu, presets: Vec::new(), requests: Vec::new(),
+            customize: customize.id().clone(), edit: edit.id().clone(),
             quit: quit.id().clone(), pause,
-        }
+        };
+        tray.set_presets(&crate::presets::PresetStore::load(), c);
+        tray
     }
 
     pub fn poll(&self) -> Option<TrayAction> {
@@ -94,6 +105,12 @@ impl Tray {
         }
         if let Some((s, _)) = self.scenes.iter().find(|(_, i)| *i.id() == id) {
             return Some(TrayAction::Scene(*s));
+        }
+        if let Some((p, _)) = self.presets.iter().find(|(_, i)| *i.id() == id) {
+            return Some(TrayAction::Preset(p.clone()));
+        }
+        if let Some((r, _)) = self.requests.iter().find(|(_, i)| *i.id() == id) {
+            return Some(TrayAction::Request(r));
         }
         if let Some((n, _)) = self.sizes.iter().find(|(_, i)| *i.id() == id) {
             return Some(TrayAction::PixelSize(*n));
@@ -120,6 +137,55 @@ impl Tray {
         }
         self.pause.set_text(if paused { "Resume" } else { "Pause" });
     }
+
+    /// Rebuilds the Presets submenu as the Mac's menu bar has it: each preset, checked when it's
+    /// the current look, then saving, importing and exporting.
+    pub fn set_presets(&mut self, store: &crate::presets::PresetStore, c: &WallpaperConfig) {
+        while self.presets_menu.remove_at(0).is_some() {}
+        let current = store.current(c).map(|p| p.id.clone());
+        self.presets = store
+            .presets
+            .iter()
+            .map(|p| (p.id.clone(), CheckMenuItem::new(&p.name, true, current.as_ref() == Some(&p.id), None)))
+            .collect();
+        if self.presets.is_empty() {
+            let _ = self.presets_menu.append(&MenuItem::new("No saved presets yet", false, None));
+        }
+        for (_, item) in &self.presets {
+            let _ = self.presets_menu.append(item);
+        }
+        let _ = self.presets_menu.append(&PredefinedMenuItem::separator());
+        self.requests = [("save-preset", "Save Current Settings as Preset..."), ("import-preset", "Import Preset..."),
+                         ("export-preset", "Export Current Settings...")]
+            .into_iter()
+            .map(|(r, title)| (r, MenuItem::new(title, true, None)))
+            .collect();
+        for (_, item) in &self.requests {
+            let _ = self.presets_menu.append(item);
+        }
+    }
+
+    /// Moves the preset check mark to the current look.
+    pub fn update_presets(&self, store: &crate::presets::PresetStore, c: &WallpaperConfig) {
+        let current = store.current(c).map(|p| p.id.clone());
+        for (id, item) in &self.presets {
+            item.set_checked(current.as_ref() == Some(id));
+        }
+    }
+}
+
+/// Where the tray asks the Customize window to open one of its preset dialogs: the request's
+/// name, read and removed by the window within half a second, whether it was open already or
+/// is just starting.
+pub fn customize_request_path() -> std::path::PathBuf {
+    crate::config_store::dir().join("customize-request")
+}
+
+/// Opens the Customize window with one of its preset dialogs showing.
+pub fn request_customize(request: &str) {
+    let _ = std::fs::create_dir_all(crate::config_store::dir());
+    let _ = std::fs::write(customize_request_path(), request);
+    open_customize();
 }
 
 /// Opens the Customize window, deepfield-settings.exe. A packaged build puts it beside this

@@ -60,6 +60,8 @@ const THUMB_DELAY: Duration = Duration::from_millis(300);
 
 pub struct Settings {
     pub store: ConfigStore,
+    /// the saved presets, shared with the tray menu through presets.json
+    pub presets: deepfield::presets::PresetStore,
     pub section: Section,
     dirty: bool,
     last_save: Instant,
@@ -115,6 +117,7 @@ impl Settings {
         Settings {
             focus,
             store: ConfigStore::load(),
+            presets: deepfield::presets::PresetStore::load(),
             section: Section::Scene,
             dirty: false,
             last_save: Instant::now(),
@@ -256,6 +259,22 @@ impl Settings {
             if self.store.reload_if_changed() {
                 self.thumbs_due = Some(Instant::now());
                 self.flash("Settings changed outside this window");
+                changed = true;
+            }
+            // presets applied from the tray menu
+            if self.presets.reload_if_changed() {
+                changed = true;
+            }
+            // the tray's Save, Import and Export, which need this window's dialogs
+            let request = deepfield::tray::customize_request_path();
+            if let Ok(r) = std::fs::read_to_string(&request) {
+                let _ = std::fs::remove_file(&request);
+                match r.trim() {
+                    "save-preset" => self.prompt_save_preset(window, cx),
+                    "import-preset" => self.prompt_import_presets(cx),
+                    "export-preset" => self.prompt_export_preset(None, window, cx),
+                    _ => {}
+                }
                 changed = true;
             }
         }
@@ -547,7 +566,8 @@ impl Settings {
             .border_color(theme::white(0.08))
             .flex()
             .flex_col()
-            .child(div().px(px(20.0)).pt(px(12.0)).pb(px(8.0)).child(picker))
+            .child(div().px(px(20.0)).pt(px(12.0)).child(picker))
+            .child(div().px(px(14.0)).pt(px(4.0)).pb(px(4.0)).flex().justify_end().child(self.render_presets_menu(cx)))
             .child(
                 div()
                     .id(SharedString::from(format!("inspector-{:?}", self.section)))
