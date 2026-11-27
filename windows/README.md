@@ -33,7 +33,7 @@ out, use `cargo build --profile dist` (thin LTO; plain release builds skip it to
 
 A tray icon appears in the notification area: pick a scene, preset or pixel size, turn the
 schedule on or skip ahead, pause, open the settings file, or quit. Settings live in
-`%APPDATA%DeepFieldnfig.json`, with the same keys as the macOS app's saved config, so a
+`%APPDATA%\DeepField\config.json`, with the same keys as the macOS app's saved config, so a
 config exported from a Mac reads here. Edits to the file show up within a second.
 
 The wallpaper pauses while a full-screen app has the focus, and drops to 12 fps with battery
