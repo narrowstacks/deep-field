@@ -14,6 +14,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 pub const WINDOW_TITLE: &str = "Customize Deep Field";
+/// The same window's title while it shows the welcome guide.
+pub const WELCOME_TITLE: &str = "Welcome to Deep Field";
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const RUN_VALUE: &str = "Deep Field";
 
@@ -28,7 +30,7 @@ pub fn claim_single_instance() -> bool {
             std::mem::forget(handle);
             return true;
         }
-        if let Ok(hwnd) = FindWindowW(PCWSTR::null(), &HSTRING::from(WINDOW_TITLE)) {
+        if let Some(hwnd) = window() {
             focus(hwnd);
         }
         false
@@ -113,7 +115,9 @@ pub fn open(path: &std::path::Path) {
 
 /// This program's window, found by its title (GPUI doesn't hand out the handle).
 pub fn window() -> Option<HWND> {
-    unsafe { FindWindowW(PCWSTR::null(), &HSTRING::from(WINDOW_TITLE)).ok() }
+    [WINDOW_TITLE, WELCOME_TITLE]
+        .into_iter()
+        .find_map(|t| unsafe { FindWindowW(PCWSTR::null(), &HSTRING::from(t)).ok() })
 }
 
 /// Asks for the dark title bar, to match the window's dark contents.

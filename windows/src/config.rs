@@ -939,6 +939,26 @@ impl WallpaperConfig {
         self.scene_image.contains_key(kind.raw())
     }
 
+    /// `sceneHasOwnImage`: turns the active scene's own image settings on, starting from the
+    /// shared ones, or off, going back to the shared ones and forgetting its own.
+    pub fn set_has_own_image(&mut self, on: bool) {
+        let key = self.scene.raw().to_string();
+        if on == self.has_own_image(self.scene) {
+            return;
+        }
+        if on {
+            let img = self.image();
+            self.shared_image = Some(img);
+            self.scene_image.insert(key, img);
+        } else {
+            if let Some(shared) = self.shared_image {
+                self.set_image(shared);
+            }
+            self.scene_image.remove(&key);
+            self.shared_image = None;
+        }
+    }
+
     /// Switches scenes the way the Swift `scene` didSet does: the old scene's own image settings
     /// and tilt are put back where they belong, then the new scene's come in.
     pub fn set_scene(&mut self, scene: SceneKind) {

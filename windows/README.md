@@ -31,8 +31,10 @@ That builds two programs: `deepfield.exe`, the command line (a console program),
 no console). `deepfield` with no arguments starts the wallpaper and returns. For a build to hand
 out, use `cargo build --profile dist` (thin LTO; plain release builds skip it to stay quick).
 
-A tray icon appears in the notification area: pick a scene, preset or pixel size, turn the
-schedule on or skip ahead, pause, open the settings file, or quit. Settings live in
+A tray icon appears in the notification area: take the scene off the desktop and put it back
+(Show on Desktop), pause, pick a scene, preset or pixel size, turn the schedule on or skip ahead,
+reopen the welcome guide, open the settings file, or quit. Starting it again while it runs opens
+the Customize window. Settings live in
 `%APPDATA%\DeepField\config.json`, with the same keys as the macOS app's saved config, so a
 config exported from a Mac reads here. Edits to the file show up within a second.
 
@@ -82,6 +84,14 @@ Show Me buttons (beside Supernovae and Comets, and under each scene's Events) st
 now, in the preview and the running wallpaper at once: the start goes through `demo.json` as
 wall-clock time, since the two programs keep their own clocks. A supernova or comet that would
 be hidden behind the scene, or lost in a bright sky, says so instead, as on the Mac.
+
+The first launch opens the welcome guide in this window instead, as on the Mac: pick a scene, try
+a few looks, then Set as Wallpaper. The desktop stays as it was until then (Not Now leaves it
+alone; the tray's Show on Desktop turns it on later). The guide's choice and whether it has been
+seen are kept in %APPDATA%\DeepField\app-state.json, the Windows stand-in for the Mac's
+defaults, which the wallpaper reads. A first launch is one with none of the settings files there
+yet. The tray's Welcome Guide item opens it again, and deepfield-settings --welcome opens it
+directly.
 
 Not there yet: Phone and the lock screen still.
 

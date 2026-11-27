@@ -343,6 +343,19 @@ fn build_screens(r: &Renderer) -> Vec<Screen> {
     monitors().into_iter().filter_map(|m| Screen::new(r, &host, m)).collect()
 }
 
+/// Show on Desktop: a window per monitor, or none and the desktop picture back. The process
+/// keeps running either way, for the tray icon and the schedule.
+fn set_on_desktop(on: bool, screens: &mut Vec<Screen>, r: &Renderer) {
+    if on {
+        if screens.is_empty() {
+            *screens = build_screens(r);
+        }
+    } else if !screens.is_empty() {
+        screens.clear();
+        restore_desktop();
+    }
+}
+
 /// Explorer keeps the last frame we drew behind the icons; setting the wallpaper again repaints it.
 fn restore_desktop() {
     unsafe {
@@ -388,6 +401,19 @@ fn fullscreen_app_covers() -> bool {
 }
 
 pub fn run() -> Result<(), String> {
+    // Opening it again while it runs opens Customize, as reopening the Mac app does.
+    if !crate::app_state::claim_wallpaper() {
+        crate::tray::open_customize();
+        return Ok(());
+    }
+    // On a first launch the desktop stays as it was until the welcome guide says otherwise.
+    // Worked out before the config store writes its defaults.
+    let first_launch = crate::app_state::is_first_launch();
+    if first_launch {
+        crate::app_state::AppState { wallpaper_enabled: false, welcome_shown: true }.save();
+    }
+    let mut on_desktop = crate::app_state::AppState::load().wallpaper_enabled;
+    let mut app_state = crate::app_state::Watcher::new();
     unsafe {
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         let instance = GetModuleHandleW(None).map_err(|e| e.to_string())?;
@@ -409,7 +435,11 @@ pub fn run() -> Result<(), String> {
     let mut presets = crate::presets::PresetStore::load();
     let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(1);
     let events = EventSchedule::new(seed);
-    let mut screens = build_screens(&r);
+    let mut screens = if on_desktop { build_screens(&r) } else { Vec::new() };
+    tray.update_desktop(on_desktop);
+    if first_launch {
+        crate::tray::request_customize("welcome");
+    }
     let mut schedules = ScheduleStore::load();
     let mut sched_state = ScheduleState::load_from(&ScheduleState::path());
     tray.update_schedule(&schedules.schedule);
@@ -433,7 +463,9 @@ pub fn run() -> Result<(), String> {
                 }
                 if msg.message == WM_DEEPFIELD_REBUILD {
                     screens.clear();
-                    screens = build_screens(&r);
+                    if on_desktop {
+                        screens = build_screens(&r);
+                    }
                     fastest_display = display_rates().into_iter().max().unwrap_or(60);
                     continue;
                 }
@@ -443,6 +475,12 @@ pub fn run() -> Result<(), String> {
         }
         while let Some(action) = tray.poll() {
             match action {
+                TrayAction::ToggleWallpaper => {
+                    on_desktop = !on_desktop;
+                    crate::app_state::AppState::update(|s| s.wallpaper_enabled = on_desktop);
+                    set_on_desktop(on_desktop, &mut screens, &r);
+                    tray.update_desktop(on_desktop);
+                }
                 TrayAction::Customize => crate::tray::open_customize(),
                 TrayAction::Scene(s) => {
                     store.config.set_scene(s);
@@ -508,6 +546,14 @@ pub fn run() -> Result<(), String> {
             // presets saved, renamed or deleted in the Customize window
             if presets.reload_if_changed() {
                 tray.set_presets(&presets, &store.config);
+            }
+            // the welcome guide's Set as Wallpaper
+            if let Some(s) = app_state.poll() {
+                if s.wallpaper_enabled != on_desktop {
+                    on_desktop = s.wallpaper_enabled;
+                    set_on_desktop(on_desktop, &mut screens, &r);
+                    tray.update_desktop(on_desktop);
+                }
             }
         }
 

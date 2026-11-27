@@ -75,8 +75,8 @@ pub struct Settings {
 
     jobs: Sender<Job>,
     outputs: Receiver<Output>,
-    preview: Option<Arc<RenderImage>>,
-    preview_error: Option<String>,
+    pub preview: Option<Arc<RenderImage>>,
+    pub preview_error: Option<String>,
     /// what the last preview request was for, so a change sends a new one
     preview_sent: Option<(WallpaperConfig, (u32, u32), bool)>,
     pub actual_pixels: bool,
@@ -86,7 +86,9 @@ pub struct Settings {
     thumbs: HashMap<SceneKind, Arc<RenderImage>>,
     thumb_sent: HashMap<SceneKind, (WallpaperConfig, (u32, u32), u64)>,
     thumb_generation: u64,
-    thumbs_due: Option<Instant>,
+    pub thumbs_due: Option<Instant>,
+    /// the welcome guide, when the window is showing it instead of Customize
+    pub guide: Option<crate::welcome::Guide>,
 
     pub screen: (u32, u32),
     hwnd: Option<isize>,
@@ -141,6 +143,7 @@ impl Settings {
             thumb_sent: HashMap::new(),
             thumb_generation: 0,
             thumbs_due: Some(Instant::now()),
+            guide: None,
             screen: system::screen_size(),
             hwnd: None,
             sliders: HashMap::new(),
@@ -285,6 +288,7 @@ impl Settings {
                     "import-preset" => self.prompt_import_presets(cx),
                     "export-preset" => self.prompt_export_preset(None, window, cx),
                     "show-schedule" => self.section = Section::Schedule,
+                    "welcome" => self.open_guide(false, window, cx),
                     _ => {}
                 }
                 changed = true;
@@ -303,14 +307,11 @@ impl Settings {
 
         // a new preview request whenever the look or the preview's size changes
         let shown = self.preview_device_size(window);
-        let want = (self.store.config.clone(), shown, self.actual_pixels);
+        // the guide always shows the whole screen
+        let actual = self.actual_pixels && self.guide.is_none();
+        let want = (self.store.config.clone(), shown, actual);
         if self.preview_sent.as_ref() != Some(&want) {
-            let _ = self.jobs.send(Job::Preview {
-                config: self.store.config.clone(),
-                screen: self.screen,
-                shown,
-                actual: self.actual_pixels,
-            });
+            let _ = self.jobs.send(Job::Preview { config: self.store.config.clone(), screen: self.screen, shown, actual });
             self.preview_sent = Some(want);
         }
 
@@ -358,6 +359,9 @@ impl Settings {
     /// The box a gallery thumbnail fits in, and the column count. A wide screen gives a short
     /// preview, so the gallery takes the leftover height as four larger columns.
     pub fn gallery_box(&self) -> ((f32, f32), usize) {
+        if self.guide.is_some() {
+            return crate::welcome::GALLERY_BOX;
+        }
         if Self::fit(self.screen_f(), theme::PREVIEW_BOX).1 < 340.0 {
             ((162.0, 102.0), 4)
         } else {
@@ -373,6 +377,9 @@ impl Settings {
     /// The preview grows with the window: the stage's full width, and as tall as leaves the
     /// caption and one row of the gallery in view.
     pub fn preview_box(&self, window: &Window) -> (f32, f32) {
+        if self.guide.is_some() {
+            return crate::welcome::PREVIEW_BOX;
+        }
         let stage = self.stage_size(window);
         let row = self.gallery_box().0 .1 + 40.0;
         let h = (stage.1 - theme::CAPTION_H - 12.0 - row).max(theme::PREVIEW_BOX.1 * 0.6);
@@ -503,7 +510,7 @@ impl Settings {
             )
     }
 
-    fn render_gallery(&mut self, columns: usize, cx: &mut Context<Self>) -> impl IntoElement {
+    pub fn render_gallery(&mut self, columns: usize, cx: &mut Context<Self>) -> impl IntoElement {
         let (w, h) = self.thumb_size();
         let selected = self.store.config.scene;
         let cells = Self::scenes().into_iter().map(|kind| {
@@ -594,17 +601,8 @@ impl Settings {
 
 impl Render for Settings {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let stage = self.render_stage(window, cx);
-        let inspector = self.render_inspector(window, cx);
-        div()
+        let root = div()
             .track_focus(&self.focus)
-            .on_action(cx.listener(|this, _: &ShowScene, _, cx| this.show(Section::Scene, cx)))
-            .on_action(cx.listener(|this, _: &ShowSky, _, cx| this.show(Section::Sky, cx)))
-            .on_action(cx.listener(|this, _: &ShowImage, _, cx| this.show(Section::Image, cx)))
-            .on_action(cx.listener(|this, _: &ShowSystem, _, cx| this.show(Section::System, cx)))
-            .on_action(cx.listener(|this, _: &ShowSchedule, _, cx| this.show(Section::Schedule, cx)))
-            .on_action(cx.listener(|this, _: &PreviousScene, _, cx| this.step_scene(-1, cx)))
-            .on_action(cx.listener(|this, _: &NextScene, _, cx| this.step_scene(1, cx)))
             .on_action(cx.listener(|this, _: &CloseWindow, window, _| {
                 this.flush();
                 window.remove_window();
@@ -615,7 +613,20 @@ impl Render for Settings {
             .font_family("Segoe UI")
             .text_size(px(13.0))
             .text_color(theme::text())
-            .bg(theme::stage_bg())
+            .bg(theme::stage_bg());
+        if self.guide.is_some() {
+            let guide = self.render_guide(window, cx);
+            return root.child(guide);
+        }
+        let stage = self.render_stage(window, cx);
+        let inspector = self.render_inspector(window, cx);
+        root.on_action(cx.listener(|this, _: &ShowScene, _, cx| this.show(Section::Scene, cx)))
+            .on_action(cx.listener(|this, _: &ShowSky, _, cx| this.show(Section::Sky, cx)))
+            .on_action(cx.listener(|this, _: &ShowImage, _, cx| this.show(Section::Image, cx)))
+            .on_action(cx.listener(|this, _: &ShowSystem, _, cx| this.show(Section::System, cx)))
+            .on_action(cx.listener(|this, _: &ShowSchedule, _, cx| this.show(Section::Schedule, cx)))
+            .on_action(cx.listener(|this, _: &PreviousScene, _, cx| this.step_scene(-1, cx)))
+            .on_action(cx.listener(|this, _: &NextScene, _, cx| this.step_scene(1, cx)))
             .child(stage)
             .child(inspector)
     }

@@ -879,7 +879,7 @@ pub fn image_tab(s: &mut Settings, w: &mut Window, cx: &mut Context<Settings>) -
         "ownImage",
         format!("Separate settings for {}", scene.title()),
         own,
-        |c, on| set_own_image(c, on),
+        |c, on| c.set_has_own_image(on),
         Some("Give this scene its own tone, glow and pixel look. Turning it off goes back to the shared settings."),
         cx,
     );
@@ -951,26 +951,6 @@ pub fn image_tab(s: &mut Settings, w: &mut Window, cx: &mut Context<Settings>) -
     let dither = pick!(s, cx, "Dither pattern", dither, DitherPattern, DitherPattern::title);
     let pixels = Group::titled("Pixels").rows(vec![pixel, levels_row, dither]);
     vec![sep.into_element(), tone.into_element(), glow.into_element(), pixels.into_element()]
-}
-
-/// `sceneHasOwnImage`: turns the active scene's own image settings on, starting from the shared
-/// ones, or off, going back to the shared ones and forgetting its own.
-fn set_own_image(c: &mut WallpaperConfig, on: bool) {
-    let key = c.scene.raw().to_string();
-    if on == c.has_own_image(c.scene) {
-        return;
-    }
-    if on {
-        let img = c.image();
-        c.shared_image = Some(img);
-        c.scene_image.insert(key, img);
-    } else {
-        if let Some(shared) = c.shared_image {
-            c.set_image(shared);
-        }
-        c.scene_image.remove(&key);
-        c.shared_image = None;
-    }
 }
 
 // MARK: System

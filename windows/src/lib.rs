@@ -3,6 +3,7 @@
 //! `deepfield-wallpaper` (a windowed program: the live wallpaper and its tray icon), the way the
 //! macOS app pairs DeepField.app with its `deepfield` command.
 
+pub mod app_state;
 pub mod astronomy;
 pub mod blue_noise;
 pub mod camera;
@@ -31,6 +32,7 @@ pub mod sky_planets;
 pub mod star_system;
 pub mod transition;
 pub mod tray;
+pub mod tweaks;
 pub mod wallpaper;
 
 const USAGE: &str = "\

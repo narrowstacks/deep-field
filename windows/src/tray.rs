@@ -6,6 +6,8 @@ use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 use crate::config::{SceneKind, WallpaperConfig};
 
 pub enum TrayAction {
+    /// Show on Desktop: the scene behind the icons, or the desktop picture back
+    ToggleWallpaper,
     Customize,
     Scene(SceneKind),
     /// a saved preset, by id
@@ -36,6 +38,8 @@ pub struct Tray {
     schedule: CheckMenuItem,
     skip: MenuItem,
     skip_shown: bool,
+    wallpaper: CheckMenuItem,
+    guide: MenuId,
     customize: MenuId,
     edit: MenuId,
     quit: MenuId,
@@ -85,13 +89,16 @@ impl Tray {
         let presets_menu = Submenu::new("Presets", true);
         let schedule = CheckMenuItem::new("Change on Schedule", true, false, None);
         let skip = MenuItem::new("Next in Schedule", true, None);
+        let wallpaper = CheckMenuItem::new("Show on Desktop", true, true, None);
         let customize = MenuItem::new("Customize...", true, None);
-        let pause = MenuItem::new("Pause", true, None);
+        let pause = MenuItem::new("Pause Animation", true, None);
+        let guide = MenuItem::new("Welcome Guide...", true, None);
         let edit = MenuItem::new("Edit Settings File...", true, None);
         let quit = MenuItem::new("Quit Deep Field", true, None);
-        let _ = menu.append_items(&[&customize, &PredefinedMenuItem::separator(), &scene_menu, &presets_menu, &schedule,
-                                    &size_menu,
-                                    &PredefinedMenuItem::separator(), &pause, &edit,
+        // the Mac's order, with the scene and pixel size submenus it doesn't have after Customize
+        let _ = menu.append_items(&[&wallpaper, &pause, &customize, &PredefinedMenuItem::separator(), &scene_menu,
+                                    &presets_menu, &schedule, &size_menu,
+                                    &PredefinedMenuItem::separator(), &guide, &edit,
                                     &PredefinedMenuItem::separator(), &quit]);
         let icon = TrayIconBuilder::new()
             .with_menu(Box::new(menu.clone()))
@@ -101,7 +108,7 @@ impl Tray {
             .expect("tray icon");
         let mut tray = Tray {
             _icon: icon, scenes, sizes, presets_menu, presets: Vec::new(), requests: Vec::new(), menu, schedule, skip,
-            skip_shown: false,
+            skip_shown: false, wallpaper, guide: guide.id().clone(),
             customize: customize.id().clone(), edit: edit.id().clone(),
             quit: quit.id().clone(), pause,
         };
@@ -112,8 +119,14 @@ impl Tray {
     pub fn poll(&self) -> Option<TrayAction> {
         let ev = MenuEvent::receiver().try_recv().ok()?;
         let id = ev.id;
+        if id == *self.wallpaper.id() {
+            return Some(TrayAction::ToggleWallpaper);
+        }
         if id == self.customize {
             return Some(TrayAction::Customize);
+        }
+        if id == self.guide {
+            return Some(TrayAction::Request("welcome"));
         }
         if let Some((s, _)) = self.scenes.iter().find(|(_, i)| *i.id() == id) {
             return Some(TrayAction::Scene(*s));
@@ -153,7 +166,14 @@ impl Tray {
         for (n, item) in &self.sizes {
             item.set_checked(*n == c.pixel_size as i64);
         }
-        self.pause.set_text(if paused { "Resume" } else { "Pause" });
+        self.pause.set_text(if paused { "Resume Animation" } else { "Pause Animation" });
+    }
+
+    /// Show on Desktop's check, and Pause, which has nothing to pause with the scene off the
+    /// desktop (the Mac hides it; a tray menu item can only be greyed out).
+    pub fn update_desktop(&self, on: bool) {
+        self.wallpaper.set_checked(on);
+        self.pause.set_enabled(on);
     }
 
     /// Rebuilds the Presets submenu as the Mac's menu bar has it: each preset, checked when it's
@@ -192,8 +212,9 @@ impl Tray {
         let show = s.enabled && s.mode == crate::schedule::Mode::Rotate && s.entries.len() > 1;
         if show != self.skip_shown {
             if show {
-                // just below the toggle: Customize, separator, Scene, Presets, the toggle
-                let _ = self.menu.insert(&self.skip, 5);
+                // just below the toggle: Show on Desktop, Pause, Customize, separator, Scene,
+                // Presets, the toggle
+                let _ = self.menu.insert(&self.skip, 7);
             } else {
                 let _ = self.menu.remove(&self.skip);
             }
@@ -217,7 +238,8 @@ pub fn customize_request_path() -> std::path::PathBuf {
     crate::config_store::dir().join("customize-request")
 }
 
-/// Opens the Customize window with one of its preset dialogs showing.
+/// Opens the Customize window with one of its preset dialogs, its Schedule section or the
+/// welcome guide showing.
 pub fn request_customize(request: &str) {
     let _ = std::fs::create_dir_all(crate::config_store::dir());
     let _ = std::fs::write(customize_request_path(), request);
